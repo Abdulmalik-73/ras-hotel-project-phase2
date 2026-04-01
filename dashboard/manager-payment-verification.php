@@ -270,7 +270,7 @@ $stats = $conn->query($stats_query)->fetch_assoc();
                         </button>
                     </div>
                     
-                    <p class="text-muted">Review and verify customer payment screenshots for food orders</p>
+                    <p class="text-muted">Review and verify customer payment transaction IDs for food orders</p>
                     
                     <!-- Statistics -->
                     <div class="row mb-4">
@@ -355,15 +355,15 @@ $stats = $conn->query($stats_query)->fetch_assoc();
                                         <p class="mb-0"><strong>Reference:</strong> <code><?php echo $booking['payment_reference']; ?></code></p>
                                     </div>
                                     <div class="col-md-6">
-                                        <h6><i class="fas fa-image me-2"></i> Payment Screenshot</h6>
-                                        <?php if ($booking['payment_screenshot']): ?>
-                                            <img src="../<?php echo $booking['payment_screenshot']; ?>" 
-                                                 class="payment-screenshot img-fluid" 
-                                                 onclick="window.open('../<?php echo $booking['payment_screenshot']; ?>', '_blank')"
-                                                 title="Click to view full size">
-                                            <p class="text-muted small mt-2">Click to view full size</p>
+                                        <h6><i class="fas fa-receipt me-2"></i> Transaction ID</h6>
+                                        <?php if ($booking['transaction_id']): ?>
+                                            <div class="alert alert-info mb-2">
+                                                <strong>Transaction ID:</strong><br>
+                                                <code class="fs-6"><?php echo htmlspecialchars($booking['transaction_id']); ?></code>
+                                            </div>
+                                            <p class="text-muted small">Submitted: <?php echo date('M j, Y g:i A', strtotime($booking['screenshot_uploaded_at'])); ?></p>
                                         <?php else: ?>
-                                            <p class="text-danger"><i class="fas fa-exclamation-triangle"></i> No screenshot uploaded</p>
+                                            <p class="text-danger"><i class="fas fa-exclamation-triangle"></i> No transaction ID submitted</p>
                                         <?php endif; ?>
                                     </div>
                                 </div>
@@ -414,11 +414,14 @@ $stats = $conn->query($stats_query)->fetch_assoc();
                                             </div>
                                         </div>
                                         
-                                        <h6>Payment Screenshot</h6>
-                                        <?php if ($booking['payment_screenshot']): ?>
-                                            <img src="../<?php echo $booking['payment_screenshot']; ?>" 
-                                                 class="img-fluid border rounded mb-3"
-                                                 style="max-height: 400px;">
+                                        <h6>Transaction ID</h6>
+                                        <?php if ($booking['transaction_id']): ?>
+                                            <div class="alert alert-info mb-3">
+                                                <strong>Transaction ID:</strong><br>
+                                                <code class="fs-5"><?php echo htmlspecialchars($booking['transaction_id']); ?></code>
+                                            </div>
+                                        <?php else: ?>
+                                            <p class="text-danger">No transaction ID provided</p>
                                         <?php endif; ?>
                                         
                                         <div class="alert alert-info">
@@ -427,7 +430,7 @@ $stats = $conn->query($stats_query)->fetch_assoc();
                                             <ul class="mb-0 mt-2">
                                                 <li>Amount matches: <?php echo format_currency($booking['total_price']); ?></li>
                                                 <li>Payment method is correct: <?php echo ucfirst(str_replace('_', ' ', $booking['payment_method'] ?? '')); ?></li>
-                                                <li>Transaction is successful</li>
+                                                <li>Transaction ID is valid</li>
                                                 <li>Screenshot is clear and readable</li>
                                             </ul>
                                         </div>

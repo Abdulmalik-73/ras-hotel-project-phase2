@@ -339,7 +339,7 @@ $conn->query($create_payments_table);
                                         <li>Select your preferred bank above</li>
                                         <li>Transfer <strong><?php echo format_currency($booking_data['total_price']); ?></strong> to the provided account</li>
                                         <li>Enter the transaction ID/reference number</li>
-                                        <li>Upload a screenshot or photo of your payment receipt</li>
+                                        <li>Optionally upload a screenshot or photo of your payment receipt</li>
                                         <li>Click "Submit Payment" to complete your booking</li>
                                     </ol>
                                 </div>

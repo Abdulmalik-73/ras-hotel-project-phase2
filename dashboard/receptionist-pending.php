@@ -13,20 +13,21 @@ if ($_POST && isset($_POST['action'])) {
     $booking_id = (int)$_POST['booking_id'];
     
     if ($_POST['action'] == 'confirm') {
-        $query = "UPDATE bookings SET status = 'confirmed' WHERE id = ? AND status = 'pending'";
+        // UNIFIED APPROVAL: pending → checked_in (not just confirmed)
+        $query = "UPDATE bookings SET status = 'checked_in', actual_checkin_time = NOW(), checked_in_by = ? WHERE id = ? AND status = 'pending'";
         $stmt = $conn->prepare($query);
-        $stmt->bind_param("i", $booking_id);
+        $stmt->bind_param("ii", $_SESSION['user_id'], $booking_id);
         
-        if ($stmt->execute()) {
+        if ($stmt->execute() && $stmt->affected_rows > 0) {
             // Log the activity
             $booking_query = "SELECT user_id, booking_reference FROM bookings WHERE id = $booking_id";
             $booking_result = $conn->query($booking_query);
             if ($booking_result && $booking = $booking_result->fetch_assoc()) {
-                log_booking_activity($booking_id, $booking['user_id'], 'confirmed', 'pending', 'confirmed', 'Booking confirmed by receptionist', $_SESSION['user_id']);
+                log_booking_activity($booking_id, $booking['user_id'], 'checked_in', 'pending', 'checked_in', 'Booking approved and checked in by receptionist', $_SESSION['user_id']);
             }
-            $message = 'Booking confirmed successfully!';
+            $message = 'Booking approved and guest checked in successfully!';
         } else {
-            $error = 'Failed to confirm booking: ' . $stmt->error;
+            $error = 'Failed to approve booking or booking already processed';
         }
     } elseif ($_POST['action'] == 'cancel') {
         $cancel_reason = sanitize_input($_POST['cancel_reason']);
@@ -179,9 +180,7 @@ $pending_bookings = $conn->query("
                 <span class="text-white fw-bold">Harar Ras Hotel - Receptionist Dashboard</span>
             </a>
             <div class="ms-auto">
-                <a href="../index.php" class="btn btn-outline-light btn-sm me-2">
-                    <i class="fas fa-home"></i> Back to Website
-                </a>
+                
                 <span class="text-white me-3">
                     <i class="fas fa-user-tie"></i> Receptionist
                 </span>
@@ -227,9 +226,6 @@ $pending_bookings = $conn->query("
             </a>
             <a href="../generate_bill.php" class="nav-link" target="_blank">
                 <i class="fas fa-file-invoice-dollar me-2"></i> Generate Bill
-            </a>
-            <a href="../index.php" class="nav-link">
-                <i class="fas fa-home me-2"></i> Hotel Website
             </a>
             <a href="../logout.php" class="nav-link mt-3">
                 <i class="fas fa-sign-out-alt me-2"></i> Logout

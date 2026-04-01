@@ -208,12 +208,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['book_service'])) {
                             </div>
                             
                             <div class="alert alert-info">
-                                <i class="fas fa-info-circle"></i> <strong>Note:</strong> After booking, you'll be redirected to select your payment method and upload payment proof. Please be patient until our receptionist approves your payment screenshot. We will send a payment verification message to your email.
+                                <i class="fas fa-info-circle"></i> <strong>Note:</strong> After booking, you'll be redirected to select your payment method and submit your transaction ID. Please be patient until our receptionist verifies your payment. We will send a payment verification message to your email.
+                                <p class="mb-0 mt-2"><small><strong>Future Update:</strong> After API integration, payments will be verified automatically without manual approval.</small></p>
                             </div>
                             
                             <div class="d-grid gap-2">
                                 <button type="submit" name="book_service" class="btn btn-primary btn-lg">
-                                    <i class="fas fa-upload"></i> Submit Booking & Upload Payment
+                                    <i class="fas fa-check-circle"></i> Submit Booking & Payment Info
                                 </button>
                                 <a href="services.php#spa" class="btn btn-outline-secondary">
                                     <i class="fas fa-arrow-left"></i> Back to Services

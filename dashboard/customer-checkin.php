@@ -233,10 +233,7 @@ $room_types_result = $conn->query($room_types_query);
                         <a href="../generate_bill.php" class="list-group-item list-group-item-action" target="_blank">
                             <i class="fas fa-file-invoice-dollar"></i> Generate Bill
                         </a>
-                        <a href="../index.php" class="list-group-item list-group-item-action">
-                            <i class="fas fa-home"></i> Hotel Website
-                        </a>
-                    </div>
+                        </div>
                 </div>
             </div>
 

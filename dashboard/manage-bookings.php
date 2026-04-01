@@ -123,9 +123,7 @@ $total_pages = ceil($total_bookings / $per_page);
                 <i class="fas fa-hotel text-warning"></i> Harar Ras Hotel - Admin Dashboard
             </a>
             <div class="ms-auto">
-                <a href="../index.php" class="btn btn-outline-light btn-sm me-2">
-                    <i class="fas fa-home"></i> Back to Website
-                </a>
+                
                 <span class="text-white me-3">
                     <i class="fas fa-user-shield"></i> <?php echo $_SESSION['user_name']; ?>
                 </span>

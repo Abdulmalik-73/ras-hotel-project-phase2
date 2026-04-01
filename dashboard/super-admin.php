@@ -420,7 +420,7 @@ $stats['total_revenue'] = $revenue_row['total'] ?? 0;
         <ul class="nav-menu">
             <li><a href="super-admin.php" class="active"><i class="fas fa-chart-line"></i> Dashboard</a></li>
             <li><a href="super-admin-users.php"><i class="fas fa-users"></i> User Management</a></li>
-            <li><a href="admin.php"><i class="fas fa-cog"></i> System Settings</a></li>
+            <li><a href="settings.php"><i class="fas fa-cog"></i> System Settings</a></li>
             <li><a href="../logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
         </ul>
     </div>

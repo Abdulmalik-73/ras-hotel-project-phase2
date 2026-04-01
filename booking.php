@@ -1,7 +1,10 @@
-<?php
-session_start();
+<?php session_start();
 require_once 'includes/config.php';
 require_once 'includes/functions.php';
+require_once 'includes/RoomLockManager.php';
+
+// Initialize Room Lock Manager
+$lockManager = new RoomLockManager($conn);
 
 $selected_room_id = isset($_GET['room']) ? (int)$_GET['room'] : null;
 $selected_room = null;
@@ -38,65 +41,93 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     if (!$room) {
         $error = 'Invalid room selected';
     } else {
-        $nights = calculate_nights($check_in, $check_out);
-        $total_price = $room['price'] * $nights;
+        // Acquire room lock before creating booking
+        $lock_result = $lockManager->acquireRoomLock($room_id, $_SESSION['user_id'], $check_in, $check_out);
         
-        $booking_data = [
-            'user_id' => $_SESSION['user_id'],
-            'room_id' => $room_id,
-            'check_in' => $check_in,
-            'check_out' => $check_out,
-            'customers' => $customers,
-            'total_price' => $total_price,
-            'special_requests' => $special_requests
-        ];
-        
-        error_log("Booking data being passed to create_booking: " . print_r($booking_data, true));
-        
-        $result = create_booking($booking_data);
-        
-        if ($result['success']) {
-            // Debug: Log successful booking creation
-            error_log("Booking created successfully with ID: " . $result['booking_id']);
-            
-            // Generate payment reference and set deadline
-            $payment_ref = 'HRH-' . str_pad($result['booking_id'], 4, '0', STR_PAD_LEFT) . '-' . strtoupper(substr(md5($result['booking_id'] . time()), 0, 6));
-            $deadline = date('Y-m-d H:i:s', strtotime('+30 minutes'));
-            
-            // Update booking with payment verification fields
-            $update_query = "UPDATE bookings SET 
-                            payment_reference = ?, 
-                            payment_deadline = ?, 
-                            verification_status = 'pending_payment' 
-                            WHERE id = ?";
-            
-            $update_stmt = $conn->prepare($update_query);
-            $update_stmt->bind_param("ssi", $payment_ref, $deadline, $result['booking_id']);
-            
-            if ($update_stmt->execute()) {
-                error_log("Payment reference updated successfully: " . $payment_ref);
-            } else {
-                error_log("Failed to update payment reference: " . $update_stmt->error);
-            }
-            
-            // Log user activity for booking
-            log_user_activity($_SESSION['user_id'], 'booking', 'Room booking created: ' . $result['booking_reference'] . ' - Room ID: ' . $room_id, $_SERVER['REMOTE_ADDR'] ?? '', $_SERVER['HTTP_USER_AGENT'] ?? '');
-            
-            // Log booking activity
-            log_booking_activity($result['booking_id'], $_SESSION['user_id'], 'created', '', 'pending', 'Booking created by customer - awaiting payment', $_SESSION['user_id']);
-            
-            // Store booking reference in session for payment
-            $_SESSION['pending_booking'] = $result['booking_reference'];
-            set_message('success', 'Booking created successfully! Please upload your payment screenshot to confirm your reservation.');
-            
-            // Debug: Log redirect
-            error_log("Redirecting to: payment-upload.php?booking=" . $result['booking_id']);
-            
-            // Redirect to payment upload page
-            header('Location: payment-upload.php?booking=' . $result['booking_id']);
+        if (!$lock_result['success']) {
+            $error = 'Unable to lock room for booking: ' . $lock_result['message'];
+        } elseif ($lock_result['status'] === 'waiting') {
+            // User is in waiting queue
+            $_SESSION['room_lock_id'] = $lock_result['lock_id'];
+            $_SESSION['waiting_room'] = $room_id;
+            set_message('info', 'This room is currently being booked by another user. You are in the waiting queue at position #' . $lock_result['position'] . '. You will be notified when it\'s your turn.');
+            header('Location: my-bookings.php?waiting=1');
             exit();
         } else {
-            $error = 'Booking failed. Please try again. Error: ' . $result['message'];
+            // Lock acquired successfully, proceed with booking
+            $_SESSION['room_lock_id'] = $lock_result['lock_id'];
+            
+            $nights = calculate_nights($check_in, $check_out);
+            $total_price = $room['price'] * $nights;
+            
+            $booking_data = [
+                'user_id' => $_SESSION['user_id'],
+                'room_id' => $room_id,
+                'check_in' => $check_in,
+                'check_out' => $check_out,
+                'customers' => $customers,
+                'total_price' => $total_price,
+                'special_requests' => $special_requests
+            ];
+            
+            error_log("Booking data being passed to create_booking: " . print_r($booking_data, true));
+            
+            $result = create_booking($booking_data);
+            
+            if ($result['success']) {
+                // Debug: Log successful booking creation
+                error_log("Booking created successfully with ID: " . $result['booking_id']);
+                
+                // Generate payment reference and set deadline
+                $payment_ref = 'HRH-' . str_pad($result['booking_id'], 4, '0', STR_PAD_LEFT) . '-' . strtoupper(substr(md5($result['booking_id'] . time()), 0, 6));
+                $deadline = date('Y-m-d H:i:s', strtotime('+30 minutes'));
+                
+                // Update booking with payment verification fields
+                $update_query = "UPDATE bookings SET 
+                                payment_reference = ?, 
+                                payment_deadline = ?, 
+                                verification_status = 'pending_payment' 
+                                WHERE id = ?";
+                
+                $update_stmt = $conn->prepare($update_query);
+                $update_stmt->bind_param("ssi", $payment_ref, $deadline, $result['booking_id']);
+                
+                if ($update_stmt->execute()) {
+                    error_log("Payment reference updated successfully: " . $payment_ref);
+                } else {
+                    error_log("Failed to update payment reference: " . $update_stmt->error);
+                }
+                
+                // Log user activity for booking
+                log_user_activity($_SESSION['user_id'], 'booking', 'Room booking created: ' . $result['booking_reference'] . ' - Room ID: ' . $room_id, $_SERVER['REMOTE_ADDR'] ?? '', $_SERVER['HTTP_USER_AGENT'] ?? '');
+                
+                // Log booking activity
+                log_booking_activity($result['booking_id'], $_SESSION['user_id'], 'created', '', 'pending', 'Booking created by customer - awaiting payment', $_SESSION['user_id']);
+                
+                // Store booking reference in session for payment
+                $_SESSION['pending_booking'] = $result['booking_reference'];
+                $_SESSION['current_booking_id'] = $result['booking_id'];
+                set_message('success', 'Booking created successfully! Please submit your transaction ID to confirm your reservation.');
+                
+                // Debug: Log redirect
+                error_log("Redirecting to: payment-upload.php?booking=" . $result['booking_id']);
+                
+                // Redirect to payment upload page
+                header('Location: payment-upload.php?booking=' . $result['booking_id']);
+                exit();
+            } else {
+                // Release lock if booking failed
+                $lockManager->releaseRoomLock($lock_result['lock_id'], 'booking_failed');
+                
+                // Check if this is a duplicate booking error
+                if (isset($result['error_code']) && $result['error_code'] === 'DUPLICATE_BOOKING' && isset($result['existing_booking'])) {
+                    $existing = $result['existing_booking'];
+                    $_SESSION['duplicate_booking_error'] = $existing;
+                    $error = 'DUPLICATE_BOOKING'; // Flag for display
+                } else {
+                    $error = 'Booking failed. Please try again. Error: ' . $result['message'];
+                }
+            }
         }
     }
 }
@@ -301,8 +332,33 @@ $rooms = get_all_rooms();
                             </h3>
                         </div>
                         <div class="card-body">
-                            <?php if ($error): ?>
-                                <div class="alert alert-danger"><?php echo $error; ?></div>
+                            <?php if ($error === 'DUPLICATE_BOOKING' && isset($_SESSION['duplicate_booking_error'])): ?>
+                                <?php $existing = $_SESSION['duplicate_booking_error']; ?>
+                                <div class="alert alert-danger" role="alert" style="position: sticky; top: 20px; z-index: 1000; animation: none !important;">
+                                    <h5 class="alert-heading"><i class="fas fa-exclamation-triangle"></i> Booking Not Allowed</h5>
+                                    <p class="mb-2"><strong>You already have an active booking for overlapping dates.</strong></p>
+                                    <p class="mb-3">Only one room can be booked per account at a time.</p>
+                                    <hr>
+                                    <h6 class="mb-3">Your Existing Booking:</h6>
+                                    <ul class="mb-3">
+                                        <li><strong>Room:</strong> <?php echo htmlspecialchars($existing['room_name']); ?> (Room <?php echo htmlspecialchars($existing['room_number']); ?>)</li>
+                                        <li><strong>Check-in Date:</strong> <?php echo htmlspecialchars($existing['check_in_date']); ?></li>
+                                        <li><strong>Booking Reference:</strong> <?php echo htmlspecialchars($existing['reference']); ?></li>
+                                        <li><strong>Status:</strong> <span class="badge bg-warning"><?php echo htmlspecialchars($existing['status']); ?></span></li>
+                                    </ul>
+                                    <div class="d-flex gap-2">
+                                        <a href="my-bookings.php" class="btn btn-primary btn-sm">
+                                            <i class="fas fa-list"></i> View My Bookings
+                                        </a>
+                                        <button type="button" class="btn btn-secondary btn-sm" onclick="this.parentElement.parentElement.style.display='none'">
+                                            <i class="fas fa-times"></i> Dismiss
+                                        </button>
+                                    </div>
+                                </div>
+                            <?php elseif ($error): ?>
+                                <div class="alert alert-danger" role="alert" style="animation: none !important;">
+                                    <?php echo htmlspecialchars($error); ?>
+                                </div>
                             <?php endif; ?>
                             
                             <?php if (!is_logged_in()): ?>
@@ -334,16 +390,74 @@ $rooms = get_all_rooms();
                             <form method="POST" action="" id="bookingForm" <?php echo !is_logged_in() ? 'style="pointer-events: none;"' : ''; ?>>
                                 <div class="mb-4">
                                     <label class="form-label fw-bold">Select Room *</label>
-                                    <select name="room_id" id="roomSelect" class="form-select" required>
+                                    <select name="room_id" id="roomSelect" class="form-select" required style="font-size: 14px;">
                                         <option value="">Choose a room...</option>
-                                        <?php foreach ($rooms as $room): ?>
-                                        <option value="<?php echo $room['id']; ?>" 
-                                                data-price="<?php echo $room['price']; ?>"
-                                                data-capacity="<?php echo $room['capacity']; ?>"
-                                                <?php echo ($selected_room && $selected_room['id'] == $room['id']) ? 'selected' : ''; ?>>
-                                            <?php echo htmlspecialchars($room['name']); ?> - <?php echo format_currency($room['price']); ?>/night
-                                        </option>
-                                        <?php endforeach; ?>
+                                        
+                                        <optgroup label="Standard Single Room - ETB 2,000.00/night">
+                                            <option value="1" data-price="2000" data-capacity="1">Standard Single Room Number 1 - ETB 2,000.00/night</option>
+                                            <option value="2" data-price="2000" data-capacity="1">Standard Single Room Number 2 - ETB 2,000.00/night</option>
+                                            <option value="3" data-price="2000" data-capacity="1">Standard Single Room Number 3 - ETB 2,000.00/night</option>
+                                            <option value="4" data-price="2000" data-capacity="1">Standard Single Room Number 4 - ETB 2,000.00/night</option>
+                                        </optgroup>
+                                        
+                                        <optgroup label="Standard Double Room - ETB 2,500.00/night">
+                                            <option value="5" data-price="2500" data-capacity="2">Standard Double Room Number 5 - ETB 2,500.00/night</option>
+                                            <option value="6" data-price="2500" data-capacity="2">Standard Double Room Number 6 - ETB 2,500.00/night</option>
+                                            <option value="7" data-price="2500" data-capacity="2">Standard Double Room Number 7 - ETB 2,500.00/night</option>
+                                            <option value="8" data-price="2500" data-capacity="2">Standard Double Room Number 8 - ETB 2,500.00/night</option>
+                                        </optgroup>
+                                        
+                                        <optgroup label="Deluxe Single Room - ETB 3,000.00/night">
+                                            <option value="9" data-price="3000" data-capacity="1">Deluxe Single Room Number 9 - ETB 3,000.00/night</option>
+                                            <option value="10" data-price="3000" data-capacity="1">Deluxe Single Room Number 10 - ETB 3,000.00/night</option>
+                                            <option value="11" data-price="3000" data-capacity="1">Deluxe Single Room Number 11 - ETB 3,000.00/night</option>
+                                            <option value="12" data-price="3000" data-capacity="1">Deluxe Single Room Number 12 - ETB 3,000.00/night</option>
+                                        </optgroup>
+                                        
+                                        <optgroup label="Deluxe Double Room - ETB 3,500.00/night">
+                                            <option value="13" data-price="3500" data-capacity="2">Deluxe Double Room Number 13 - ETB 3,500.00/night</option>
+                                            <option value="14" data-price="3500" data-capacity="2">Deluxe Double Room Number 14 - ETB 3,500.00/night</option>
+                                            <option value="15" data-price="3500" data-capacity="2">Deluxe Double Room Number 15 - ETB 3,500.00/night</option>
+                                            <option value="16" data-price="3500" data-capacity="2">Deluxe Double Room Number 16 - ETB 3,500.00/night</option>
+                                        </optgroup>
+                                        
+                                        <optgroup label="Double (King Size) - ETB 3,000.00/night">
+                                            <option value="17" data-price="3000" data-capacity="2">Double (King Size) Room Number 17 - ETB 3,000.00/night</option>
+                                            <option value="18" data-price="3000" data-capacity="2">Double (King Size) Room Number 18 - ETB 3,000.00/night</option>
+                                            <option value="19" data-price="3000" data-capacity="2">Double (King Size) Room Number 19 - ETB 3,000.00/night</option>
+                                            <option value="20" data-price="3000" data-capacity="2">Double (King Size) Room Number 20 - ETB 3,000.00/night</option>
+                                        </optgroup>
+                                        
+                                        <optgroup label="Suite Room - ETB 4,000.00/night">
+                                            <option value="21" data-price="4000" data-capacity="3">Suite Room Number 21 - ETB 4,000.00/night</option>
+                                            <option value="22" data-price="4000" data-capacity="3">Suite Room Number 22 - ETB 4,000.00/night</option>
+                                            <option value="23" data-price="4000" data-capacity="3">Suite Room Number 23 - ETB 4,000.00/night</option>
+                                            <option value="24" data-price="4000" data-capacity="3">Suite Room Number 24 - ETB 4,000.00/night</option>
+                                            <option value="25" data-price="4000" data-capacity="3">Suite Room Number 25 - ETB 4,000.00/night</option>
+                                            <option value="26" data-price="4000" data-capacity="3">Suite Room Number 26 - ETB 4,000.00/night</option>
+                                            <option value="27" data-price="4000" data-capacity="3">Suite Room Number 27 - ETB 4,000.00/night</option>
+                                            <option value="28" data-price="4000" data-capacity="3">Suite Room Number 28 - ETB 4,000.00/night</option>
+                                        </optgroup>
+                                        
+                                        <optgroup label="Family (Team Bed) - ETB 4,000.00/night">
+                                            <option value="29" data-price="4000" data-capacity="4">Family (Team Bed) Room Number 29 - ETB 4,000.00/night</option>
+                                            <option value="30" data-price="4000" data-capacity="4">Family (Team Bed) Room Number 30 - ETB 4,000.00/night</option>
+                                            <option value="31" data-price="4000" data-capacity="4">Family (Team Bed) Room Number 31 - ETB 4,000.00/night</option>
+                                            <option value="32" data-price="4000" data-capacity="4">Family (Team Bed) Room Number 32 - ETB 4,000.00/night</option>
+                                        </optgroup>
+                                        
+                                        <optgroup label="Executive Suite - ETB 6,000.00/night">
+                                            <option value="33" data-price="6000" data-capacity="3">Executive Suite Room Number 33 - ETB 6,000.00/night</option>
+                                            <option value="34" data-price="6000" data-capacity="3">Executive Suite Room Number 34 - ETB 6,000.00/night</option>
+                                            <option value="35" data-price="6000" data-capacity="3">Executive Suite Room Number 35 - ETB 6,000.00/night</option>
+                                            <option value="36" data-price="6000" data-capacity="3">Executive Suite Room Number 36 - ETB 6,000.00/night</option>
+                                            <option value="37" data-price="6000" data-capacity="3">Executive Suite Room Number 37 - ETB 6,000.00/night</option>
+                                        </optgroup>
+                                        
+                                        <optgroup label="Presidential Suite - ETB 8,000.00/night">
+                                            <option value="38" data-price="8000" data-capacity="4">Presidential Suite Room Number 38 - ETB 8,000.00/night</option>
+                                            <option value="39" data-price="8000" data-capacity="4">Presidential Suite Room Number 39 - ETB 8,000.00/night</option>
+                                        </optgroup>
                                     </select>
                                 </div>
                                 

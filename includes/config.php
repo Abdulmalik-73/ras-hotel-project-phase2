@@ -84,6 +84,9 @@ require_once __DIR__ . '/auth.php';
 // Include helper functions
 require_once __DIR__ . '/functions.php';
 
+// Include language system
+require_once __DIR__ . '/language.php';
+
 // AUTO-FIX DATABASE: Create checkins table if it doesn't exist
 try {
     // Check if checkins table exists

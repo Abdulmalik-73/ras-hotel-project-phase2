@@ -7,7 +7,7 @@ session_start();
 require_once '../includes/config.php';
 require_once '../includes/functions.php';
 
-require_role('admin'); // Only admins can modify settings
+require_role('admin'); // Admins and Super Admins can modify settings (super_admin has access to everything)
 
 // Handle settings update
 if ($_POST) {
@@ -345,10 +345,7 @@ foreach ($counts_queries as $key => $query) {
                                         <button class="btn btn-outline-success" onclick="backupDatabase()">
                                             <i class="fas fa-download me-2"></i> Backup Database
                                         </button>
-                                        <a href="../" class="btn btn-outline-secondary">
-                                            <i class="fas fa-external-link-alt me-2"></i> View Website
-                                        </a>
-                                    </div>
+                                        </div>
                                 </div>
                             </div>
                         </div>

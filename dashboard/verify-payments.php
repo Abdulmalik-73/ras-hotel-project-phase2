@@ -340,14 +340,15 @@ $pending_payments = $conn->query("
                                         <p><strong>Payment Method:</strong> <?php echo ucfirst(str_replace('_', ' ', $booking['payment_method'] ?? '')); ?></p>
                                     </div>
                                     <div class="col-md-6">
-                                        <h6>Payment Screenshot</h6>
-                                        <?php if ($booking['payment_screenshot']): ?>
-                                            <img src="../<?php echo $booking['payment_screenshot']; ?>" 
-                                                 class="payment-screenshot img-fluid" 
-                                                 onclick="window.open('../<?php echo $booking['payment_screenshot']; ?>', '_blank')">
-                                            <p class="text-muted small mt-2">Click to view full size</p>
+                                        <h6>Transaction ID</h6>
+                                        <?php if ($booking['transaction_id']): ?>
+                                            <div class="alert alert-info mb-2">
+                                                <strong>Transaction ID:</strong><br>
+                                                <code class="fs-6"><?php echo htmlspecialchars($booking['transaction_id']); ?></code>
+                                            </div>
+                                            <p class="text-muted small">Submitted: <?php echo date('M j, Y g:i A', strtotime($booking['screenshot_uploaded_at'])); ?></p>
                                         <?php else: ?>
-                                            <p class="text-danger">No screenshot uploaded</p>
+                                            <p class="text-danger">No transaction ID submitted</p>
                                         <?php endif; ?>
                                     </div>
                                 </div>

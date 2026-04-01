@@ -432,9 +432,6 @@ $staff_count = $staff_count_result->fetch_assoc()['staff_count'];
                 <span style="color: #2c3e50; font-weight: bold;" class="d-sm-none">Ras Hotel</span>
             </a>
             <div class="ms-auto d-flex align-items-center gap-2">
-                <a href="../index.php" class="btn btn-outline-light btn-sm d-none d-sm-inline-block">
-                    <i class="fas fa-home"></i> <span class="d-none d-lg-inline">Website</span>
-                </a>
                 <span class="user-info me-2 d-none d-md-inline">
                     <i class="fas fa-user-tie"></i> Manager
                 </span>
@@ -685,7 +682,7 @@ $staff_count = $staff_count_result->fetch_assoc()['staff_count'];
                     </div>
                     
                     <div class="text-center mt-4 text-muted">
-                        <small>© 2024 Harar Ras Hotel</small>
+                        <small>© 2026 Harar Ras Hotel. All Rights Reserved.</small>
                     </div>
                 </div>
                 </div>

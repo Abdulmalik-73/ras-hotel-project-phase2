@@ -58,17 +58,85 @@ if ($_POST && isset($_POST['action'])) {
             
         case 'confirm_booking':
             $booking_ref = sanitize_input($_POST['booking_ref']);
-            $query = "UPDATE bookings SET status = 'confirmed' WHERE booking_reference = '$booking_ref' AND status = 'pending'";
-            if ($conn->query($query)) {
-                // Log the confirmation
-                $booking_query = "SELECT id, user_id FROM bookings WHERE booking_reference = '$booking_ref'";
-                $booking_result = $conn->query($booking_query);
-                if ($booking_result && $booking = $booking_result->fetch_assoc()) {
-                    log_booking_activity($booking['id'], $booking['user_id'], 'confirmed', 'pending', 'confirmed', 'Booking confirmed by receptionist', $_SESSION['user_id']);
+            
+            // UNIFIED APPROVAL: pending → checked_in (not just confirmed)
+            $query = "UPDATE bookings SET status = 'checked_in', actual_checkin_time = NOW(), checked_in_by = ? WHERE booking_reference = ? AND status = 'pending'";
+            $stmt = $conn->prepare($query);
+            $stmt->bind_param("is", $_SESSION['user_id'], $booking_ref);
+            
+            if ($stmt->execute() && $stmt->affected_rows > 0) {
+                // Get booking details for checkin record
+                $booking_query = "SELECT b.*, r.name as room_name, r.room_number, 
+                                 CONCAT(u.first_name, ' ', u.last_name) as guest_name,
+                                 u.email, u.phone
+                                 FROM bookings b
+                                 LEFT JOIN rooms r ON b.room_id = r.id
+                                 JOIN users u ON b.user_id = u.id
+                                 WHERE b.booking_reference = ?";
+                $log_stmt = $conn->prepare($booking_query);
+                $log_stmt->bind_param("s", $booking_ref);
+                $log_stmt->execute();
+                $booking = $log_stmt->get_result()->fetch_assoc();
+                
+                if ($booking) {
+                    // Log the activity
+                    log_booking_activity($booking['id'], $booking['user_id'], 'checked_in', 'pending', 'checked_in', 'Booking approved and checked in by receptionist', $_SESSION['user_id']);
+                    
+                    // Create checkin record
+                    $nights = (int)((strtotime($booking['check_out_date']) - strtotime($booking['check_in_date'])) / (60 * 60 * 24));
+                    $confirmation_number = 'CHK-' . date('Ymd') . '-' . strtoupper(substr(uniqid(), -6));
+                    
+                    $checkin_insert = $conn->prepare("
+                        INSERT INTO checkins (
+                            customer_id, booking_id, hotel_name, hotel_location, 
+                            check_in_date, check_out_date,
+                            guest_full_name, guest_date_of_birth, guest_id_type, guest_id_number, 
+                            guest_nationality, guest_home_address, guest_phone_number, guest_email_address,
+                            room_type, room_number, nights_stay, number_of_guests, rate_per_night,
+                            payment_type, amount_paid, balance_due, confirmation_number, 
+                            additional_requests, checked_in_by
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ");
+                    
+                    $hotel_name = 'Harar Ras Hotel';
+                    $hotel_location = 'Jugol Street, Harar, Ethiopia';
+                    $guest_dob = '1990-01-01';
+                    $id_type = $booking['id_type'] ?? 'national_id';
+                    $id_number = $booking['id_number'] ?? 'N/A';
+                    $nationality = 'Ethiopian';
+                    $address = $booking['special_requests'] ?? 'N/A';
+                    $payment_type = $booking['payment_method'] ?? 'cash';
+                    $amount_paid = (float)$booking['total_price'];
+                    $balance_due = 0.00;
+                    $additional_requests = $booking['special_requests'] ?? '';
+                    $number_of_guests = (int)$booking['customers'];
+                    $rate_per_night = (float)$booking['total_price'];
+                    $user_id = (int)$booking['user_id'];
+                    $checked_in_by = (int)$_SESSION['user_id'];
+                    
+                    $guest_phone = $booking['phone'] ?? 'N/A';
+                    $guest_email = $booking['email'] ?? 'noemail@example.com';
+                    $guest_name = $booking['guest_name'] ?? 'Guest';
+                    $room_name = $booking['room_name'] ?? 'Standard Room';
+                    $room_number = $booking['room_number'] ?? 'N/A';
+                    
+                    $checkin_insert->bind_param(
+                        "iissssssssssssssiidsddssi",
+                        $user_id, $booking['id'], $hotel_name, $hotel_location,
+                        $booking['check_in_date'], $booking['check_out_date'],
+                        $guest_name, $guest_dob, $id_type, $id_number,
+                        $nationality, $address, $guest_phone, $guest_email,
+                        $room_name, $room_number, $nights, $number_of_guests,
+                        $rate_per_night, $payment_type, $amount_paid, $balance_due,
+                        $confirmation_number, $additional_requests, $checked_in_by
+                    );
+                    
+                    $checkin_insert->execute();
                 }
-                echo json_encode(['success' => true, 'message' => 'Booking confirmed successfully']);
+                
+                echo json_encode(['success' => true, 'message' => 'Booking approved and guest checked in successfully']);
             } else {
-                echo json_encode(['success' => false, 'message' => 'Failed to confirm booking']);
+                echo json_encode(['success' => false, 'message' => 'Failed to approve booking or booking already processed']);
             }
             exit();
             
@@ -232,9 +300,7 @@ $pending_bookings = $conn->query("
                 <i class="fas fa-hotel text-gold"></i> Harar Ras Hotel - Reception
             </a>
             <div class="navbar-nav ms-auto">
-                <a class="nav-link" href="../index.php">
-                    <i class="fas fa-home"></i> Back to Website
-                </a>
+                
                 <span class="navbar-text me-3">
                     <i class="fas fa-user-tie"></i> Welcome, <?php echo htmlspecialchars($_SESSION['user_name']); ?> (Receptionist)
                 </span>
@@ -278,10 +344,7 @@ $pending_bookings = $conn->query("
                         <a href="../generate_bill.php" class="list-group-item list-group-item-action" target="_blank">
                             <i class="fas fa-file-invoice-dollar"></i> Generate Bill
                         </a>
-                        <a href="../index.php" class="list-group-item list-group-item-action">
-                            <i class="fas fa-home"></i> Hotel Website
-                        </a>
-                    </div>
+                        </div>
                 </div>
             </div>
 
@@ -320,14 +383,13 @@ $pending_bookings = $conn->query("
                                         
                                         if ($booking_type == 'room') {
                                             $room_name = htmlspecialchars($booking['room_name']);
-                                            $room_number = htmlspecialchars($booking['room_number']);
+                                            $room_number = trim($booking['room_number']);
                                             
-                                            // Format: "Room Name - Room Number" 
-                                            // Only show room number if it exists and is not empty
-                                            if (!empty($room_number) && $room_number != 'N/A' && $room_number != '' && $room_number != $room_name) {
-                                                $service_display = '<strong>Room</strong><br><small>' . $room_name . '<br>Room ' . $room_number . '</small>';
+                                            // Show room name and number
+                                            if (!empty($room_number) && $room_number != 'N/A' && $room_number != '0') {
+                                                $service_display = '<strong style="color: white;">Room</strong><br><span style="font-size: 13px; color: white;">' . $room_name . '</span><br><span style="font-weight: 700; color: white; font-size: 16px;">#' . htmlspecialchars($room_number) . '</span>';
                                             } else {
-                                                $service_display = '<strong>Room</strong><br><small>' . $room_name . '</small>';
+                                                $service_display = '<strong style="color: white;">Room</strong><br><small style="color: white;">' . $room_name . '</small>';
                                             }
                                             $service_badge_class = 'bg-primary';
                                         } elseif ($booking_type == 'food_order') {
@@ -569,14 +631,13 @@ $pending_bookings = $conn->query("
                                         
                                         if ($booking_type == 'room') {
                                             $room_name = htmlspecialchars($booking['room_name']);
-                                            $room_number = htmlspecialchars($booking['room_number']);
+                                            $room_number = trim($booking['room_number']);
                                             
-                                            // Format: "Room Name - Room Number"
-                                            // Only show room number if it exists and is not empty
-                                            if (!empty($room_number) && $room_number != 'N/A' && $room_number != '' && $room_number != $room_name) {
-                                                $service_display = '<strong>Room</strong><br><small>' . $room_name . '<br>Room ' . $room_number . '</small>';
+                                            // Show room name and number
+                                            if (!empty($room_number) && $room_number != 'N/A' && $room_number != '0') {
+                                                $service_display = '<strong style="color: white;">Room</strong><br><span style="font-size: 13px; color: white;">' . $room_name . '</span><br><span style="font-weight: 700; color: white; font-size: 16px;">#' . htmlspecialchars($room_number) . '</span>';
                                             } else {
-                                                $service_display = '<strong>Room</strong><br><small>' . $room_name . '</small>';
+                                                $service_display = '<strong style="color: white;">Room</strong><br><small style="color: white;">' . $room_name . '</small>';
                                             }
                                             $service_badge_class = 'bg-primary';
                                         } elseif ($booking_type == 'food_order') {

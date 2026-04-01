@@ -235,9 +235,7 @@ $staff_stats = $conn->query($staff_stats_query)->fetch_assoc();
                 <span class="text-white fw-bold">Harar Ras Hotel - Manager Dashboard</span>
             </a>
             <div class="ms-auto">
-                <a href="../index.php" class="btn btn-outline-light btn-sm me-2">
-                    <i class="fas fa-home"></i> Back to Website
-                </a>
+                
                 <span class="text-white me-3">
                     <i class="fas fa-user-tie"></i> Manager
                 </span>

@@ -14,6 +14,7 @@ if ($_POST) {
             $room_id = (int)$_POST['room_id'];
             $status = sanitize_input($_POST['status']);
             
+            // Update room status directly
             $query = "UPDATE rooms SET status = ? WHERE id = ?";
             $stmt = $conn->prepare($query);
             $stmt->bind_param("si", $status, $room_id);
@@ -68,15 +69,16 @@ $rooms = $conn->query($rooms_query);
 // Get room statistics
 $room_stats_query = "SELECT 
                      COUNT(*) as total_rooms,
-                     COUNT(CASE WHEN r.status = 'active' AND r.status != 'occupied' AND b.id IS NULL THEN 1 END) as active_rooms,
-                     COUNT(CASE WHEN r.status = 'occupied' OR b.id IS NOT NULL THEN 1 END) as occupied_rooms,
-                     COUNT(CASE WHEN r.status = 'maintenance' THEN 1 END) as maintenance_rooms
+                     COUNT(CASE WHEN r.status = 'active' AND b.id IS NULL THEN 1 END) as available_rooms,
+                     COUNT(CASE WHEN r.status = 'occupied' OR (r.status = 'active' AND b.id IS NOT NULL) THEN 1 END) as occupied_rooms,
+                     COUNT(CASE WHEN r.status = 'maintenance' THEN 1 END) as maintenance_rooms,
+                     COUNT(CASE WHEN r.status = 'inactive' THEN 1 END) as inactive_rooms
                      FROM rooms r
                      LEFT JOIN bookings b ON r.id = b.room_id AND b.status = 'checked_in'";
 
 $room_stats = $conn->query($room_stats_query)->fetch_assoc();
-$available_rooms = $room_stats['total_rooms'] - $room_stats['occupied_rooms'] - $room_stats['maintenance_rooms'];
-$total_active = $room_stats['total_rooms'] - $room_stats['maintenance_rooms'];
+$available_rooms = $room_stats['available_rooms'];
+$total_active = $room_stats['total_rooms'] - $room_stats['maintenance_rooms'] - $room_stats['inactive_rooms'];
 $occupancy_rate = $total_active > 0 ? round(($room_stats['occupied_rooms'] / $total_active) * 100, 1) : 0;
 ?>
 
@@ -185,9 +187,7 @@ $occupancy_rate = $total_active > 0 ? round(($room_stats['occupied_rooms'] / $to
                 <span class="text-white fw-bold">Harar Ras Hotel - Receptionist Dashboard</span>
             </a>
             <div class="ms-auto">
-                <a href="../index.php" class="btn btn-outline-light btn-sm me-2">
-                    <i class="fas fa-home"></i> Back to Website
-                </a>
+                
                 <span class="text-white me-3">
                     <i class="fas fa-user-tie"></i> Receptionist
                 </span>
@@ -229,10 +229,7 @@ $occupancy_rate = $total_active > 0 ? round(($room_stats['occupied_rooms'] / $to
                         <a href="../generate_bill.php" class="nav-link" target="_blank">
                             <i class="fas fa-file-invoice-dollar me-2"></i> Generate Bill
                         </a>
-                        <a href="../index.php" class="nav-link">
-                            <i class="fas fa-home me-2"></i> Hotel Website
-                        </a>
-                    </nav>
+                        </nav>
                     
                     <div class="mt-auto">
                         <a href="../logout.php" class="nav-link text-white">

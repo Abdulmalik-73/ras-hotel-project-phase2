@@ -1,14 +1,17 @@
 -- =====================================================
--- RAS HOTEL - COMPREHENSIVE HOTEL MANAGEMENT SYSTEM
+-- HARAR RAS HOTEL - COMPREHENSIVE HOTEL MANAGEMENT SYSTEM
 -- =====================================================
 -- Complete hotel management database with all features
--- Database name: ras_hotel
+-- Database name: harar_ras_hotel
 -- Error-free and ready for production
 -- =====================================================
 
--- Create and use database
-CREATE DATABASE IF NOT EXISTS ras_hotel CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-USE ras_hotel;
+-- NOTE: Make sure you have selected the 'harar_ras_hotel' database before importing!
+-- If database doesn't exist, create it first:
+-- CREATE DATABASE harar_ras_hotel CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- Use the database
+USE harar_ras_hotel;
 
 -- Set character set
 SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
@@ -16,8 +19,49 @@ SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci;
 -- Disable foreign key checks temporarily for table creation
 SET FOREIGN_KEY_CHECKS = 0;
 
--- Drop checkins table if exists to avoid column conflicts
-DROP TABLE IF EXISTS checkins;
+-- =====================================================
+-- STEP 1: DROP ALL EXISTING TABLES (Clean slate)
+-- =====================================================
+
+DROP TABLE IF EXISTS admin_audit_logs;
+DROP TABLE IF EXISTS fraud_detection_log;
+DROP TABLE IF EXISTS payment_gateway_config;
+DROP TABLE IF EXISTS payment_transactions;
+DROP TABLE IF EXISTS refunds;
+DROP TABLE IF EXISTS booking_cancellations;
+DROP TABLE IF EXISTS guest_preferences;
+DROP TABLE IF EXISTS contact_messages;
+DROP TABLE IF EXISTS newsletter_subscriptions;
+DROP TABLE IF EXISTS login_attempts;
+DROP TABLE IF EXISTS password_resets;
+DROP TABLE IF EXISTS oauth_tokens;
+DROP TABLE IF EXISTS email_logs;
+DROP TABLE IF EXISTS hotel_settings;
+DROP TABLE IF EXISTS maintenance_requests;
+DROP TABLE IF EXISTS housekeeping;
+DROP TABLE IF EXISTS incidental_charges;
+DROP TABLE IF EXISTS room_keys;
+DROP TABLE IF EXISTS checkin_checkout_log;
+DROP TABLE IF EXISTS user_activity_log;
+DROP TABLE IF EXISTS booking_activity_log;
+DROP TABLE IF EXISTS customer_feedback;
+DROP TABLE IF EXISTS payment_verification_log;
+DROP TABLE IF EXISTS payment_verification_queue;
+DROP TABLE IF EXISTS payment_method_instructions;
+DROP TABLE IF EXISTS payments;
+DROP TABLE IF EXISTS service_bookings;
+DROP TABLE IF EXISTS services;
+DROP TABLE IF EXISTS food_order_items;
+DROP TABLE IF EXISTS food_orders;
+DROP TABLE IF EXISTS food_menu;
+DROP TABLE IF EXISTS room_locks;
+DROP TABLE IF EXISTS bookings;
+DROP TABLE IF EXISTS rooms;
+DROP TABLE IF EXISTS users;
+
+-- =====================================================
+-- STEP 2: CREATE CORE TABLES
+-- =====================================================
 
 -- =====================================================
 -- STEP 1: CREATE CORE TABLES
@@ -34,6 +78,7 @@ CREATE TABLE IF NOT EXISTS users (
     password VARCHAR(255) NOT NULL,
     profile_photo VARCHAR(255) DEFAULT NULL,
     address TEXT DEFAULT NULL,
+    preferred_language ENUM('en', 'am', 'om') DEFAULT 'en' COMMENT 'en=English, am=Amharic, om=Afan Oromo',
     email_notifications TINYINT(1) DEFAULT 1,
     sms_notifications TINYINT(1) DEFAULT 1,
     booking_reminders TINYINT(1) DEFAULT 1,
@@ -45,7 +90,8 @@ CREATE TABLE IF NOT EXISTS users (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     INDEX idx_email (email),
     INDEX idx_username (username),
-    INDEX idx_role (role)
+    INDEX idx_role (role),
+    INDEX idx_language (preferred_language)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- Rooms Table - UPDATED WITHOUT REMOVED ROOM TYPES
@@ -175,9 +221,10 @@ CREATE TABLE IF NOT EXISTS payment_verification_log (
     id INT AUTO_INCREMENT PRIMARY KEY,
     booking_id INT NOT NULL,
     payment_reference VARCHAR(50) NOT NULL,
-    action_type ENUM('screenshot_uploaded', 'verification_approved', 'verification_rejected', 'payment_expired') NOT NULL,
+    action_type ENUM('screenshot_uploaded', 'transaction_id_submitted', 'verification_approved', 'verification_rejected', 'payment_expired') NOT NULL,
     performed_by INT NULL,
     screenshot_path VARCHAR(255) NULL,
+    transaction_id VARCHAR(100) NULL,
     verification_notes TEXT NULL,
     bank_method VARCHAR(50) NULL,
     ip_address VARCHAR(45) NULL,
@@ -197,6 +244,7 @@ CREATE TABLE IF NOT EXISTS payment_verification_queue (
     total_amount DECIMAL(10,2) NOT NULL,
     payment_method VARCHAR(50) NULL,
     screenshot_path VARCHAR(255) NULL,
+    transaction_id VARCHAR(100) NULL,
     uploaded_at TIMESTAMP NULL,
     priority ENUM('low', 'normal', 'high', 'urgent') DEFAULT 'normal',
     status ENUM('pending', 'in_progress', 'completed') DEFAULT 'pending',
@@ -205,6 +253,21 @@ CREATE TABLE IF NOT EXISTS payment_verification_queue (
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (booking_id) REFERENCES bookings(id) ON DELETE CASCADE,
     FOREIGN KEY (assigned_to) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Payment Verification Attempts Table (for automatic API verification logging)
+CREATE TABLE IF NOT EXISTS payment_verification_attempts (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    transaction_id VARCHAR(100) NOT NULL,
+    gateway VARCHAR(50) NOT NULL,
+    verified TINYINT(1) DEFAULT 0,
+    amount_match TINYINT(1) DEFAULT NULL,
+    date_match TINYINT(1) DEFAULT NULL,
+    response_data TEXT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_transaction_id (transaction_id),
+    INDEX idx_gateway (gateway),
+    INDEX idx_created_at (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =====================================================
@@ -411,11 +474,11 @@ ON DUPLICATE KEY UPDATE setting_key=setting_key;
 INSERT INTO payment_method_instructions 
 (method_code, method_name, bank_name, account_number, account_holder_name, mobile_number, payment_instructions, verification_tips, display_order) 
 VALUES
-('telebirr', 'TeleBirr', 'Ethio Telecom', '0911-123-456', 'Group Brand Hotel', '0911-123-456', 
+('telebirr', 'TeleBirr', 'Ethio Telecom', '0973409026', 'Abdulmalik Nure', NULL, 
 '1. Open TeleBirr app
 2. Select Send Money
 3. Enter amount: {AMOUNT}
-4. Enter recipient: 0911-123-456
+4. Enter recipient: 0973409026
 5. Add reference: {REFERENCE}
 6. Complete transaction
 7. Take screenshot of confirmation', 
@@ -643,15 +706,9 @@ INSERT INTO room_images (room_id, image_path, alt_text, is_primary, display_orde
 (6, 'assets/images/rooms/executive-suite.jpg', 'Executive Suite - Main View', TRUE, 1),
 (7, 'assets/images/rooms/presidential-suite.jpg', 'Presidential Suite - Living Room', TRUE, 1);
 
--- Insert Default Superadmin User (PERMANENT SOLUTION)
-INSERT IGNORE INTO users (first_name, last_name, username, email, phone, password, role, status) VALUES
-('Super', 'Admin', 'superadmin', 'superadmin@groupbrand.com', '+1234567890', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'super_admin', 'active');
+-- Insert Default Superadmin User (REMOVED - Using correct credentials below)
 
--- Insert Test Users for Role Testing
-INSERT IGNORE INTO users (first_name, last_name, username, email, phone, password, role, status) VALUES
-('Test', 'Admin', 'testadmin', 'admin@test.com', '+251911111111', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin', 'active'),
-('Test', 'Manager', 'testmanager', 'manager@test.com', '+251922222222', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'manager', 'active'),
-('Test', 'Customer', 'testcustomer', 'customer@test.com', '+251944444444', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'customer', 'active');
+-- Insert Test Users for Role Testing (REMOVED - Using correct credentials below)
 
 -- =====================================================
 -- ADMIN AUDIT LOGS TABLE
@@ -1258,8 +1315,8 @@ SELECT 'Database cleanup completed successfully!' as status;
 -- =====================================================
 -- FINAL SUCCESS MESSAGE
 -- =====================================================
-SELECT 'Group Brand Hotel database setup completed successfully!' as message,
-       'Database name: group_brand' as database_name,
+SELECT 'Harar Ras Hotel database setup completed successfully!' as message,
+       'Database name: harar_ras_hotel' as database_name,
        'All tables created without errors' as status,
        'Ready for production use' as notes;
 
@@ -1285,9 +1342,9 @@ INSERT IGNORE INTO users (
     'Super',
     'Admin', 
     'superadmin',
-    'superadmin@groupbrandhotel.com',
+    'superadmin@hararras.com',
     '+251911000000',
-    '$2y$10$TKh8H1.PfQx37YgCzwiKb.KjNyWgaHb9cbcoQgdIVFlYg7B77UdFm', -- Password: 123456
+    '$2y$10$/Q2WArsNPMnmx7hZXLVicua2L7WirTZ6b1THe7L89IPEk06Owxsl2', -- Password: superadmin123
     'super_admin',
     'active',
     NOW()
@@ -1308,9 +1365,9 @@ INSERT IGNORE INTO users (
     'System',
     'Administrator', 
     'admin',
-    'admin@groupbrandhotel.com',
+    'admin@hararras.com',
     '+251911111111',
-    '$2y$10$TKh8H1.PfQx37YgCzwiKb.KjNyWgaHb9cbcoQgdIVFlYg7B77UdFm', -- Password: 123456
+    '$2y$10$YuHGC/k.yPjjVD3iuG/fG.wrdUVdw1A83/dwmBwy.42wu1BXBjDlS', -- Password: @Ab7340di
     'admin',
     'active',
     NOW()
@@ -1331,9 +1388,9 @@ INSERT IGNORE INTO users (
     'Hotel',
     'Manager', 
     'manager',
-    'manager@groupbrandhotel.com',
+    'manager@hararras.com',
     '+251911222222',
-    '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', -- Password: password
+    '$2y$10$9tEsef2DeXGfT3CC8VAxG.cj118wypJAlVkgTAYC9KPG8XvOgFTVO', -- Password: @Ab7340di
     'manager',
     'active',
     NOW()
@@ -1354,9 +1411,9 @@ INSERT IGNORE INTO users (
     'Reception',
     'Staff', 
     'receptionist',
-    'receptionist@groupbrandhotel.com',
+    'receptionist@hararras.com',
     '+251911333333',
-    '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', -- Password: password
+    '$2y$10$gjdXkS7XL.1qYYEBbXIfOut4KLbKBKNsWo0A9lbG.1A49vlyJ/zxC', -- Password: @Ab7340di
     'receptionist',
     'active',
     NOW()
@@ -1386,6 +1443,610 @@ INSERT IGNORE INTO users (
 );
 
 -- =====================================================
+-- PAYMENT SYSTEM ENHANCEMENTS
+-- =====================================================
+
+-- Add transaction_id columns to bookings table (if not exists)
+ALTER TABLE bookings 
+ADD COLUMN IF NOT EXISTS transaction_id VARCHAR(100) AFTER payment_reference,
+ADD COLUMN IF NOT EXISTS transaction_verified BOOLEAN DEFAULT FALSE AFTER transaction_id,
+ADD COLUMN IF NOT EXISTS transaction_verification_date DATETIME AFTER transaction_verified,
+ADD COLUMN IF NOT EXISTS transaction_amount DECIMAL(10,2) AFTER transaction_verification_date,
+ADD COLUMN IF NOT EXISTS transaction_date DATETIME AFTER transaction_amount,
+ADD COLUMN IF NOT EXISTS payment_gateway VARCHAR(50) AFTER transaction_date;
+
+-- Add index on transaction_id for faster lookups (but not UNIQUE to allow reuse)
+CREATE INDEX IF NOT EXISTS idx_transaction_id ON bookings(transaction_id);
+
+-- Create transaction verification log table
+CREATE TABLE IF NOT EXISTS transaction_verification_log (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    booking_id INT NOT NULL,
+    transaction_id VARCHAR(100) NOT NULL,
+    verification_status ENUM('pending', 'verified', 'failed', 'duplicate') DEFAULT 'pending',
+    verification_method VARCHAR(50),
+    amount DECIMAL(10,2),
+    transaction_date DATETIME,
+    gateway_response TEXT,
+    verified_by INT,
+    verified_at DATETIME,
+    ip_address VARCHAR(45),
+    user_agent TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (booking_id) REFERENCES bookings(id) ON DELETE CASCADE,
+    INDEX idx_transaction_id (transaction_id),
+    INDEX idx_booking_id (booking_id),
+    INDEX idx_verification_status (verification_status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Create payment gateway configurations table
+CREATE TABLE IF NOT EXISTS payment_gateway_config (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    gateway_name VARCHAR(50) NOT NULL UNIQUE,
+    api_key VARCHAR(255),
+    api_secret VARCHAR(255),
+    webhook_secret VARCHAR(255),
+    is_active BOOLEAN DEFAULT TRUE,
+    is_test_mode BOOLEAN DEFAULT TRUE,
+    transaction_prefix VARCHAR(10),
+    min_transaction_length INT DEFAULT 10,
+    max_transaction_length INT DEFAULT 50,
+    config_json TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Insert default gateway configurations
+INSERT INTO payment_gateway_config (gateway_name, transaction_prefix, min_transaction_length, max_transaction_length, is_active, is_test_mode) VALUES
+('telebirr', 'TB', 15, 30, TRUE, TRUE),
+('cbe_birr', 'CBE', 12, 25, TRUE, TRUE),
+('mpesa', 'MP', 10, 20, TRUE, TRUE),
+('stripe', 'pi_', 20, 40, FALSE, TRUE),
+('paypal', 'PAY', 15, 30, FALSE, TRUE),
+('manual', 'MAN', 8, 50, TRUE, FALSE)
+ON DUPLICATE KEY UPDATE gateway_name=gateway_name;
+
+-- Add Google OAuth columns to users table (if not exists)
+ALTER TABLE users
+ADD COLUMN IF NOT EXISTS google_id VARCHAR(255) UNIQUE AFTER password,
+ADD COLUMN IF NOT EXISTS oauth_provider VARCHAR(50) AFTER google_id,
+ADD COLUMN IF NOT EXISTS profile_picture VARCHAR(500) AFTER oauth_provider,
+ADD COLUMN IF NOT EXISTS email_verified BOOLEAN DEFAULT FALSE AFTER profile_picture;
+
+-- Update last_login column if it doesn't exist
+ALTER TABLE users
+ADD COLUMN IF NOT EXISTS last_login DATETIME AFTER email_verified;
+
+-- Create OAuth tokens table for session management (if not exists)
+CREATE TABLE IF NOT EXISTS oauth_tokens (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    provider VARCHAR(50) NOT NULL,
+    provider_user_id VARCHAR(255) NULL,
+    access_token TEXT,
+    refresh_token TEXT,
+    token_expires_at DATETIME,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_user_provider (user_id, provider),
+    UNIQUE KEY unique_provider_user (provider, provider_user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Create fraud detection table
+CREATE TABLE IF NOT EXISTS fraud_detection_log (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    transaction_id VARCHAR(100),
+    booking_id INT,
+    user_id INT,
+    fraud_type ENUM('duplicate_transaction', 'amount_mismatch', 'suspicious_pattern', 'blacklisted_user'),
+    risk_score INT DEFAULT 0,
+    details TEXT,
+    ip_address VARCHAR(45),
+    user_agent TEXT,
+    action_taken VARCHAR(100),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_transaction_id (transaction_id),
+    INDEX idx_user_id (user_id),
+    INDEX idx_fraud_type (fraud_type)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Update payment_verification_queue to support transaction IDs (if columns don't exist)
+ALTER TABLE payment_verification_queue
+ADD COLUMN IF NOT EXISTS transaction_id VARCHAR(100) AFTER payment_reference,
+ADD COLUMN IF NOT EXISTS verification_method ENUM('screenshot', 'transaction_id', 'api') DEFAULT 'transaction_id' AFTER transaction_id;
+
+-- =====================================================
+-- BOOKING CANCELLATION & REFUND SYSTEM
+-- =====================================================
+
+-- Add cancellation columns to bookings table (if not exists)
+ALTER TABLE bookings
+ADD COLUMN IF NOT EXISTS cancellation_date DATETIME AFTER checkout_notes,
+ADD COLUMN IF NOT EXISTS cancelled_by INT AFTER cancellation_date,
+ADD COLUMN IF NOT EXISTS cancellation_reason TEXT AFTER cancelled_by,
+ADD COLUMN IF NOT EXISTS days_before_checkin INT AFTER cancellation_reason,
+ADD COLUMN IF NOT EXISTS is_refundable BOOLEAN DEFAULT TRUE AFTER days_before_checkin,
+ADD COLUMN IF NOT EXISTS cancellation_ip VARCHAR(45) AFTER is_refundable,
+ADD COLUMN IF NOT EXISTS cancellation_user_agent TEXT AFTER cancellation_ip;
+
+-- Add indexes for cancellation
+ALTER TABLE bookings ADD INDEX IF NOT EXISTS idx_cancellation_date (cancellation_date);
+ALTER TABLE bookings ADD INDEX IF NOT EXISTS idx_cancelled_by (cancelled_by);
+
+-- Create refunds table
+CREATE TABLE IF NOT EXISTS refunds (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    booking_id INT NOT NULL,
+    booking_reference VARCHAR(50),
+    customer_id INT NOT NULL,
+    customer_name VARCHAR(255),
+    customer_email VARCHAR(255),
+    
+    -- Booking details
+    original_amount DECIMAL(10,2) NOT NULL,
+    check_in_date DATE NOT NULL,
+    cancellation_date DATETIME NOT NULL,
+    days_before_checkin INT NOT NULL,
+    
+    -- Refund calculation
+    refund_percentage INT NOT NULL,
+    refund_amount DECIMAL(10,2) NOT NULL,
+    processing_fee DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    processing_fee_percentage DECIMAL(5,2) DEFAULT 5.00,
+    final_refund DECIMAL(10,2) NOT NULL,
+    
+    -- Refund status
+    refund_status ENUM('Pending', 'Approved', 'Processed', 'Rejected', 'Completed') DEFAULT 'Pending',
+    refund_method VARCHAR(50),
+    
+    -- Transaction details
+    original_transaction_id VARCHAR(100),
+    refund_transaction_id VARCHAR(100),
+    refund_reference VARCHAR(100) UNIQUE,
+    
+    -- Processing details
+    processed_by INT,
+    processed_at DATETIME,
+    rejection_reason TEXT,
+    admin_notes TEXT,
+    
+    -- Audit trail
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    
+    FOREIGN KEY (booking_id) REFERENCES bookings(id) ON DELETE CASCADE,
+    FOREIGN KEY (customer_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (processed_by) REFERENCES users(id) ON DELETE SET NULL,
+    
+    INDEX idx_booking_id (booking_id),
+    INDEX idx_customer_id (customer_id),
+    INDEX idx_refund_status (refund_status),
+    INDEX idx_refund_reference (refund_reference)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Create payment_transactions table (centralized payment tracking)
+CREATE TABLE IF NOT EXISTS payment_transactions (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    booking_id INT NOT NULL,
+    booking_reference VARCHAR(50),
+    
+    -- Transaction details
+    transaction_id VARCHAR(100) UNIQUE NOT NULL,
+    transaction_type ENUM('payment', 'refund') DEFAULT 'payment',
+    payment_method VARCHAR(50),
+    payment_gateway VARCHAR(50),
+    
+    -- Amount details
+    amount DECIMAL(10,2) NOT NULL,
+    currency VARCHAR(10) DEFAULT 'ETB',
+    
+    -- Verification
+    verification_status ENUM('pending', 'verified', 'failed', 'duplicate') DEFAULT 'pending',
+    verified_at DATETIME,
+    verified_by INT,
+    
+    -- API response
+    gateway_response TEXT,
+    gateway_status VARCHAR(50),
+    
+    -- Audit
+    customer_id INT NOT NULL,
+    ip_address VARCHAR(45),
+    user_agent TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    FOREIGN KEY (booking_id) REFERENCES bookings(id) ON DELETE CASCADE,
+    FOREIGN KEY (customer_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (verified_by) REFERENCES users(id) ON DELETE SET NULL,
+    
+    INDEX idx_transaction_id (transaction_id),
+    INDEX idx_booking_id (booking_id),
+    INDEX idx_verification_status (verification_status),
+    INDEX idx_transaction_type (transaction_type)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Create booking_cancellations table (detailed cancellation tracking)
+CREATE TABLE IF NOT EXISTS booking_cancellations (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    booking_id INT NOT NULL,
+    booking_reference VARCHAR(50),
+    
+    -- Cancellation details
+    cancelled_by INT NOT NULL,
+    cancellation_date DATETIME NOT NULL,
+    cancellation_reason TEXT,
+    
+    -- Booking details at time of cancellation
+    check_in_date DATE NOT NULL,
+    check_out_date DATE NOT NULL,
+    total_amount DECIMAL(10,2) NOT NULL,
+    days_before_checkin INT NOT NULL,
+    
+    -- Refund eligibility
+    is_refundable BOOLEAN DEFAULT TRUE,
+    refund_percentage INT,
+    estimated_refund DECIMAL(10,2),
+    
+    -- Audit
+    ip_address VARCHAR(45),
+    user_agent TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    FOREIGN KEY (booking_id) REFERENCES bookings(id) ON DELETE CASCADE,
+    FOREIGN KEY (cancelled_by) REFERENCES users(id) ON DELETE CASCADE,
+    
+    INDEX idx_booking_id (booking_id),
+    INDEX idx_cancelled_by (cancelled_by),
+    INDEX idx_cancellation_date (cancellation_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Create refund_policy table (configurable refund rules)
+CREATE TABLE IF NOT EXISTS refund_policy (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    policy_name VARCHAR(100) NOT NULL,
+    
+    -- Time-based rules
+    min_days_before INT NOT NULL,
+    max_days_before INT,
+    refund_percentage INT NOT NULL,
+    
+    -- Fees
+    processing_fee_percentage DECIMAL(5,2) DEFAULT 5.00,
+    processing_fee_fixed DECIMAL(10,2) DEFAULT 0.00,
+    
+    -- Policy details
+    description TEXT,
+    is_active BOOLEAN DEFAULT TRUE,
+    display_order INT DEFAULT 0,
+    
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    
+    INDEX idx_days_range (min_days_before, max_days_before),
+    INDEX idx_is_active (is_active)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Insert default refund policies
+INSERT INTO refund_policy (policy_name, min_days_before, max_days_before, refund_percentage, description, display_order) VALUES
+('Early Cancellation', 7, NULL, 95, 'Cancel 7 or more days before check-in', 1),
+('Moderate Cancellation', 3, 6, 75, 'Cancel 3-6 days before check-in', 2),
+('Late Cancellation', 1, 2, 50, 'Cancel 1-2 days before check-in', 3),
+('Same Day Cancellation', 0, 0, 25, 'Cancel on check-in day', 4),
+('No Refund', -999, -1, 0, 'Cancel after check-in date', 5)
+ON DUPLICATE KEY UPDATE policy_name=policy_name;
+
+-- Create system_activity_log table (comprehensive audit trail)
+CREATE TABLE IF NOT EXISTS system_activity_log (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    
+    -- Activity details
+    activity_type ENUM('login', 'logout', 'booking', 'payment', 'cancellation', 'refund', 'verification', 'admin_action') NOT NULL,
+    activity_action VARCHAR(100) NOT NULL,
+    activity_description TEXT,
+    
+    -- User details
+    user_id INT,
+    user_role VARCHAR(50),
+    user_email VARCHAR(255),
+    
+    -- Related entities
+    booking_id INT,
+    payment_id INT,
+    refund_id INT,
+    
+    -- Request details
+    ip_address VARCHAR(45),
+    user_agent TEXT,
+    request_method VARCHAR(10),
+    request_url TEXT,
+    
+    -- Response
+    status VARCHAR(50),
+    error_message TEXT,
+    
+    -- Metadata
+    metadata JSON,
+    
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    INDEX idx_activity_type (activity_type),
+    INDEX idx_user_id (user_id),
+    INDEX idx_booking_id (booking_id),
+    INDEX idx_created_at (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Create views for easy querying
+CREATE OR REPLACE VIEW cancellable_bookings AS
+SELECT 
+    b.id,
+    b.booking_reference,
+    b.user_id,
+    b.check_in_date,
+    b.check_out_date,
+    b.total_price,
+    b.status,
+    DATEDIFF(b.check_in_date, CURDATE()) as days_until_checkin,
+    CASE 
+        WHEN DATEDIFF(b.check_in_date, CURDATE()) >= 0 THEN TRUE
+        ELSE FALSE
+    END as is_cancellable
+FROM bookings b
+WHERE b.status IN ('pending', 'confirmed', 'pending_payment', 'pending_verification')
+AND b.check_in_date >= CURDATE();
+
+-- View: Pending refunds
+CREATE OR REPLACE VIEW pending_refunds AS
+SELECT 
+    r.*,
+    u.first_name,
+    u.last_name,
+    u.email
+FROM refunds r
+JOIN bookings b ON r.booking_id = b.id
+JOIN users u ON r.customer_id = u.id
+WHERE r.refund_status = 'Pending'
+ORDER BY r.created_at DESC;
+
+-- =====================================================
+-- ROOM BOOKING CONTROL & SERVICES SYSTEM
+-- =====================================================
+-- Prevents double booking and displays room services
+-- =====================================================
+
+-- Create room services table
+CREATE TABLE IF NOT EXISTS room_services (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    room_id INT NOT NULL,
+    service_name VARCHAR(100) NOT NULL,
+    service_icon VARCHAR(50) DEFAULT NULL COMMENT 'Icon class name (e.g., fa-wifi, fa-tv)',
+    service_category ENUM('basic', 'comfort', 'food', 'entertainment', 'luxury') DEFAULT 'basic',
+    is_included BOOLEAN DEFAULT TRUE,
+    display_order INT DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE,
+    INDEX idx_room_id (room_id),
+    INDEX idx_category (service_category)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Add booking expiration columns to bookings table
+ALTER TABLE bookings 
+ADD COLUMN IF NOT EXISTS booking_hold_expires_at DATETIME AFTER payment_deadline,
+ADD COLUMN IF NOT EXISTS is_expired BOOLEAN DEFAULT FALSE AFTER booking_hold_expires_at,
+ADD COLUMN IF NOT EXISTS auto_expired_at DATETIME AFTER is_expired;
+
+-- Add indexes for expiration queries
+CREATE INDEX IF NOT EXISTS idx_booking_hold_expires ON bookings(booking_hold_expires_at, is_expired);
+
+-- Insert default room services for all 40 rooms
+-- Standard Rooms (1-8) - Basic Services
+INSERT INTO room_services (room_id, service_name, service_icon, service_category, display_order) VALUES
+(1, 'Free WiFi', 'fa-wifi', 'basic', 1), (1, 'Air Conditioning', 'fa-snowflake', 'comfort', 2),
+(1, 'Private Bathroom', 'fa-bath', 'basic', 3), (1, 'Television', 'fa-tv', 'entertainment', 4),
+(1, 'Daily Housekeeping', 'fa-broom', 'basic', 5),
+(2, 'Free WiFi', 'fa-wifi', 'basic', 1), (2, 'Air Conditioning', 'fa-snowflake', 'comfort', 2),
+(2, 'Private Bathroom', 'fa-bath', 'basic', 3), (2, 'Television', 'fa-tv', 'entertainment', 4),
+(2, 'Daily Housekeeping', 'fa-broom', 'basic', 5),
+(3, 'Free WiFi', 'fa-wifi', 'basic', 1), (3, 'Air Conditioning', 'fa-snowflake', 'comfort', 2),
+(3, 'Private Bathroom', 'fa-bath', 'basic', 3), (3, 'Television', 'fa-tv', 'entertainment', 4),
+(3, 'Daily Housekeeping', 'fa-broom', 'basic', 5),
+(4, 'Free WiFi', 'fa-wifi', 'basic', 1), (4, 'Air Conditioning', 'fa-snowflake', 'comfort', 2),
+(4, 'Private Bathroom', 'fa-bath', 'basic', 3), (4, 'Television', 'fa-tv', 'entertainment', 4),
+(4, 'Daily Housekeeping', 'fa-broom', 'basic', 5),
+(5, 'Free WiFi', 'fa-wifi', 'basic', 1), (5, 'Air Conditioning', 'fa-snowflake', 'comfort', 2),
+(5, 'Private Bathroom', 'fa-bath', 'basic', 3), (5, 'Television', 'fa-tv', 'entertainment', 4),
+(5, 'Daily Housekeeping', 'fa-broom', 'basic', 5), (5, 'Work Desk', 'fa-desk', 'comfort', 6),
+(6, 'Free WiFi', 'fa-wifi', 'basic', 1), (6, 'Air Conditioning', 'fa-snowflake', 'comfort', 2),
+(6, 'Private Bathroom', 'fa-bath', 'basic', 3), (6, 'Television', 'fa-tv', 'entertainment', 4),
+(6, 'Daily Housekeeping', 'fa-broom', 'basic', 5), (6, 'Work Desk', 'fa-desk', 'comfort', 6),
+(7, 'Free WiFi', 'fa-wifi', 'basic', 1), (7, 'Air Conditioning', 'fa-snowflake', 'comfort', 2),
+(7, 'Private Bathroom', 'fa-bath', 'basic', 3), (7, 'Television', 'fa-tv', 'entertainment', 4),
+(7, 'Daily Housekeeping', 'fa-broom', 'basic', 5), (7, 'Work Desk', 'fa-desk', 'comfort', 6),
+(8, 'Free WiFi', 'fa-wifi', 'basic', 1), (8, 'Air Conditioning', 'fa-snowflake', 'comfort', 2),
+(8, 'Private Bathroom', 'fa-bath', 'basic', 3), (8, 'Television', 'fa-tv', 'entertainment', 4),
+(8, 'Daily Housekeeping', 'fa-broom', 'basic', 5), (8, 'Work Desk', 'fa-desk', 'comfort', 6)
+ON DUPLICATE KEY UPDATE service_name=service_name;
+
+-- Deluxe Rooms (9-16) - Premium Services
+INSERT INTO room_services (room_id, service_name, service_icon, service_category, display_order) VALUES
+(9, 'Free WiFi', 'fa-wifi', 'basic', 1), (9, 'Air Conditioning', 'fa-snowflake', 'comfort', 2),
+(9, 'Private Bathroom', 'fa-bath', 'basic', 3), (9, 'Flat Screen TV', 'fa-tv', 'entertainment', 4),
+(9, 'Mini Bar', 'fa-glass-martini', 'luxury', 5), (9, 'City View', 'fa-city', 'luxury', 6),
+(9, 'Work Desk', 'fa-desk', 'comfort', 7), (9, 'Daily Housekeeping', 'fa-broom', 'basic', 8),
+(9, 'Complimentary Breakfast', 'fa-coffee', 'food', 9),
+(10, 'Free WiFi', 'fa-wifi', 'basic', 1), (10, 'Air Conditioning', 'fa-snowflake', 'comfort', 2),
+(10, 'Private Bathroom', 'fa-bath', 'basic', 3), (10, 'Flat Screen TV', 'fa-tv', 'entertainment', 4),
+(10, 'Mini Bar', 'fa-glass-martini', 'luxury', 5), (10, 'City View', 'fa-city', 'luxury', 6),
+(10, 'Work Desk', 'fa-desk', 'comfort', 7), (10, 'Daily Housekeeping', 'fa-broom', 'basic', 8),
+(10, 'Complimentary Breakfast', 'fa-coffee', 'food', 9),
+(11, 'Free WiFi', 'fa-wifi', 'basic', 1), (11, 'Air Conditioning', 'fa-snowflake', 'comfort', 2),
+(11, 'Private Bathroom', 'fa-bath', 'basic', 3), (11, 'Flat Screen TV', 'fa-tv', 'entertainment', 4),
+(11, 'Mini Bar', 'fa-glass-martini', 'luxury', 5), (11, 'City View', 'fa-city', 'luxury', 6),
+(11, 'Work Desk', 'fa-desk', 'comfort', 7), (11, 'Daily Housekeeping', 'fa-broom', 'basic', 8),
+(11, 'Complimentary Breakfast', 'fa-coffee', 'food', 9),
+(12, 'Free WiFi', 'fa-wifi', 'basic', 1), (12, 'Air Conditioning', 'fa-snowflake', 'comfort', 2),
+(12, 'Private Bathroom', 'fa-bath', 'basic', 3), (12, 'Flat Screen TV', 'fa-tv', 'entertainment', 4),
+(12, 'Mini Bar', 'fa-glass-martini', 'luxury', 5), (12, 'City View', 'fa-city', 'luxury', 6),
+(12, 'Work Desk', 'fa-desk', 'comfort', 7), (12, 'Daily Housekeeping', 'fa-broom', 'basic', 8),
+(12, 'Complimentary Breakfast', 'fa-coffee', 'food', 9),
+(13, 'Free WiFi', 'fa-wifi', 'basic', 1), (13, 'Air Conditioning', 'fa-snowflake', 'comfort', 2),
+(13, 'Private Bathroom', 'fa-bath', 'basic', 3), (13, 'Flat Screen TV', 'fa-tv', 'entertainment', 4),
+(13, 'Mini Bar', 'fa-glass-martini', 'luxury', 5), (13, 'City View', 'fa-city', 'luxury', 6),
+(13, 'Work Desk', 'fa-desk', 'comfort', 7), (13, 'Daily Housekeeping', 'fa-broom', 'basic', 8),
+(13, 'Complimentary Breakfast', 'fa-coffee', 'food', 9), (13, 'Room Service', 'fa-concierge-bell', 'luxury', 10),
+(14, 'Free WiFi', 'fa-wifi', 'basic', 1), (14, 'Air Conditioning', 'fa-snowflake', 'comfort', 2),
+(14, 'Private Bathroom', 'fa-bath', 'basic', 3), (14, 'Flat Screen TV', 'fa-tv', 'entertainment', 4),
+(14, 'Mini Bar', 'fa-glass-martini', 'luxury', 5), (14, 'City View', 'fa-city', 'luxury', 6),
+(14, 'Work Desk', 'fa-desk', 'comfort', 7), (14, 'Daily Housekeeping', 'fa-broom', 'basic', 8),
+(14, 'Complimentary Breakfast', 'fa-coffee', 'food', 9), (14, 'Room Service', 'fa-concierge-bell', 'luxury', 10),
+(15, 'Free WiFi', 'fa-wifi', 'basic', 1), (15, 'Air Conditioning', 'fa-snowflake', 'comfort', 2),
+(15, 'Private Bathroom', 'fa-bath', 'basic', 3), (15, 'Flat Screen TV', 'fa-tv', 'entertainment', 4),
+(15, 'Mini Bar', 'fa-glass-martini', 'luxury', 5), (15, 'City View', 'fa-city', 'luxury', 6),
+(15, 'Work Desk', 'fa-desk', 'comfort', 7), (15, 'Daily Housekeeping', 'fa-broom', 'basic', 8),
+(15, 'Complimentary Breakfast', 'fa-coffee', 'food', 9), (15, 'Room Service', 'fa-concierge-bell', 'luxury', 10),
+(16, 'Free WiFi', 'fa-wifi', 'basic', 1), (16, 'Air Conditioning', 'fa-snowflake', 'comfort', 2),
+(16, 'Private Bathroom', 'fa-bath', 'basic', 3), (16, 'Flat Screen TV', 'fa-tv', 'entertainment', 4),
+(16, 'Mini Bar', 'fa-glass-martini', 'luxury', 5), (16, 'City View', 'fa-city', 'luxury', 6),
+(16, 'Work Desk', 'fa-desk', 'comfort', 7), (16, 'Daily Housekeeping', 'fa-broom', 'basic', 8),
+(16, 'Complimentary Breakfast', 'fa-coffee', 'food', 9), (16, 'Room Service', 'fa-concierge-bell', 'luxury', 10)
+ON DUPLICATE KEY UPDATE service_name=service_name;
+
+-- Family Suites (17-20) - Family Services
+INSERT INTO room_services (room_id, service_name, service_icon, service_category, display_order) VALUES
+(17, 'Free WiFi', 'fa-wifi', 'basic', 1), (17, 'Air Conditioning', 'fa-snowflake', 'comfort', 2),
+(17, 'Private Bathroom', 'fa-bath', 'basic', 3), (17, 'Flat Screen TV', 'fa-tv', 'entertainment', 4),
+(17, 'Mini Bar', 'fa-glass-martini', 'luxury', 5), (17, 'Living Area', 'fa-couch', 'comfort', 6),
+(17, 'Kitchenette', 'fa-utensils', 'comfort', 7), (17, 'Daily Housekeeping', 'fa-broom', 'basic', 8),
+(17, 'Complimentary Breakfast', 'fa-coffee', 'food', 9), (17, 'Room Service', 'fa-concierge-bell', 'luxury', 10),
+(18, 'Free WiFi', 'fa-wifi', 'basic', 1), (18, 'Air Conditioning', 'fa-snowflake', 'comfort', 2),
+(18, 'Private Bathroom', 'fa-bath', 'basic', 3), (18, 'Flat Screen TV', 'fa-tv', 'entertainment', 4),
+(18, 'Mini Bar', 'fa-glass-martini', 'luxury', 5), (18, 'Living Area', 'fa-couch', 'comfort', 6),
+(18, 'Kitchenette', 'fa-utensils', 'comfort', 7), (18, 'Daily Housekeeping', 'fa-broom', 'basic', 8),
+(18, 'Complimentary Breakfast', 'fa-coffee', 'food', 9), (18, 'Room Service', 'fa-concierge-bell', 'luxury', 10),
+(19, 'Free WiFi', 'fa-wifi', 'basic', 1), (19, 'Air Conditioning', 'fa-snowflake', 'comfort', 2),
+(19, 'Private Bathroom', 'fa-bath', 'basic', 3), (19, 'Flat Screen TV', 'fa-tv', 'entertainment', 4),
+(19, 'Mini Bar', 'fa-glass-martini', 'luxury', 5), (19, 'Living Area', 'fa-couch', 'comfort', 6),
+(19, 'Kitchenette', 'fa-utensils', 'comfort', 7), (19, 'Daily Housekeeping', 'fa-broom', 'basic', 8),
+(19, 'Complimentary Breakfast', 'fa-coffee', 'food', 9), (19, 'Room Service', 'fa-concierge-bell', 'luxury', 10),
+(20, 'Free WiFi', 'fa-wifi', 'basic', 1), (20, 'Air Conditioning', 'fa-snowflake', 'comfort', 2),
+(20, 'Private Bathroom', 'fa-bath', 'basic', 3), (20, 'Flat Screen TV', 'fa-tv', 'entertainment', 4),
+(20, 'Mini Bar', 'fa-glass-martini', 'luxury', 5), (20, 'Living Area', 'fa-couch', 'comfort', 6),
+(20, 'Kitchenette', 'fa-utensils', 'comfort', 7), (20, 'Daily Housekeeping', 'fa-broom', 'basic', 8),
+(20, 'Complimentary Breakfast', 'fa-coffee', 'food', 9), (20, 'Room Service', 'fa-concierge-bell', 'luxury', 10)
+ON DUPLICATE KEY UPDATE service_name=service_name;
+
+-- Executive Suites (21-28) - Executive Services
+INSERT INTO room_services (room_id, service_name, service_icon, service_category, display_order) VALUES
+(21, 'Free WiFi', 'fa-wifi', 'basic', 1), (21, 'Air Conditioning', 'fa-snowflake', 'comfort', 2),
+(21, 'Private Bathroom', 'fa-bath', 'basic', 3), (21, 'Flat Screen TV', 'fa-tv', 'entertainment', 4),
+(21, 'Mini Bar', 'fa-glass-martini', 'luxury', 5), (21, 'Separate Living Area', 'fa-couch', 'luxury', 6),
+(21, 'Work Desk', 'fa-desk', 'comfort', 7), (21, 'Premium Amenities', 'fa-spa', 'luxury', 8),
+(21, 'Daily Housekeeping', 'fa-broom', 'basic', 9), (21, 'Complimentary Breakfast', 'fa-coffee', 'food', 10),
+(21, 'Complimentary Dinner', 'fa-utensils', 'food', 11), (21, '24/7 Room Service', 'fa-concierge-bell', 'luxury', 12)
+ON DUPLICATE KEY UPDATE service_name=service_name;
+
+-- Copy services for rooms 22-28
+INSERT INTO room_services (room_id, service_name, service_icon, service_category, display_order)
+SELECT 22, service_name, service_icon, service_category, display_order FROM room_services WHERE room_id = 21
+ON DUPLICATE KEY UPDATE service_name=VALUES(service_name);
+INSERT INTO room_services (room_id, service_name, service_icon, service_category, display_order)
+SELECT 23, service_name, service_icon, service_category, display_order FROM room_services WHERE room_id = 21
+ON DUPLICATE KEY UPDATE service_name=VALUES(service_name);
+INSERT INTO room_services (room_id, service_name, service_icon, service_category, display_order)
+SELECT 24, service_name, service_icon, service_category, display_order FROM room_services WHERE room_id = 21
+ON DUPLICATE KEY UPDATE service_name=VALUES(service_name);
+INSERT INTO room_services (room_id, service_name, service_icon, service_category, display_order)
+SELECT 25, service_name, service_icon, service_category, display_order FROM room_services WHERE room_id = 21
+ON DUPLICATE KEY UPDATE service_name=VALUES(service_name);
+INSERT INTO room_services (room_id, service_name, service_icon, service_category, display_order)
+SELECT 26, service_name, service_icon, service_category, display_order FROM room_services WHERE room_id = 21
+ON DUPLICATE KEY UPDATE service_name=VALUES(service_name);
+INSERT INTO room_services (room_id, service_name, service_icon, service_category, display_order)
+SELECT 27, service_name, service_icon, service_category, display_order FROM room_services WHERE room_id = 21
+ON DUPLICATE KEY UPDATE service_name=VALUES(service_name);
+INSERT INTO room_services (room_id, service_name, service_icon, service_category, display_order)
+SELECT 28, service_name, service_icon, service_category, display_order FROM room_services WHERE room_id = 21
+ON DUPLICATE KEY UPDATE service_name=VALUES(service_name);
+
+-- Presidential Suites (29-40) - Luxury Services
+INSERT INTO room_services (room_id, service_name, service_icon, service_category, display_order) VALUES
+(29, 'Free WiFi', 'fa-wifi', 'basic', 1), (29, 'Air Conditioning', 'fa-snowflake', 'comfort', 2),
+(29, '2 Private Bathrooms', 'fa-bath', 'luxury', 3), (29, 'Multiple Flat Screen TVs', 'fa-tv', 'entertainment', 4),
+(29, 'Premium Mini Bar', 'fa-glass-martini', 'luxury', 5), (29, 'Separate Living Room', 'fa-couch', 'luxury', 6),
+(29, 'Dining Area', 'fa-utensils', 'luxury', 7), (29, 'Kitchenette', 'fa-blender', 'comfort', 8),
+(29, 'Private Balcony', 'fa-tree', 'luxury', 9), (29, 'Premium Amenities', 'fa-spa', 'luxury', 10),
+(29, 'Daily Housekeeping', 'fa-broom', 'basic', 11), (29, 'Complimentary Breakfast', 'fa-coffee', 'food', 12),
+(29, 'Complimentary Dinner', 'fa-utensils', 'food', 13), (29, '24/7 Concierge Service', 'fa-concierge-bell', 'luxury', 14),
+(29, 'Butler Service', 'fa-user-tie', 'luxury', 15)
+ON DUPLICATE KEY UPDATE service_name=service_name;
+
+-- Copy services for rooms 30-40
+INSERT INTO room_services (room_id, service_name, service_icon, service_category, display_order)
+SELECT 30, service_name, service_icon, service_category, display_order FROM room_services WHERE room_id = 29
+ON DUPLICATE KEY UPDATE service_name=VALUES(service_name);
+INSERT INTO room_services (room_id, service_name, service_icon, service_category, display_order)
+SELECT 31, service_name, service_icon, service_category, display_order FROM room_services WHERE room_id = 29
+ON DUPLICATE KEY UPDATE service_name=VALUES(service_name);
+INSERT INTO room_services (room_id, service_name, service_icon, service_category, display_order)
+SELECT 32, service_name, service_icon, service_category, display_order FROM room_services WHERE room_id = 29
+ON DUPLICATE KEY UPDATE service_name=VALUES(service_name);
+INSERT INTO room_services (room_id, service_name, service_icon, service_category, display_order)
+SELECT 33, service_name, service_icon, service_category, display_order FROM room_services WHERE room_id = 29
+ON DUPLICATE KEY UPDATE service_name=VALUES(service_name);
+INSERT INTO room_services (room_id, service_name, service_icon, service_category, display_order)
+SELECT 34, service_name, service_icon, service_category, display_order FROM room_services WHERE room_id = 29
+ON DUPLICATE KEY UPDATE service_name=VALUES(service_name);
+INSERT INTO room_services (room_id, service_name, service_icon, service_category, display_order)
+SELECT 35, service_name, service_icon, service_category, display_order FROM room_services WHERE room_id = 29
+ON DUPLICATE KEY UPDATE service_name=VALUES(service_name);
+INSERT INTO room_services (room_id, service_name, service_icon, service_category, display_order)
+SELECT 36, service_name, service_icon, service_category, display_order FROM room_services WHERE room_id = 29
+ON DUPLICATE KEY UPDATE service_name=VALUES(service_name);
+INSERT INTO room_services (room_id, service_name, service_icon, service_category, display_order)
+SELECT 37, service_name, service_icon, service_category, display_order FROM room_services WHERE room_id = 29
+ON DUPLICATE KEY UPDATE service_name=VALUES(service_name);
+INSERT INTO room_services (room_id, service_name, service_icon, service_category, display_order)
+SELECT 38, service_name, service_icon, service_category, display_order FROM room_services WHERE room_id = 29
+ON DUPLICATE KEY UPDATE service_name=VALUES(service_name);
+INSERT INTO room_services (room_id, service_name, service_icon, service_category, display_order)
+SELECT 39, service_name, service_icon, service_category, display_order FROM room_services WHERE room_id = 29
+ON DUPLICATE KEY UPDATE service_name=VALUES(service_name);
+
+-- Create stored procedure for auto-expiration
+DROP PROCEDURE IF EXISTS expire_pending_bookings;
+DELIMITER $
+CREATE PROCEDURE expire_pending_bookings()
+BEGIN
+    UPDATE bookings 
+    SET status = 'cancelled', is_expired = TRUE, auto_expired_at = NOW(), verification_status = 'expired'
+    WHERE status = 'pending' AND booking_hold_expires_at < NOW() AND is_expired = FALSE;
+    
+    INSERT INTO booking_activity_log (booking_id, activity_type, description, created_at)
+    SELECT id, 'cancelled', 'Booking automatically expired due to no approval within time limit', NOW()
+    FROM bookings WHERE auto_expired_at >= DATE_SUB(NOW(), INTERVAL 1 MINUTE);
+END$
+DELIMITER ;
+
+-- Create view for room availability with services
+CREATE OR REPLACE VIEW room_availability_with_services AS
+SELECT 
+    r.id, r.name, r.room_number, r.room_type, r.description, r.capacity, r.price, r.image, r.status,
+    COUNT(DISTINCT rs.id) as service_count,
+    GROUP_CONCAT(DISTINCT rs.service_name ORDER BY rs.display_order SEPARATOR '|') as services,
+    GROUP_CONCAT(DISTINCT rs.service_icon ORDER BY rs.display_order SEPARATOR '|') as service_icons,
+    GROUP_CONCAT(DISTINCT rs.service_category ORDER BY rs.display_order SEPARATOR '|') as service_categories,
+    CASE 
+        WHEN EXISTS (SELECT 1 FROM bookings b WHERE b.room_id = r.id AND b.status IN ('confirmed', 'checked_in')
+                     AND CURDATE() BETWEEN b.check_in_date AND b.check_out_date) THEN 'occupied'
+        WHEN r.status = 'maintenance' THEN 'maintenance'
+        ELSE 'available'
+    END as current_availability
+FROM rooms r
+LEFT JOIN room_services rs ON r.id = rs.room_id
+GROUP BY r.id
+ORDER BY r.price ASC;
+
+-- =====================================================
 -- ENABLE FOREIGN KEY CHECKS
 -- =====================================================
 SET FOREIGN_KEY_CHECKS = 1;
@@ -1393,8 +2054,9 @@ SET FOREIGN_KEY_CHECKS = 1;
 -- =====================================================
 -- DATABASE SETUP COMPLETED SUCCESSFULLY
 -- =====================================================
--- Total Tables Created: 34
+-- Total Tables Created: 35 (including room_services)
 -- Default Users Created: 5 (Super Admin, Admin, Manager, Receptionist, Customer)
+-- Room Services: Added for all 40 rooms
 -- 
 -- LOGIN CREDENTIALS:
 -- ==================
@@ -1403,4 +2065,346 @@ SET FOREIGN_KEY_CHECKS = 1;
 -- Manager:     manager@groupbrandhotel.com / password
 -- Receptionist: receptionist@groupbrandhotel.com / password
 -- Customer:    customer@test.com / password
+-- =====================================================
+
+-- =====================================================
+-- ROOM BOOKING QUEUE SYSTEM - PREVENT DOUBLE BOOKING
+-- =====================================================
+-- This system automatically manages room availability and booking queues
+-- Staff can manually change room status (active, maintenance, inactive)
+-- System automatically shows: available, in_process, occupied based on bookings
+
+-- =====================================================
+-- CREATE ROOM LOCKS TABLE (BOOKING QUEUE)
+-- =====================================================
+
+CREATE TABLE IF NOT EXISTS room_locks (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    room_id INT NOT NULL,
+    user_id INT NOT NULL,
+    session_id VARCHAR(100) NOT NULL,
+    lock_status ENUM('in_process', 'waiting') DEFAULT 'in_process',
+    queue_position INT DEFAULT 1,
+    check_in_date DATE NOT NULL,
+    check_out_date DATE NOT NULL,
+    expires_at TIMESTAMP NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_room_lock (room_id, lock_status),
+    INDEX idx_user_lock (user_id, lock_status),
+    INDEX idx_expires (expires_at),
+    INDEX idx_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- =====================================================
+-- UPDATE ROOMS TABLE - ADD MANUAL STATUS
+-- =====================================================
+
+ALTER TABLE rooms 
+ADD COLUMN IF NOT EXISTS manual_status ENUM('active', 'maintenance', 'inactive') DEFAULT 'active' AFTER status;
+
+-- Set default manual_status for all existing rooms
+UPDATE rooms SET manual_status = 'active' WHERE manual_status IS NULL;
+
+-- =====================================================
+-- UPDATE BOOKINGS TABLE - ADD QUEUE STATUS
+-- =====================================================
+
+ALTER TABLE bookings
+ADD COLUMN IF NOT EXISTS lock_id INT NULL AFTER booking_reference,
+ADD COLUMN IF NOT EXISTS queue_position INT DEFAULT 0 AFTER lock_id;
+
+-- Add foreign key if not exists
+SET @fk_exists = (SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS 
+                  WHERE CONSTRAINT_SCHEMA = DATABASE() 
+                  AND TABLE_NAME = 'bookings' 
+                  AND CONSTRAINT_NAME = 'bookings_ibfk_lock');
+
+SET @sql = IF(@fk_exists = 0, 
+    'ALTER TABLE bookings ADD FOREIGN KEY (lock_id) REFERENCES room_locks(id) ON DELETE SET NULL', 
+    'SELECT "Foreign key already exists"');
+
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+-- =====================================================
+-- STORED PROCEDURE - CHECK ROOM AVAILABILITY
+-- =====================================================
+
+DELIMITER $$
+
+DROP PROCEDURE IF EXISTS check_room_availability_with_queue$$
+
+CREATE PROCEDURE check_room_availability_with_queue(
+    IN p_room_id INT,
+    IN p_check_in DATE,
+    IN p_check_out DATE,
+    OUT p_status VARCHAR(20),
+    OUT p_queue_count INT
+)
+BEGIN
+    DECLARE v_manual_status VARCHAR(20);
+    DECLARE v_active_lock_count INT;
+    DECLARE v_confirmed_booking_count INT;
+    
+    -- Get manual status set by staff
+    SELECT COALESCE(manual_status, 'active') INTO v_manual_status
+    FROM rooms
+    WHERE id = p_room_id;
+    
+    -- If room is manually set to maintenance or inactive, not available
+    IF v_manual_status IN ('maintenance', 'inactive') THEN
+        SET p_status = v_manual_status;
+        SET p_queue_count = 0;
+        
+    ELSE
+        -- Check for active locks (someone is currently booking)
+        SELECT COUNT(*) INTO v_active_lock_count
+        FROM room_locks
+        WHERE room_id = p_room_id
+        AND lock_status = 'in_process'
+        AND expires_at > NOW()
+        AND (
+            (check_in_date <= p_check_in AND check_out_date > p_check_in)
+            OR (check_in_date < p_check_out AND check_out_date >= p_check_out)
+            OR (check_in_date >= p_check_in AND check_out_date <= p_check_out)
+        );
+        
+        -- Check for confirmed bookings (room is occupied/booked)
+        SELECT COUNT(*) INTO v_confirmed_booking_count
+        FROM bookings
+        WHERE room_id = p_room_id
+        AND status IN ('confirmed', 'checked_in')
+        AND (
+            (check_in_date <= p_check_in AND check_out_date > p_check_in)
+            OR (check_in_date < p_check_out AND check_out_date >= p_check_out)
+            OR (check_in_date >= p_check_in AND check_out_date <= p_check_out)
+        );
+        
+        -- Determine status
+        IF v_confirmed_booking_count > 0 THEN
+            SET p_status = 'occupied';
+            SET p_queue_count = 0;
+        ELSEIF v_active_lock_count > 0 THEN
+            SET p_status = 'in_process';
+            -- Count waiting users
+            SELECT COUNT(*) INTO p_queue_count
+            FROM room_locks
+            WHERE room_id = p_room_id
+            AND lock_status = 'waiting'
+            AND expires_at > NOW();
+        ELSE
+            SET p_status = 'available';
+            SET p_queue_count = 0;
+        END IF;
+    END IF;
+END$$
+
+DELIMITER ;
+
+-- =====================================================
+-- STORED PROCEDURE - ACQUIRE ROOM LOCK
+-- =====================================================
+
+DELIMITER $$
+
+DROP PROCEDURE IF EXISTS acquire_room_lock$$
+
+CREATE PROCEDURE acquire_room_lock(
+    IN p_room_id INT,
+    IN p_user_id INT,
+    IN p_session_id VARCHAR(100),
+    IN p_check_in DATE,
+    IN p_check_out DATE,
+    IN p_timeout_minutes INT,
+    OUT p_lock_id INT,
+    OUT p_lock_status VARCHAR(20),
+    OUT p_queue_position INT
+)
+BEGIN
+    DECLARE v_active_lock_exists INT;
+    DECLARE v_expires_at TIMESTAMP;
+    
+    -- Set expiration time
+    SET v_expires_at = DATE_ADD(NOW(), INTERVAL p_timeout_minutes MINUTE);
+    
+    -- Check if there's an active lock for this room and date range
+    SELECT COUNT(*) INTO v_active_lock_exists
+    FROM room_locks
+    WHERE room_id = p_room_id
+    AND lock_status = 'in_process'
+    AND expires_at > NOW()
+    AND (
+        (check_in_date <= p_check_in AND check_out_date > p_check_in)
+        OR (check_in_date < p_check_out AND check_out_date >= p_check_out)
+        OR (check_in_date >= p_check_in AND check_out_date <= p_check_out)
+    );
+    
+    -- Determine lock status
+    IF v_active_lock_exists > 0 THEN
+        SET p_lock_status = 'waiting';
+        
+        -- Calculate queue position
+        SELECT COALESCE(MAX(queue_position), 0) + 1 INTO p_queue_position
+        FROM room_locks
+        WHERE room_id = p_room_id
+        AND expires_at > NOW();
+    ELSE
+        SET p_lock_status = 'in_process';
+        SET p_queue_position = 1;
+    END IF;
+    
+    -- Insert lock
+    INSERT INTO room_locks (
+        room_id, user_id, session_id, lock_status, 
+        queue_position, check_in_date, check_out_date, expires_at
+    ) VALUES (
+        p_room_id, p_user_id, p_session_id, p_lock_status,
+        p_queue_position, p_check_in, p_check_out, v_expires_at
+    );
+    
+    SET p_lock_id = LAST_INSERT_ID();
+END$$
+
+DELIMITER ;
+
+-- =====================================================
+-- STORED PROCEDURE - RELEASE LOCK & PROMOTE QUEUE
+-- =====================================================
+
+DELIMITER $$
+
+DROP PROCEDURE IF EXISTS release_room_lock$$
+
+CREATE PROCEDURE release_room_lock(
+    IN p_lock_id INT,
+    IN p_reason VARCHAR(50)
+)
+BEGIN
+    DECLARE v_room_id INT;
+    DECLARE v_check_in DATE;
+    DECLARE v_check_out DATE;
+    DECLARE v_next_lock_id INT;
+    
+    -- Get lock details
+    SELECT room_id, check_in_date, check_out_date
+    INTO v_room_id, v_check_in, v_check_out
+    FROM room_locks
+    WHERE id = p_lock_id;
+    
+    -- Delete the lock
+    DELETE FROM room_locks WHERE id = p_lock_id;
+    
+    -- Promote next waiting user to in_process
+    SELECT id INTO v_next_lock_id
+    FROM room_locks
+    WHERE room_id = v_room_id
+    AND lock_status = 'waiting'
+    AND expires_at > NOW()
+    AND (
+        (check_in_date <= v_check_in AND check_out_date > v_check_in)
+        OR (check_in_date < v_check_out AND check_out_date >= v_check_out)
+        OR (check_in_date >= v_check_in AND check_out_date <= v_check_out)
+    )
+    ORDER BY created_at ASC
+    LIMIT 1;
+    
+    -- Update next user to in_process
+    IF v_next_lock_id IS NOT NULL THEN
+        UPDATE room_locks
+        SET lock_status = 'in_process',
+            queue_position = 1,
+            updated_at = NOW()
+        WHERE id = v_next_lock_id;
+        
+        -- Update queue positions for remaining waiting users
+        UPDATE room_locks
+        SET queue_position = queue_position - 1
+        WHERE room_id = v_room_id
+        AND lock_status = 'waiting'
+        AND id != v_next_lock_id
+        AND expires_at > NOW();
+    END IF;
+END$$
+
+DELIMITER ;
+
+-- =====================================================
+-- STORED PROCEDURE - CLEANUP EXPIRED LOCKS
+-- =====================================================
+
+DELIMITER $$
+
+DROP PROCEDURE IF EXISTS cleanup_expired_locks$$
+
+CREATE PROCEDURE cleanup_expired_locks()
+BEGIN
+    DECLARE done INT DEFAULT FALSE;
+    DECLARE v_lock_id INT;
+    DECLARE cur CURSOR FOR 
+        SELECT id FROM room_locks 
+        WHERE expires_at < NOW();
+    DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+    
+    OPEN cur;
+    
+    read_loop: LOOP
+        FETCH cur INTO v_lock_id;
+        IF done THEN
+            LEAVE read_loop;
+        END IF;
+        
+        -- Release each expired lock (this will promote waiting users)
+        CALL release_room_lock(v_lock_id, 'expired');
+    END LOOP;
+    
+    CLOSE cur;
+END$$
+
+DELIMITER ;
+
+-- =====================================================
+-- CREATE EVENT - AUTO CLEANUP EXPIRED LOCKS
+-- =====================================================
+
+-- Enable event scheduler
+SET GLOBAL event_scheduler = ON;
+
+-- Drop existing event if exists
+DROP EVENT IF EXISTS auto_cleanup_expired_locks;
+
+-- Create event to run every minute
+CREATE EVENT IF NOT EXISTS auto_cleanup_expired_locks
+ON SCHEDULE EVERY 1 MINUTE
+DO
+    CALL cleanup_expired_locks();
+
+-- =====================================================
+-- CREATE INDEXES FOR PERFORMANCE
+-- =====================================================
+
+CREATE INDEX IF NOT EXISTS idx_bookings_room_dates ON bookings(room_id, check_in_date, check_out_date, status);
+CREATE INDEX IF NOT EXISTS idx_room_locks_room_dates ON room_locks(room_id, check_in_date, check_out_date, lock_status);
+
+-- =====================================================
+-- ROOM BOOKING QUEUE SYSTEM INSTALLED SUCCESSFULLY
+-- =====================================================
+
+SELECT 'Room Booking Queue System installed successfully!' as message;
+
+
+-- =====================================================
+-- SET ALL USERS TO ENGLISH AS DEFAULT LANGUAGE
+-- =====================================================
+-- This ensures all users start with English language
+-- Users can change to Amharic or Afan Oromo from their account settings
+
+UPDATE users SET preferred_language = 'en' WHERE preferred_language IS NULL OR preferred_language = '';
+UPDATE users SET preferred_language = 'en' WHERE preferred_language NOT IN ('en', 'am', 'om');
+
+-- =====================================================
+-- SETUP COMPLETE
 -- =====================================================

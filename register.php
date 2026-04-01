@@ -156,7 +156,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             align-items: center;
             justify-content: center;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            padding: 15px;
+            padding: 20px 15px;
             position: relative;
         }
         
@@ -177,30 +177,36 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             position: relative;
         }
         
+        .page-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+        
         .back-button {
             display: inline-flex;
             align-items: center;
             color: white;
             text-decoration: none;
-            margin-bottom: 15px;
-            font-size: 14px;
+            font-size: 13px;
             font-weight: 500;
             transition: all 0.3s ease;
-            padding: 6px 10px;
-            border-radius: 6px;
-            background: rgba(255, 255, 255, 0.1);
+            padding: 6px 12px;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.15);
             backdrop-filter: blur(10px);
         }
         
         .back-button:hover {
             color: white;
-            background: rgba(255, 255, 255, 0.2);
+            background: rgba(255, 255, 255, 0.25);
             transform: translateX(-3px);
         }
         
         .back-button i {
             margin-right: 8px;
-            font-size: 12px;
+            font-size: 14px;
         }
         
         .signup-container {
@@ -229,7 +235,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
         
         .signup-header h1 {
-            font-size: 22px;
+            font-size: 24px;
             font-weight: 700;
             color: #2d3748;
             margin-bottom: 4px;
@@ -242,7 +248,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
         
         .form-group {
-            margin-bottom: 12px;
+            margin-bottom: 10px;
         }
         
         .form-label {
@@ -256,7 +262,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         .form-control {
             border: 2px solid #e2e8f0;
             border-radius: 8px;
-            padding: 9px 12px;
+            padding: 9px 11px;
             font-size: 13px;
             width: 100%;
             transition: all 0.3s ease;
@@ -277,7 +283,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         
         .button-group {
             display: flex;
-            gap: 10px;
+            gap: 8px;
             margin-top: 15px;
         }
         
@@ -285,7 +291,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             border: none;
-            padding: 10px 20px;
+            padding: 10px 18px;
             border-radius: 8px;
             font-weight: 600;
             font-size: 13px;
@@ -303,7 +309,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             background: white;
             color: #667eea;
             border: 2px solid #667eea;
-            padding: 10px 20px;
+            padding: 10px 18px;
             border-radius: 8px;
             font-weight: 600;
             font-size: 13px;
@@ -326,8 +332,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         
         .alert {
             border-radius: 8px;
-            padding: 10px;
-            margin-bottom: 12px;
+            padding: 8px;
+            margin-bottom: 10px;
             font-size: 12px;
             border: none;
             display: flex;
@@ -335,8 +341,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         }
         
         .alert i {
-            margin-right: 8px;
-            font-size: 14px;
+            margin-right: 6px;
+            font-size: 13px;
         }
         
         .alert-danger {
@@ -349,9 +355,66 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             color: #2f855a;
         }
         
+        .divider {
+            text-align: center;
+            margin: 10px 0;
+            position: relative;
+        }
+        
+        .divider::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 50%;
+            width: 100%;
+            height: 1px;
+            background: #e2e8f0;
+        }
+        
+        .divider span {
+            background: white;
+            padding: 0 12px;
+            color: #a0aec0;
+            font-size: 12px;
+            font-weight: 500;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .btn-oauth {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 10px;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 13px;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            border: 2px solid #e2e8f0;
+            background: white;
+            width: 100%;
+        }
+        
+        .btn-oauth:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
+            text-decoration: none;
+        }
+        
+        .btn-google {
+            color: #3c4043;
+        }
+        
+        .btn-google:hover {
+            border-color: #4285F4;
+            background: #f8f9fa;
+        }
+        
         .login-link {
             text-align: center;
-            margin-top: 15px;
+            margin-top: 12px;
             font-size: 12px;
             color: #718096;
         }
@@ -368,19 +431,19 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         
         .field-error {
             color: #e53e3e;
-            font-size: 11px;
-            margin-top: 4px;
+            font-size: 10px;
+            margin-top: 3px;
             display: block;
         }
         
         /* Responsive Design */
         @media (max-width: 768px) {
             body {
-                padding: 10px;
+                padding: 15px 10px;
             }
             
             .signup-container {
-                padding: 25px 20px;
+                padding: 18px;
                 border-radius: 14px;
             }
             
@@ -394,13 +457,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             
             .back-button {
                 font-size: 13px;
-                padding: 5px 8px;
+                padding: 6px 12px;
+            }
+            
+            .form-group {
+                margin-bottom: 9px;
             }
         }
         
         @media (max-width: 480px) {
             .signup-container {
-                padding: 20px 16px;
+                padding: 16px 14px;
                 border-radius: 12px;
             }
             
@@ -409,6 +476,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             }
             
             .signup-header p {
+                font-size: 12px;
+            }
+            
+            .form-control {
+                font-size: 14px;
+            }
+            
+            .btn-signup, .btn-cancel {
+                padding: 10px 14px;
                 font-size: 13px;
             }
         }
@@ -424,6 +500,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         .form-group:nth-child(4) { animation-delay: 0.4s; }
         .form-group:nth-child(5) { animation-delay: 0.5s; }
         .button-group { animation: slideUp 0.6s ease-out 0.6s both; }
+        .divider { animation: slideUp 0.6s ease-out 0.65s both; }
+        .btn-oauth { animation: slideUp 0.6s ease-out 0.7s both; }
+        .login-link { animation: slideUp 0.6s ease-out 0.75s both; }
         
         @keyframes slideUp {
             from {
@@ -448,10 +527,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 </head>
 <body>
     <div class="signup-wrapper">
-        <a href="index.php" class="back-button">
-            <i class="fas fa-arrow-left"></i>
-            Back to Home
-        </a>
+        <div class="page-header">
+            <a href="index.php" class="back-button">
+                <i class="fas fa-arrow-left"></i>
+                Back to Home
+            </a>
+        </div>
         
         <div class="signup-container">
             <div class="signup-header">
@@ -515,6 +596,24 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     <a href="index.php" class="btn-cancel">Cancel</a>
                 </div>
             </form>
+            
+            <div class="divider">
+                <span>or</span>
+            </div>
+            
+            <a href="oauth-login.php?provider=google<?php echo $redirect ? '&redirect=' . urlencode($redirect) . ($room_id ? '&room=' . $room_id : '') : ''; ?>" class="btn-oauth btn-google">
+                <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M17.64 9.20443C17.64 8.56625 17.5827 7.95262 17.4764 7.36353H9V10.8449H13.8436C13.635 11.9699 13.0009 12.9231 12.0477 13.5613V15.8194H14.9564C16.6582 14.2526 17.64 11.9453 17.64 9.20443Z" fill="#4285F4"/>
+                    <path d="M8.99976 18C11.4298 18 13.467 17.1941 14.9561 15.8195L12.0475 13.5613C11.2416 14.1013 10.2107 14.4204 8.99976 14.4204C6.65567 14.4204 4.67158 12.8372 3.96385 10.71H0.957031V13.0418C2.43794 15.9831 5.48158 18 8.99976 18Z" fill="#34A853"/>
+                    <path d="M3.96409 10.7098C3.78409 10.1698 3.68182 9.59301 3.68182 8.99983C3.68182 8.40665 3.78409 7.82983 3.96409 7.28983V4.95801H0.957273C0.347727 6.17301 0 7.54755 0 8.99983C0 10.4521 0.347727 11.8266 0.957273 13.0416L3.96409 10.7098Z" fill="#FBBC05"/>
+                    <path d="M8.99976 3.57955C10.3211 3.57955 11.5075 4.03364 12.4402 4.92545L15.0216 2.34409C13.4629 0.891818 11.4257 0 8.99976 0C5.48158 0 2.43794 2.01682 0.957031 4.95818L3.96385 7.29C4.67158 5.16273 6.65567 3.57955 8.99976 3.57955Z" fill="#EA4335"/>
+                </svg>
+                <span>Continue with Google</span>
+            </a>
+            
+            <div class="divider">
+                <span>or</span>
+            </div>
             
             <div class="login-link">
                 Already have an account? 

@@ -6,6 +6,10 @@ ini_set('display_errors', 0);
 session_start();
 require_once 'includes/config.php';
 require_once 'includes/functions.php';
+require_once 'includes/RoomLockManager.php';
+
+// Initialize Room Lock Manager
+$lockManager = new RoomLockManager($conn);
 
 // Check if user is logged in
 if (!is_logged_in()) {
@@ -167,75 +171,107 @@ if (!$payment_methods) {
 }
 
 // Handle form submission
-if ($_SERVER['REQUEST_METHOD'] == 'POST' && empty($error)) {
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && empty($error) && !isset($_POST['submit_feedback'])) {
     $payment_method = sanitize_input($_POST['payment_method']);
+    $transaction_id = sanitize_input($_POST['transaction_id']);
     
-    // Handle file upload
-    if (isset($_FILES['payment_screenshot']) && $_FILES['payment_screenshot']['error'] == 0) {
-        $upload_dir = 'uploads/payment_screenshots/';
-        if (!is_dir($upload_dir)) {
-            mkdir($upload_dir, 0755, true);
+    // Validate transaction ID
+    if (empty($transaction_id)) {
+        $error = 'Please enter your transaction ID.';
+    } elseif (!preg_match('/^[A-Za-z0-9\-]+$/', $transaction_id)) {
+        $error = 'Invalid transaction ID format. Only letters, numbers, and hyphens are allowed.';
+    } elseif (strlen($transaction_id) < 5) {
+        $error = 'Transaction ID is too short. Please enter a valid transaction ID.';
+    } else {
+        // Automatically verify transaction with payment gateway API
+        require_once 'includes/services/PaymentVerificationService.php';
+        $verificationService = new PaymentVerificationService($conn);
+        
+        $verification_result = $verificationService->verifyTransaction(
+            $transaction_id,
+            $payment_method,
+            $booking['total_price'],
+            $booking['payment_reference']
+        );
+        
+        // Determine verification status based on API response
+        if ($verification_result['verified'] === true) {
+            // Transaction verified successfully - auto-approve
+            $verification_status = 'verified';
+            $success = 'Payment verified successfully! Your booking is confirmed.';
+        } elseif ($verification_result['verified'] === 'pending' || isset($verification_result['requires_manual_verification'])) {
+            // Gateway not configured or needs manual check
+            $verification_status = 'pending_verification';
+            $success = 'Transaction ID submitted successfully! Your payment is being verified.';
+        } else {
+            // Verification failed
+            $error = 'Transaction verification failed: ' . ($verification_result['message'] ?? 'Invalid transaction');
+            
+            // Still save the transaction ID for manual review
+            $verification_status = 'pending_verification';
         }
         
-        $file_extension = strtolower(pathinfo($_FILES['payment_screenshot']['name'], PATHINFO_EXTENSION));
-        $allowed_extensions = ['jpg', 'jpeg', 'png', 'webp'];
-        
-        if (!in_array($file_extension, $allowed_extensions)) {
-            $error = 'Invalid file type. Please upload JPG, PNG, or WebP images only.';
-        } elseif ($_FILES['payment_screenshot']['size'] > 5 * 1024 * 1024) { // 5MB limit
-            $error = 'File size too large. Maximum 5MB allowed.';
-        } else {
-            $filename = 'payment_' . $booking_id . '_' . time() . '.' . $file_extension;
-            $filepath = $upload_dir . $filename;
+        if (empty($error)) {
+            // Update booking with transaction ID and verification status
+            $update_query = "UPDATE bookings SET 
+                            payment_method = ?, 
+                            transaction_id = ?, 
+                            screenshot_uploaded_at = NOW(), 
+                            verification_status = ?,
+                            verified_at = " . ($verification_status === 'verified' ? 'NOW()' : 'NULL') . ",
+                            payment_status = " . ($verification_status === 'verified' ? "'paid'" : "'pending'") . "
+                            WHERE id = ?";
             
-            if (move_uploaded_file($_FILES['payment_screenshot']['tmp_name'], $filepath)) {
-                // Update booking with screenshot info
-                $update_query = "UPDATE bookings SET 
-                                payment_method = ?, 
-                                payment_screenshot = ?, 
-                                screenshot_uploaded_at = NOW(), 
-                                verification_status = 'pending_verification'
-                                WHERE id = ?";
+            $update_stmt = $conn->prepare($update_query);
+            $update_stmt->bind_param("sssi", $payment_method, $transaction_id, $verification_status, $booking_id);
+            
+            if ($update_stmt->execute()) {
+                // Log the transaction ID submission with verification result
+                $log_query = "INSERT INTO payment_verification_log 
+                             (booking_id, payment_reference, action_type, performed_by, transaction_id, bank_method, verification_notes, ip_address, user_agent) 
+                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
                 
-                $update_stmt = $conn->prepare($update_query);
-                $update_stmt->bind_param("ssi", $payment_method, $filepath, $booking_id);
+                $log_stmt = $conn->prepare($log_query);
+                $action_type = $verification_status === 'verified' ? 'verification_approved' : 'transaction_id_submitted';
                 
-                if ($update_stmt->execute()) {
-                    // Log the upload
-                    $log_query = "INSERT INTO payment_verification_log 
-                                 (booking_id, payment_reference, action_type, performed_by, screenshot_path, bank_method, ip_address, user_agent) 
-                                 VALUES (?, ?, 'screenshot_uploaded', ?, ?, ?, ?, ?)";
-                    
-                    $log_stmt = $conn->prepare($log_query);
-                    $ip_address = $_SERVER['REMOTE_ADDR'];
-                    $user_agent = $_SERVER['HTTP_USER_AGENT'];
-                    $log_stmt->bind_param("isissss", $booking_id, $booking['payment_reference'], $_SESSION['user_id'], $filepath, $payment_method, $ip_address, $user_agent);
-                    $log_stmt->execute();
-                    
-                    // Add to verification queue
+                // Create human-readable verification notes
+                if (isset($verification_result['verified']) && $verification_result['verified']) {
+                    $verification_notes = "Payment automatically verified successfully.";
+                } elseif (isset($verification_result['message'])) {
+                    $verification_notes = $verification_result['message'];
+                } else {
+                    $verification_notes = "Transaction ID submitted. Awaiting manual verification.";
+                }
+                
+                $ip_address = $_SERVER['REMOTE_ADDR'];
+                $user_agent = $_SERVER['HTTP_USER_AGENT'];
+                $log_stmt->bind_param("isissssss", $booking_id, $booking['payment_reference'], $action_type, $_SESSION['user_id'], $transaction_id, $payment_method, $verification_notes, $ip_address, $user_agent);
+                $log_stmt->execute();
+                
+                // Add to verification queue only if not auto-verified
+                if ($verification_status !== 'verified') {
                     $queue_query = "INSERT INTO payment_verification_queue 
-                                   (booking_id, payment_reference, customer_name, room_name, total_amount, payment_method, screenshot_path, uploaded_at, priority) 
+                                   (booking_id, payment_reference, customer_name, room_name, total_amount, payment_method, transaction_id, uploaded_at, priority) 
                                    VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), 'normal')";
                     
                     $queue_stmt = $conn->prepare($queue_query);
-                    $queue_stmt->bind_param("isssdss", $booking_id, $booking['payment_reference'], $booking['customer_name'], $booking['room_name'], $booking['total_price'], $payment_method, $filepath);
+                    $queue_stmt->bind_param("isssdss", $booking_id, $booking['payment_reference'], $booking['customer_name'], $booking['room_name'], $booking['total_price'], $payment_method, $transaction_id);
                     $queue_stmt->execute();
-                    
-                    $success = 'Payment screenshot uploaded successfully! Your payment is now being verified by our staff. You will be notified once verification is complete.';
-                    
-                    // Refresh booking data
-                    $stmt->execute();
-                    $booking = $stmt->get_result()->fetch_assoc();
                 } else {
-                    $error = 'Failed to update booking. Please try again.';
-                    unlink($filepath); // Remove uploaded file
+                    // Payment verified - release room lock and promote next in queue
+                    if (isset($_SESSION['room_lock_id'])) {
+                        $lockManager->releaseRoomLock($_SESSION['room_lock_id'], 'completed');
+                        unset($_SESSION['room_lock_id']);
+                    }
                 }
+                
+                // Refresh booking data
+                $stmt->execute();
+                $booking = $stmt->get_result()->fetch_assoc();
             } else {
-                $error = 'Failed to upload file. Please try again.';
+                $error = 'Failed to update booking. Please try again.';
             }
         }
-    } else {
-        $error = 'Please select a payment screenshot to upload.';
     }
 }
 
@@ -244,12 +280,18 @@ $deadline_passed = false;
 if ($booking['payment_deadline'] && strtotime($booking['payment_deadline']) < time()) {
     $deadline_passed = true;
     if ($booking['verification_status'] == 'pending_payment') {
-        // Auto-expire the booking
+        // Auto-expire the booking and release lock
         $expire_query = "UPDATE bookings SET verification_status = 'expired' WHERE id = ?";
         $expire_stmt = $conn->prepare($expire_query);
         $expire_stmt->bind_param("i", $booking_id);
         $expire_stmt->execute();
         $booking['verification_status'] = 'expired';
+        
+        // Release room lock
+        if (isset($_SESSION['room_lock_id'])) {
+            $lockManager->releaseRoomLock($_SESSION['room_lock_id'], 'expired');
+            unset($_SESSION['room_lock_id']);
+        }
     }
 }
 ?>
@@ -272,38 +314,81 @@ if ($booking['payment_deadline'] && strtotime($booking['payment_deadline']) < ti
         }
         
         .payment-method-card {
-            border: 1px solid #ddd;
-            border-radius: 8px;
+            border: 2px solid #ddd;
+            border-radius: 10px;
             padding: 15px;
             margin-bottom: 15px;
             cursor: pointer;
             transition: all 0.3s;
+            background: white;
         }
         
         .payment-method-card:hover {
             border-color: #007bff;
             background-color: #f0f8ff;
+            transform: translateY(-3px);
+            box-shadow: 0 4px 12px rgba(0,123,255,0.2);
         }
         
         .payment-method-card.selected {
             border-color: #007bff;
             background-color: #e3f2fd;
+            box-shadow: 0 4px 12px rgba(0,123,255,0.3);
         }
         
         .payment-instructions {
             background: #fff3cd;
             border: 1px solid #ffeaa7;
-            border-radius: 5px;
-            padding: 15px;
+            border-radius: 8px;
+            padding: 20px;
             margin-top: 15px;
+        }
+        
+        .payment-instructions h6 {
+            color: #856404;
+            font-weight: 600;
+            margin-bottom: 15px;
+            font-size: 16px;
+        }
+        
+        .payment-instructions p {
+            margin-bottom: 10px;
+            color: #333;
+        }
+        
+        .payment-instructions strong {
+            color: #856404;
+            font-weight: 600;
+        }
+        
+        .instructions-steps {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #ffeaa7;
+        }
+        
+        .instructions-steps p {
+            padding-left: 10px;
+            margin-bottom: 8px;
         }
         
         .verification-tips {
             background: #d1ecf1;
             border: 1px solid #bee5eb;
-            border-radius: 5px;
-            padding: 15px;
-            margin-top: 10px;
+            border-radius: 8px;
+            padding: 20px;
+            margin-top: 15px;
+        }
+        
+        .verification-tips h6 {
+            color: #0c5460;
+            font-weight: 600;
+            margin-bottom: 10px;
+        }
+        
+        .verification-tips p {
+            color: #0c5460;
+            margin-bottom: 0;
         }
         
         .deadline-warning {
@@ -353,25 +438,6 @@ if ($booking['payment_deadline'] && strtotime($booking['payment_deadline']) < ti
             min-height: 20px;
         }
         
-        .upload-area {
-            border: 2px dashed #ddd;
-            border-radius: 8px;
-            padding: 40px;
-            text-align: center;
-            background: #fafafa;
-            transition: all 0.3s;
-        }
-        
-        .upload-area:hover {
-            border-color: #007bff;
-            background: #f0f8ff;
-        }
-        
-        .upload-area.dragover {
-            border-color: #007bff;
-            background: #e3f2fd;
-        }
-        
         .status-badge {
             font-size: 0.9em;
             padding: 5px 10px;
@@ -380,6 +446,39 @@ if ($booking['payment_deadline'] && strtotime($booking['payment_deadline']) < ti
         .countdown {
             font-weight: bold;
             color: #dc3545;
+        }
+        
+        /* Feedback Form Responsive Styles */
+        @media (max-width: 768px) {
+            .feedback-form-wrapper {
+                padding: 0 10px !important;
+            }
+            .feedback-form-container {
+                padding: 15px !important;
+            }
+            .star-rating {
+                font-size: 28px !important;
+                gap: 6px !important;
+            }
+            .rating-group {
+                padding: 10px !important;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .star-rating {
+                font-size: 24px !important;
+                gap: 4px !important;
+            }
+        }
+        
+        /* Star button hover effect */
+        .star-btn:hover {
+            transform: scale(1.2) !important;
+        }
+        
+        .star-btn:active {
+            transform: scale(1.1) !important;
         }
     </style>
 </head>
@@ -397,7 +496,7 @@ if ($booking['payment_deadline'] && strtotime($booking['payment_deadline']) < ti
                 </div>
                 <div class="col text-center">
                     <h2 class="mb-0">Payment Upload</h2>
-                    <p class="text-muted mb-0">Upload your payment screenshot for verification</p>
+                    <p class="text-muted mb-0">Submit your transaction ID for verification</p>
                 </div>
                 <div class="col-auto">
                     <!-- Spacer for centering -->
@@ -544,7 +643,7 @@ if ($booking['payment_deadline'] && strtotime($booking['payment_deadline']) < ti
                             <?php if ($booking['payment_deadline'] && !$deadline_passed && $booking['verification_status'] == 'pending_payment'): ?>
                             <div class="deadline-warning">
                                 <h6><i class="fas fa-clock text-danger"></i> Payment Deadline</h6>
-                                <p class="mb-2">You must upload your payment screenshot before: <strong><?php echo date('F j, Y g:i A', strtotime($booking['payment_deadline'])); ?></strong></p>
+                                <p class="mb-2">You must submit your transaction ID before: <strong><?php echo date('F j, Y g:i A', strtotime($booking['payment_deadline'])); ?></strong></p>
                                 <p class="mb-0">Time remaining: <span class="countdown" id="countdown"></span></p>
                             </div>
                             <?php elseif ($deadline_passed): ?>
@@ -562,8 +661,13 @@ if ($booking['payment_deadline'] && strtotime($booking['payment_deadline']) < ti
                             <?php endif; ?>
                             
                             <?php if ($success): ?>
-                                <div class="alert alert-success" style="background: #d4edda; border: 1px solid #c3e6cb; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
-                                    <i class="fas fa-check-circle"></i> <strong>Payment screenshot uploaded successfully! Please wait for verification.</strong>
+                                <div class="alert alert-success" style="background: #d4edda; border: 1px solid #c3e6cb; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                                    <h5 style="color: #155724; margin-bottom: 10px;">
+                                        <i class="fas fa-check-circle"></i> Your transaction ID was submitted successfully! Please wait for verification.
+                                    </h5>
+                                    <p class="mb-0" style="font-size: 14px; color: #155724;">
+                                        <strong>Note:</strong> After API integration, the system will automatically verify your payment without manual approval.
+                                    </p>
                                 </div>
                             <?php endif; ?>
                             
@@ -614,34 +718,37 @@ if ($booking['payment_deadline'] && strtotime($booking['payment_deadline']) < ti
                                 
                                 <?php if ($booking['payment_screenshot']): ?>
                                 <p class="mt-3">
-                                    <a href="<?php echo $booking['payment_screenshot']; ?>" target="_blank" class="btn btn-outline-primary btn-sm">
-                                        <i class="fas fa-eye"></i> View Uploaded Screenshot
-                                    </a>
+                                    <strong>Transaction ID:</strong> <code><?php echo htmlspecialchars($booking['transaction_id']); ?></code>
                                 </p>
                                 <?php endif; ?>
                                 
                                 <!-- Customer Feedback Form -->
                                 <?php if (!$feedback_exists): ?>
-                                <div style="background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 20px; margin: 20px 0;">
-                                    <h5 style="margin-bottom: 15px;"><i class="fas fa-star text-warning"></i> Share Your Feedback</h5>
-                                    <p style="color: #666; margin-bottom: 15px;">Help us improve by sharing your experience with our hotel</p>
+                                <div class="feedback-form-wrapper" style="max-width: 500px; margin: 20px auto; padding: 0 15px;">
+                                    <div class="feedback-form-container" style="background: #ffffff; border: 2px solid #e0e0e0; border-radius: 12px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
+                                        <div style="text-align: center; margin-bottom: 15px;">
+                                            <h5 style="margin: 0 0 5px 0; font-size: 18px; color: #333; font-weight: 600;">
+                                                <i class="fas fa-star" style="color: #ffc107;"></i> Share Your Feedback
+                                            </h5>
+                                            <p style="margin: 0; font-size: 13px; color: #666;">Help us improve your experience</p>
+                                        </div>
                                     
                                     <?php if ($feedback_success): ?>
-                                    <div class="alert alert-success alert-dismissible fade show" role="alert">
-                                        <i class="fas fa-check-circle"></i> <strong><?php echo $feedback_success; ?></strong>
+                                    <div class="alert alert-success alert-dismissible fade show" role="alert" style="padding: 10px 15px; font-size: 13px; margin-bottom: 15px; border-radius: 8px;">
+                                        <i class="fas fa-check-circle"></i> <?php echo $feedback_success; ?>
                                         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                                     </div>
                                     <?php endif; ?>
                                     
                                     <?php if ($feedback_error): ?>
-                                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                                        <i class="fas fa-exclamation-circle"></i> <strong><?php echo $feedback_error; ?></strong>
+                                    <div class="alert alert-danger alert-dismissible fade show" role="alert" style="padding: 10px 15px; font-size: 13px; margin-bottom: 15px; border-radius: 8px;">
+                                        <i class="fas fa-exclamation-circle"></i> <?php echo $feedback_error; ?>
                                         <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                                     </div>
                                     <?php endif; ?>
                                     
                                     <?php if (!$feedback_success): ?>
-                                    <form method="POST" action="">
+                                    <form method="POST" action="" id="feedbackForm" onsubmit="return validateFeedbackForm()">
                                         <input type="hidden" name="submit_feedback" value="1">
                                         <input type="hidden" name="booking_ref" value="<?php echo htmlspecialchars($booking['booking_reference']); ?>">
                                         <input type="hidden" name="payment_id" value="<?php echo htmlspecialchars($booking['payment_reference']); ?>">
@@ -650,74 +757,101 @@ if ($booking['payment_deadline'] && strtotime($booking['payment_deadline']) < ti
                                         <input type="hidden" name="booking_type" value="<?php echo $booking['booking_type']; ?>">
                                         
                                         <!-- Overall Rating -->
-                                        <div style="margin-bottom: 20px;">
-                                            <label style="display: block; margin-bottom: 10px; font-weight: 500; font-size: 15px;">Overall Rating: <span style="color: red;">*</span></label>
-                                            <div class="star-rating-container" data-name="overall_rating" style="display: flex; gap: 8px; font-size: 36px; margin-bottom: 10px;">
-                                                <span class="star" data-value="1" style="cursor: pointer; color: #ddd; transition: all 0.2s ease; user-select: none;">★</span>
-                                                <span class="star" data-value="2" style="cursor: pointer; color: #ddd; transition: all 0.2s ease; user-select: none;">★</span>
-                                                <span class="star" data-value="3" style="cursor: pointer; color: #ddd; transition: all 0.2s ease; user-select: none;">★</span>
-                                                <span class="star" data-value="4" style="cursor: pointer; color: #ddd; transition: all 0.2s ease; user-select: none;">★</span>
-                                                <span class="star" data-value="5" style="cursor: pointer; color: #ddd; transition: all 0.2s ease; user-select: none;">★</span>
+                                        <div class="rating-group" style="margin-bottom: 15px; padding: 12px; background: #f8f9fa; border-radius: 8px;">
+                                            <label style="display: block; margin-bottom: 8px; font-weight: 600; font-size: 13px; color: #333;">
+                                                Overall Experience <span style="color: #dc3545;">*</span>
+                                            </label>
+                                            <div class="star-rating" id="overall_rating_stars" style="display: flex; gap: 8px; font-size: 32px; margin-bottom: 5px; justify-content: center;">
+                                                <span class="star-btn" onclick="rateStar('overall_rating', 1)" style="cursor: pointer; color: #ddd; transition: all 0.2s; user-select: none;">★</span>
+                                                <span class="star-btn" onclick="rateStar('overall_rating', 2)" style="cursor: pointer; color: #ddd; transition: all 0.2s; user-select: none;">★</span>
+                                                <span class="star-btn" onclick="rateStar('overall_rating', 3)" style="cursor: pointer; color: #ddd; transition: all 0.2s; user-select: none;">★</span>
+                                                <span class="star-btn" onclick="rateStar('overall_rating', 4)" style="cursor: pointer; color: #ddd; transition: all 0.2s; user-select: none;">★</span>
+                                                <span class="star-btn" onclick="rateStar('overall_rating', 5)" style="cursor: pointer; color: #ddd; transition: all 0.2s; user-select: none;">★</span>
                                             </div>
-                                            <div class="rating-text" id="overall_rating_text" style="font-size: 14px; color: #666; margin-top: 5px; min-height: 20px;">Click to rate your overall experience</div>
-                                            <input type="hidden" name="overall_rating" id="overall_rating" value="0" required>
+                                            <div id="overall_rating_label" style="text-align: center; font-size: 12px; color: #666; min-height: 18px; font-weight: 500;">Click to rate</div>
+                                            <input type="hidden" name="overall_rating" id="overall_rating" value="0">
                                         </div>
                                         
                                         <!-- Service Quality Rating -->
-                                        <div style="margin-bottom: 20px;">
-                                            <label style="display: block; margin-bottom: 10px; font-weight: 500; font-size: 15px;">Service Quality: <span style="color: red;">*</span></label>
-                                            <div class="star-rating-container" data-name="service_quality" style="display: flex; gap: 8px; font-size: 36px; margin-bottom: 10px;">
-                                                <span class="star" data-value="1" style="cursor: pointer; color: #ddd; transition: all 0.2s ease; user-select: none;">★</span>
-                                                <span class="star" data-value="2" style="cursor: pointer; color: #ddd; transition: all 0.2s ease; user-select: none;">★</span>
-                                                <span class="star" data-value="3" style="cursor: pointer; color: #ddd; transition: all 0.2s ease; user-select: none;">★</span>
-                                                <span class="star" data-value="4" style="cursor: pointer; color: #ddd; transition: all 0.2s ease; user-select: none;">★</span>
-                                                <span class="star" data-value="5" style="cursor: pointer; color: #ddd; transition: all 0.2s ease; user-select: none;">★</span>
+                                        <div class="rating-group" style="margin-bottom: 15px; padding: 12px; background: #f8f9fa; border-radius: 8px;">
+                                            <label style="display: block; margin-bottom: 8px; font-weight: 600; font-size: 13px; color: #333;">
+                                                Service Quality <span style="color: #dc3545;">*</span>
+                                            </label>
+                                            <div class="star-rating" id="service_quality_stars" style="display: flex; gap: 8px; font-size: 32px; margin-bottom: 5px; justify-content: center;">
+                                                <span class="star-btn" onclick="rateStar('service_quality', 1)" style="cursor: pointer; color: #ddd; transition: all 0.2s; user-select: none;">★</span>
+                                                <span class="star-btn" onclick="rateStar('service_quality', 2)" style="cursor: pointer; color: #ddd; transition: all 0.2s; user-select: none;">★</span>
+                                                <span class="star-btn" onclick="rateStar('service_quality', 3)" style="cursor: pointer; color: #ddd; transition: all 0.2s; user-select: none;">★</span>
+                                                <span class="star-btn" onclick="rateStar('service_quality', 4)" style="cursor: pointer; color: #ddd; transition: all 0.2s; user-select: none;">★</span>
+                                                <span class="star-btn" onclick="rateStar('service_quality', 5)" style="cursor: pointer; color: #ddd; transition: all 0.2s; user-select: none;">★</span>
                                             </div>
-                                            <div class="rating-text" id="service_quality_text" style="font-size: 14px; color: #666; margin-top: 5px; min-height: 20px;">Rate the service quality</div>
-                                            <input type="hidden" name="service_quality" id="service_quality" value="0" required>
+                                            <div id="service_quality_label" style="text-align: center; font-size: 12px; color: #666; min-height: 18px; font-weight: 500;">Click to rate</div>
+                                            <input type="hidden" name="service_quality" id="service_quality" value="0">
                                         </div>
                                         
                                         <!-- Cleanliness Rating -->
-                                        <div style="margin-bottom: 20px;">
-                                            <label style="display: block; margin-bottom: 10px; font-weight: 500; font-size: 15px;">Cleanliness: <span style="color: red;">*</span></label>
-                                            <div class="star-rating-container" data-name="cleanliness" style="display: flex; gap: 8px; font-size: 36px; margin-bottom: 10px;">
-                                                <span class="star" data-value="1" style="cursor: pointer; color: #ddd; transition: all 0.2s ease; user-select: none;">★</span>
-                                                <span class="star" data-value="2" style="cursor: pointer; color: #ddd; transition: all 0.2s ease; user-select: none;">★</span>
-                                                <span class="star" data-value="3" style="cursor: pointer; color: #ddd; transition: all 0.2s ease; user-select: none;">★</span>
-                                                <span class="star" data-value="4" style="cursor: pointer; color: #ddd; transition: all 0.2s ease; user-select: none;">★</span>
-                                                <span class="star" data-value="5" style="cursor: pointer; color: #ddd; transition: all 0.2s ease; user-select: none;">★</span>
+                                        <div class="rating-group" style="margin-bottom: 15px; padding: 12px; background: #f8f9fa; border-radius: 8px;">
+                                            <label style="display: block; margin-bottom: 8px; font-weight: 600; font-size: 13px; color: #333;">
+                                                Cleanliness <span style="color: #dc3545;">*</span>
+                                            </label>
+                                            <div class="star-rating" id="cleanliness_stars" style="display: flex; gap: 8px; font-size: 32px; margin-bottom: 5px; justify-content: center;">
+                                                <span class="star-btn" onclick="rateStar('cleanliness', 1)" style="cursor: pointer; color: #ddd; transition: all 0.2s; user-select: none;">★</span>
+                                                <span class="star-btn" onclick="rateStar('cleanliness', 2)" style="cursor: pointer; color: #ddd; transition: all 0.2s; user-select: none;">★</span>
+                                                <span class="star-btn" onclick="rateStar('cleanliness', 3)" style="cursor: pointer; color: #ddd; transition: all 0.2s; user-select: none;">★</span>
+                                                <span class="star-btn" onclick="rateStar('cleanliness', 4)" style="cursor: pointer; color: #ddd; transition: all 0.2s; user-select: none;">★</span>
+                                                <span class="star-btn" onclick="rateStar('cleanliness', 5)" style="cursor: pointer; color: #ddd; transition: all 0.2s; user-select: none;">★</span>
                                             </div>
-                                            <div class="rating-text" id="cleanliness_text" style="font-size: 14px; color: #666; margin-top: 5px; min-height: 20px;">Rate the cleanliness</div>
-                                            <input type="hidden" name="cleanliness" id="cleanliness" value="0" required>
+                                            <div id="cleanliness_label" style="text-align: center; font-size: 12px; color: #666; min-height: 18px; font-weight: 500;">Click to rate</div>
+                                            <input type="hidden" name="cleanliness" id="cleanliness" value="0">
                                         </div>
                                         
                                         <!-- Comments -->
                                         <div style="margin-bottom: 15px;">
-                                            <label style="display: block; margin-bottom: 8px; font-weight: 500;">Additional Comments (Optional):</label>
-                                            <textarea name="comments" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 5px; font-family: Arial, sans-serif;" rows="3" placeholder="Share your thoughts..."></textarea>
+                                            <label style="display: block; margin-bottom: 8px; font-weight: 600; font-size: 13px; color: #333;">
+                                                Comments <span style="font-weight: 400; color: #666;">(Optional)</span>
+                                            </label>
+                                            <textarea name="comments" 
+                                                      style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-family: inherit; font-size: 13px; resize: vertical; transition: border-color 0.2s;" 
+                                                      rows="3" 
+                                                      placeholder="Share your thoughts with us..."
+                                                      onfocus="this.style.borderColor='#0d6efd'"
+                                                      onblur="this.style.borderColor='#ddd'"></textarea>
                                         </div>
                                         
-                                        <div style="display: flex; gap: 10px;">
-                                            <button type="submit" class="btn btn-primary" style="flex: 1;">
+                                        <div style="display: flex; gap: 10px; margin-top: 20px;">
+                                            <button type="submit" 
+                                                    class="btn btn-primary" 
+                                                    style="flex: 1; padding: 12px; font-size: 14px; font-weight: 600; border-radius: 8px; transition: all 0.2s;"
+                                                    onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 12px rgba(13,110,253,0.3)'"
+                                                    onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none'">
                                                 <i class="fas fa-paper-plane"></i> Submit Feedback
                                             </button>
-                                            <button type="button" class="btn btn-outline-secondary" onclick="skipFeedback()" style="flex: 1;">
-                                                <i class="fas fa-forward"></i> Skip for Now
+                                            <button type="button" 
+                                                    class="btn btn-outline-secondary" 
+                                                    onclick="skipFeedback()" 
+                                                    style="flex: 1; padding: 12px; font-size: 14px; font-weight: 600; border-radius: 8px; transition: all 0.2s;"
+                                                    onmouseover="this.style.transform='translateY(-2px)'"
+                                                    onmouseout="this.style.transform='translateY(0)'">
+                                                <i class="fas fa-forward"></i> Skip
                                             </button>
                                         </div>
                                     </form>
                                     <?php else: ?>
-                                    <div class="text-center mt-4">
-                                        <a href="index.php" class="btn btn-primary">
+                                    <div class="text-center" style="padding: 15px 0;">
+                                        <a href="index.php" class="btn btn-primary" style="padding: 10px 30px; border-radius: 8px;">
                                             <i class="fas fa-home"></i> Return to Home
                                         </a>
                                     </div>
                                     <?php endif; ?>
+                                    </div>
                                 </div>
                                 <?php else: ?>
-                                <div style="background: #d4edda; border: 1px solid #c3e6cb; border-radius: 8px; padding: 20px; margin: 20px 0;">
-                                    <h5 style="margin-bottom: 10px; color: #155724;"><i class="fas fa-check-circle"></i> Feedback Already Submitted</h5>
-                                    <p style="color: #155724; margin-bottom: 0;">Thank you! You have already submitted your feedback for this booking.</p>
+                                <div style="max-width: 500px; margin: 20px auto; padding: 0 15px;">
+                                    <div style="background: #d4edda; border: 2px solid #c3e6cb; border-radius: 12px; padding: 20px; text-align: center;">
+                                        <h5 style="margin: 0 0 8px 0; color: #155724; font-size: 16px; font-weight: 600;">
+                                            <i class="fas fa-check-circle"></i> Feedback Submitted
+                                        </h5>
+                                        <p style="margin: 0; color: #155724; font-size: 13px;">Thank you for sharing your experience with us!</p>
+                                    </div>
                                 </div>
                                 <?php endif; ?>
                                 
@@ -744,7 +878,7 @@ if ($booking['payment_deadline'] && strtotime($booking['payment_deadline']) < ti
                             <?php elseif ($booking['verification_status'] == 'rejected'): ?>
                             <div class="alert alert-danger">
                                 <h6><i class="fas fa-times-circle"></i> Payment Rejected</h6>
-                                <p class="mb-2">Your payment screenshot was rejected. Please upload a new screenshot with the correct information.</p>
+                                <p class="mb-2">Your transaction ID was rejected. Please submit a new transaction ID with the correct information.</p>
                                 <?php if ($booking['rejection_reason']): ?>
                                 <p class="mb-0"><strong>Reason:</strong> <?php echo htmlspecialchars($booking['rejection_reason']); ?></p>
                                 <?php endif; ?>
@@ -756,53 +890,61 @@ if ($booking['payment_deadline'] && strtotime($booking['payment_deadline']) < ti
                             <form method="POST" enctype="multipart/form-data" id="paymentForm">
                                 <!-- Payment Method Selection -->
                                 <div class="mb-4">
-                                    <h5><i class="fas fa-university text-primary"></i> Select Payment Method</h5>
-                                    <div class="row">
+                                    <h5 style="margin-bottom: 20px;"><i class="fas fa-university text-primary"></i> Select Payment Method</h5>
+                                    <div class="row" id="paymentMethodsContainer">
                                         <?php foreach ($payment_methods as $method): ?>
-                                        <div class="col-md-6 col-lg-4">
-                                            <div class="payment-method-card" data-method="<?php echo $method['method_code']; ?>">
-                                                <input type="radio" name="payment_method" value="<?php echo $method['method_code']; ?>" id="method_<?php echo $method['method_code']; ?>" class="d-none">
-                                                <label for="method_<?php echo $method['method_code']; ?>" class="w-100 mb-0" style="cursor: pointer;">
-                                                    <h6 class="mb-1"><?php echo $method['method_name']; ?></h6>
-                                                    <small class="text-muted"><?php echo $method['bank_name']; ?></small>
-                                                    <?php if ($method['mobile_number']): ?>
-                                                    <br><small class="text-primary"><?php echo $method['mobile_number']; ?></small>
-                                                    <?php endif; ?>
-                                                </label>
+                                        <div class="col-md-6 col-lg-4 mb-3">
+                                            <div class="payment-method-card" data-method-code="<?php echo $method['method_code']; ?>" style="cursor: pointer; border: 2px solid #ddd; border-radius: 10px; padding: 20px; transition: all 0.3s; background: white; text-align: center;">
+                                                <i class="fas fa-university" style="font-size: 32px; color: #007bff; margin-bottom: 15px; display: block;"></i>
+                                                <h6 style="margin-bottom: 8px; font-weight: 600; font-size: 15px;"><?php echo htmlspecialchars($method['method_name']); ?></h6>
+                                                <small style="color: #666; display: block; margin-bottom: 5px;"><?php echo htmlspecialchars($method['bank_name']); ?></small>
+                                                <?php if ($method['mobile_number']): ?>
+                                                <small style="color: #007bff; display: block; margin-top: 8px;">
+                                                    <i class="fas fa-phone"></i> <?php echo htmlspecialchars($method['mobile_number']); ?>
+                                                </small>
+                                                <?php endif; ?>
                                             </div>
+                                            <input type="radio" name="payment_method" value="<?php echo $method['method_code']; ?>" id="method_<?php echo $method['method_code']; ?>" style="display: none;">
                                         </div>
                                         <?php endforeach; ?>
                                     </div>
                                 </div>
                                 
                                 <!-- Payment Instructions -->
-                                <div id="paymentInstructions" style="display: none;">
-                                    <h5><i class="fas fa-list-ol text-primary"></i> Payment Instructions</h5>
+                                <div id="paymentInstructions" style="display: none; margin-top: 20px; padding: 25px; background: #f8f9fa; border-radius: 10px; border: 2px solid #007bff;">
+                                    <h5 style="color: #007bff; margin-bottom: 20px;"><i class="fas fa-info-circle"></i> Payment Details & Instructions</h5>
                                     <div id="instructionsContent"></div>
                                 </div>
                                 
-                                <!-- Screenshot Upload -->
+                                <!-- Transaction ID Input -->
                                 <div class="mb-4">
-                                    <h5><i class="fas fa-camera text-primary"></i> Upload Payment Screenshot</h5>
-                                    <div class="upload-area" id="uploadArea">
-                                        <i class="fas fa-cloud-upload-alt fa-3x text-muted mb-3"></i>
-                                        <h6>Click to select or drag and drop your screenshot</h6>
-                                        <p class="text-muted mb-0">Supported formats: JPG, PNG, WebP (Max 5MB)</p>
-                                        <input type="file" name="payment_screenshot" id="paymentScreenshot" accept="image/jpeg,image/jpg,image/png,image/webp" class="d-none" required>
+                                    <h5><i class="fas fa-receipt text-primary"></i> Enter Transaction ID</h5>
+                                    <div class="form-group">
+                                        <label for="transactionId" class="form-label">Transaction ID <span class="text-danger">*</span></label>
+                                        <input type="text" 
+                                               name="transaction_id" 
+                                               id="transactionId" 
+                                               class="form-control form-control-lg" 
+                                               placeholder="e.g., TXN123456789ETH or CBE-2024-001234567" 
+                                               required
+                                               pattern="[A-Za-z0-9\-]+"
+                                               title="Transaction ID should contain only letters, numbers, and hyphens">
+                                        <div class="form-text">
+                                            <i class="fas fa-info-circle"></i> Enter the transaction ID from your payment confirmation
+                                        </div>
                                     </div>
-                                    <div id="filePreview" class="mt-3" style="display: none;">
-                                        <img id="previewImage" src="" alt="Preview" class="img-thumbnail" style="max-width: 300px;">
-                                        <p id="fileName" class="mt-2 mb-2"></p>
-                                        <button type="button" class="btn btn-danger btn-sm" id="cancelBtn" onclick="cancelScreenshot()">
-                                            <i class="fas fa-times"></i> Cancel / Remove Screenshot
-                                        </button>
+                                    
+                                    <!-- Verification Tips -->
+                                    <div class="verification-tips mt-3">
+                                        <h6><i class="fas fa-lightbulb"></i> Verification Tips</h6>
+                                        <p class="mb-0">Ensure your transaction ID is correct and matches your payment confirmation.</p>
                                     </div>
                                 </div>
                                 
                                 <!-- Submit Button -->
                                 <div class="text-center">
-                                    <button type="submit" class="btn btn-primary btn-lg" id="submitBtn" disabled>
-                                        <i class="fas fa-arrow-right"></i> Proceed to Payment
+                                    <button type="submit" class="btn btn-primary btn-lg" id="submitBtn">
+                                        <i class="fas fa-check-circle"></i> Submit Transaction ID
                                     </button>
                                 </div>
                             </form>
@@ -819,12 +961,12 @@ if ($booking['payment_deadline'] && strtotime($booking['payment_deadline']) < ti
                                            <i class="fas fa-envelope"></i> support@hararrashotel.com</p>
                                     </div>
                                     <div class="col-md-6">
-                                        <h6>Screenshot Requirements</h6>
+                                        <h6>Transaction ID Requirements</h6>
                                         <ul class="small">
-                                            <li>Must show the exact amount (<?php echo format_currency($booking['total_price']); ?>)</li>
-                                            <li>Must include payment reference: <code><?php echo $booking['payment_reference']; ?></code></li>
-                                            <li>Must show successful transaction confirmation</li>
-                                            <li>Image must be clear and readable</li>
+                                            <li>Must be the exact transaction ID from your payment confirmation</li>
+                                            <li>Common formats: TXN123456789ETH, CBE-2024-001234567, TB-ETH-20240315-123456</li>
+                                            <li>Include payment reference: <code><?php echo $booking['payment_reference']; ?></code> when making payment</li>
+                                            <li>Transaction must match the exact amount (<?php echo format_currency($booking['total_price']); ?>)</li>
                                         </ul>
                                     </div>
                                 </div>
@@ -841,140 +983,137 @@ if ($booking['payment_deadline'] && strtotime($booking['payment_deadline']) < ti
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         // Payment method instructions data
-        const paymentMethods = <?php echo json_encode($payment_methods); ?>;
+        var paymentMethods = <?php echo json_encode($payment_methods); ?>;
         
-        // Payment method selection
-        document.querySelectorAll('.payment-method-card').forEach(card => {
-            card.addEventListener('click', function() {
-                // Remove selected class from all cards
-                document.querySelectorAll('.payment-method-card').forEach(c => c.classList.remove('selected'));
-                
-                // Add selected class to clicked card
-                this.classList.add('selected');
-                
-                // Check the radio button
-                const radio = this.querySelector('input[type="radio"]');
-                radio.checked = true;
-                
-                // Show instructions
-                showPaymentInstructions(radio.value);
-                
-                // Enable submit button if file is also selected
-                checkFormValidity();
+        // Attach click handlers to payment cards
+        document.addEventListener('DOMContentLoaded', function() {
+            var cards = document.querySelectorAll('.payment-method-card');
+            cards.forEach(function(card) {
+                card.addEventListener('click', function() {
+                    var methodCode = this.getAttribute('data-method-code');
+                    selectPaymentMethod(methodCode);
+                });
             });
         });
         
+        // Select payment method function
+        function selectPaymentMethod(methodCode) {
+            // Remove selected class from all cards
+            var cards = document.querySelectorAll('.payment-method-card');
+            cards.forEach(function(card) {
+                card.classList.remove('selected');
+                card.style.borderColor = '#ddd';
+                card.style.backgroundColor = 'white';
+                card.style.boxShadow = 'none';
+                card.style.transform = 'none';
+            });
+            
+            // Add selected class to clicked card
+            var selectedCard = document.querySelector('.payment-method-card[data-method-code="' + methodCode + '"]');
+            if (selectedCard) {
+                selectedCard.classList.add('selected');
+                selectedCard.style.borderColor = '#007bff';
+                selectedCard.style.backgroundColor = '#e3f2fd';
+                selectedCard.style.boxShadow = '0 6px 16px rgba(0,123,255,0.4)';
+                selectedCard.style.transform = 'scale(1.02)';
+            }
+            
+            // Check the radio button
+            var radio = document.getElementById('method_' + methodCode);
+            if (radio) {
+                radio.checked = true;
+            }
+            
+            // Show payment instructions
+            showPaymentInstructions(methodCode);
+        }
+        
         function showPaymentInstructions(methodCode) {
-            const method = paymentMethods.find(m => m.method_code === methodCode);
-            if (method) {
-                const instructionsDiv = document.getElementById('paymentInstructions');
-                const contentDiv = document.getElementById('instructionsContent');
-                
-                const amount = '<?php echo $booking['total_price']; ?>';
-                const reference = '<?php echo $booking['payment_reference']; ?>';
-                
-                let instructions = method.payment_instructions
-                    .replace(/{AMOUNT}/g, amount)
-                    .replace(/{REFERENCE}/g, reference);
-                
-                contentDiv.innerHTML = `
-                    <div class="payment-instructions">
-                        <h6>${method.method_name} - ${method.bank_name}</h6>
-                        <p><strong>Account:</strong> ${method.account_number}</p>
-                        <p><strong>Account Holder:</strong> ${method.account_holder_name}</p>
-                        <div class="instructions-steps">
-                            ${instructions.split('\n').map(step => step.trim() ? `<p class="mb-1">${step}</p>` : '').join('')}
-                        </div>
-                    </div>
-                    <div class="verification-tips">
-                        <h6><i class="fas fa-lightbulb"></i> Verification Tips</h6>
-                        <p class="mb-0">${method.verification_tips}</p>
-                    </div>
-                `;
-                
-                instructionsDiv.style.display = 'block';
+            var method = paymentMethods.find(function(m) { return m.method_code === methodCode; });
+            
+            if (!method) return;
+            
+            var instructionsDiv = document.getElementById('paymentInstructions');
+            var contentDiv = document.getElementById('instructionsContent');
+            
+            var amount = '<?php echo $booking['total_price']; ?>';
+            var reference = '<?php echo $booking['payment_reference']; ?>';
+            
+            var instructions = method.payment_instructions.replace(/{AMOUNT}/g, amount).replace(/{REFERENCE}/g, reference);
+            var steps = instructions.split('\n').filter(function(s) { return s.trim(); }).map(function(s) { 
+                return '<p style="margin: 8px 0; padding-left: 20px; line-height: 1.6;">• ' + s.trim() + '</p>'; 
+            }).join('');
+            
+            // Check if this is a mobile payment method (TeleBirr)
+            var isMobilePayment = method.method_code === 'telebirr';
+            
+            // Build account details section based on payment type
+            var accountDetailsHtml = '';
+            if (isMobilePayment) {
+                // For TeleBirr - show Phone Number and Username
+                accountDetailsHtml = '<table style="width: 100%; border-collapse: collapse;">' +
+                    '<tr><td style="padding: 8px 0; font-weight: 600; color: #856404; width: 40%;">Phone Number:</td><td style="padding: 8px 0; font-size: 18px; font-weight: bold; color: #000;">' + method.account_number + '</td></tr>' +
+                    '<tr><td style="padding: 8px 0; font-weight: 600; color: #856404;">Username:</td><td style="padding: 8px 0; color: #000; font-weight: 500;">' + method.account_holder_name + '</td></tr>' +
+                    '<tr><td style="padding: 8px 0; font-weight: 600; color: #856404;">Amount to Pay:</td><td style="padding: 8px 0; font-size: 20px; font-weight: bold; color: #28a745;">ETB ' + amount + '</td></tr>' +
+                    '<tr><td style="padding: 8px 0; font-weight: 600; color: #856404;">Reference Code:</td><td style="padding: 8px 0; color: #000; font-family: monospace; font-weight: bold;">' + reference + '</td></tr>' +
+                    '</table>';
+            } else {
+                // For Bank accounts - show Account Number, Account Holder, and Mobile Number
+                accountDetailsHtml = '<table style="width: 100%; border-collapse: collapse;">' +
+                    '<tr><td style="padding: 8px 0; font-weight: 600; color: #856404; width: 40%;">Account Number:</td><td style="padding: 8px 0; font-size: 18px; font-weight: bold; color: #000;">' + method.account_number + '</td></tr>' +
+                    '<tr><td style="padding: 8px 0; font-weight: 600; color: #856404;">Account Holder:</td><td style="padding: 8px 0; color: #000; font-weight: 500;">' + method.account_holder_name + '</td></tr>' +
+                    (method.mobile_number ? '<tr><td style="padding: 8px 0; font-weight: 600; color: #856404;">Mobile Number:</td><td style="padding: 8px 0; color: #000; font-weight: 500;"><i class="fas fa-phone"></i> ' + method.mobile_number + '</td></tr>' : '') +
+                    '<tr><td style="padding: 8px 0; font-weight: 600; color: #856404;">Amount to Pay:</td><td style="padding: 8px 0; font-size: 20px; font-weight: bold; color: #28a745;">ETB ' + amount + '</td></tr>' +
+                    '<tr><td style="padding: 8px 0; font-weight: 600; color: #856404;">Reference Code:</td><td style="padding: 8px 0; color: #000; font-family: monospace; font-weight: bold;">' + reference + '</td></tr>' +
+                    '</table>';
             }
+            
+            var detailsTitle = isMobilePayment ? 'Mobile Payment Details' : 'Bank Account Details';
+            
+            var html = '<div style="background: white; padding: 25px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">' +
+                '<h5 style="color: #007bff; margin-bottom: 20px; font-size: 18px; border-bottom: 2px solid #007bff; padding-bottom: 10px;">' +
+                '<i class="fas fa-building"></i> ' + method.method_name + ' - ' + method.bank_name +
+                '</h5>' +
+                '<div style="background: #fff3cd; padding: 20px; border-radius: 8px; border-left: 5px solid #ffc107; margin-bottom: 20px;">' +
+                '<h6 style="color: #856404; margin-bottom: 15px; font-size: 15px;"><i class="fas fa-info-circle"></i> ' + detailsTitle + '</h6>' +
+                accountDetailsHtml +
+                '</div>' +
+                '<div style="margin-top: 20px;">' +
+                '<h6 style="color: #333; margin-bottom: 15px; font-size: 15px;"><i class="fas fa-list-ol"></i> Step-by-Step Payment Instructions:</h6>' +
+                '<div style="background: #f8f9fa; padding: 15px; border-radius: 8px;">' + steps + '</div>' +
+                '</div>' +
+                '</div>' +
+                '<div style="background: #d1ecf1; padding: 20px; border-radius: 10px; border-left: 5px solid #17a2b8;">' +
+                '<h6 style="color: #0c5460; margin-bottom: 12px; font-size: 15px;"><i class="fas fa-lightbulb"></i> Important Verification Tips</h6>' +
+                '<p style="margin: 0; color: #0c5460; line-height: 1.6;">' + method.verification_tips + '</p>' +
+                '</div>';
+            
+            contentDiv.innerHTML = html;
+            instructionsDiv.style.display = 'block';
+            
+            // Smooth scroll to instructions
+            setTimeout(function() {
+                instructionsDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }, 100);
         }
         
-        // File upload handling
-        const uploadArea = document.getElementById('uploadArea');
-        const fileInput = document.getElementById('paymentScreenshot');
-        const filePreview = document.getElementById('filePreview');
-        const previewImage = document.getElementById('previewImage');
-        const fileName = document.getElementById('fileName');
+        // Transaction ID validation
+        const transactionInput = document.getElementById('transactionId');
         
-        uploadArea.addEventListener('click', () => fileInput.click());
-        
-        uploadArea.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            uploadArea.classList.add('dragover');
-        });
-        
-        uploadArea.addEventListener('dragleave', () => {
-            uploadArea.classList.remove('dragover');
-        });
-        
-        uploadArea.addEventListener('drop', (e) => {
-            e.preventDefault();
-            uploadArea.classList.remove('dragover');
-            
-            const files = e.dataTransfer.files;
-            if (files.length > 0) {
-                fileInput.files = files;
-                handleFileSelect(files[0]);
-            }
-        });
-        
-        fileInput.addEventListener('change', (e) => {
-            if (e.target.files.length > 0) {
-                handleFileSelect(e.target.files[0]);
-            }
-        });
-        
-        function handleFileSelect(file) {
-            // Validate file type
-            const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
-            if (!allowedTypes.includes(file.type)) {
-                alert('Invalid file type. Please select a JPG, PNG, or WebP image only.');
-                fileInput.value = '';
-                return;
-            }
-            
-            // Validate file size (5MB)
-            if (file.size > 5 * 1024 * 1024) {
-                alert('File size too large. Maximum 5MB allowed.');
-                fileInput.value = '';
-                return;
-            }
-            
-            // Show preview
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                previewImage.src = e.target.result;
-                fileName.textContent = `Selected: ${file.name} (${(file.size / 1024 / 1024).toFixed(2)} MB)`;
-                filePreview.style.display = 'block';
-                uploadArea.style.display = 'none';
-                
+        if (transactionInput) {
+            transactionInput.addEventListener('input', function() {
                 checkFormValidity();
-            };
-            reader.readAsDataURL(file);
-        }
-        
-        function cancelScreenshot() {
-            fileInput.value = '';
-            previewImage.src = '';
-            fileName.textContent = '';
-            filePreview.style.display = 'none';
-            uploadArea.style.display = 'block';
-            checkFormValidity();
+            });
         }
         
         function checkFormValidity() {
             const methodSelected = document.querySelector('input[name="payment_method"]:checked');
-            const fileSelected = fileInput.files.length > 0;
+            const transactionId = transactionInput ? transactionInput.value.trim() : '';
             const submitBtn = document.getElementById('submitBtn');
             
-            submitBtn.disabled = !(methodSelected && fileSelected);
+            if (submitBtn) {
+                submitBtn.disabled = !(methodSelected && transactionId.length >= 5);
+            }
         }
         
         // Countdown timer
@@ -1002,109 +1141,37 @@ if ($booking['payment_deadline'] && strtotime($booking['payment_deadline']) < ti
         setInterval(updateCountdown, 1000);
         <?php endif; ?>
         
-        // Star rating system - Direct implementation
-        document.addEventListener('DOMContentLoaded', function() {
-            // Initialize all star rating containers
-            const containers = document.querySelectorAll('.star-rating-container');
-            
-            containers.forEach(container => {
-                const stars = container.querySelectorAll('.star');
-                const inputName = container.getAttribute('data-name');
-                const hiddenInput = document.querySelector(`input[name="${inputName}"]`);
-                const textElement = document.getElementById(`${inputName}_text`);
-                let currentRating = 0;
-                
-                const ratingTexts = {
-                    1: 'Poor',
-                    2: 'Fair',
-                    3: 'Good',
-                    4: 'Very Good',
-                    5: 'Excellent'
-                };
-                
-                // Add click handlers
-                stars.forEach((star, index) => {
-                    star.addEventListener('click', function(e) {
-                        e.preventDefault();
-                        const rating = index + 1;
-                        currentRating = rating;
-                        hiddenInput.value = rating;
-                        
-                        // Update star colors
-                        stars.forEach((s, i) => {
-                            if (i < rating) {
-                                s.style.color = '#ffc107';
-                                s.classList.add('active');
-                            } else {
-                                s.style.color = '#ddd';
-                                s.classList.remove('active');
-                            }
-                        });
-                        
-                        // Update text
-                        if (textElement) {
-                            textElement.textContent = ratingTexts[rating];
-                            textElement.style.color = '#28a745';
-                            textElement.style.fontWeight = '600';
-                        }
-                    });
-                    
-                    // Hover effect
-                    star.addEventListener('mouseenter', function() {
-                        const rating = index + 1;
-                        stars.forEach((s, i) => {
-                            if (i < rating) {
-                                s.style.color = '#ffc107';
-                            } else {
-                                s.style.color = '#ddd';
-                            }
-                        });
-                    });
-                });
-                
-                // Reset to current rating on mouse leave
-                container.addEventListener('mouseleave', function() {
-                    stars.forEach((s, i) => {
-                        if (i < currentRating) {
-                            s.style.color = '#ffc107';
-                        } else {
-                            s.style.color = '#ddd';
-                        }
-                    });
-                });
-            });
-        });
         
-        // Form validation before submit
-        document.querySelector('form[method="POST"]')?.addEventListener('submit', function(e) {
-            const overallRating = parseInt(document.querySelector('input[name="overall_rating"]').value);
-            const serviceQuality = parseInt(document.querySelector('input[name="service_quality"]').value);
-            const cleanliness = parseInt(document.querySelector('input[name="cleanliness"]').value);
+        // Star rating function - inline onclick
+        function rateStar(field, rating) {
+            document.getElementById(field).value = rating;
             
-            if (!overallRating || overallRating < 1 || overallRating > 5) {
-                e.preventDefault();
-                alert('Please rate your overall experience (1-5 stars)');
-                return false;
-            }
+            var labels = {1: '⭐ Poor', 2: '⭐⭐ Fair', 3: '⭐⭐⭐ Good', 4: '⭐⭐⭐⭐ Very Good', 5: '⭐⭐⭐⭐⭐ Excellent'};
+            document.getElementById(field + '_label').textContent = labels[rating];
+            document.getElementById(field + '_label').style.color = '#28a745';
             
-            if (!serviceQuality || serviceQuality < 1 || serviceQuality > 5) {
-                e.preventDefault();
-                alert('Please rate the service quality (1-5 stars)');
-                return false;
+            var stars = document.getElementById(field + '_stars').getElementsByTagName('span');
+            for (var i = 0; i < stars.length; i++) {
+                stars[i].style.color = (i < rating) ? '#ffc107' : '#ddd';
             }
+        }
+        
+        function validateFeedbackForm() {
+            var overall = parseInt(document.getElementById('overall_rating').value) || 0;
+            var service = parseInt(document.getElementById('service_quality').value) || 0;
+            var cleanliness = parseInt(document.getElementById('cleanliness').value) || 0;
             
-            if (!cleanliness || cleanliness < 1 || cleanliness > 5) {
-                e.preventDefault();
-                alert('Please rate the cleanliness (1-5 stars)');
-                return false;
-            }
+            if (overall === 0) { alert('⭐ Please rate your overall experience'); return false; }
+            if (service === 0) { alert('⭐ Please rate the service quality'); return false; }
+            if (cleanliness === 0) { alert('⭐ Please rate the cleanliness'); return false; }
             
             return true;
-        });
+        }
         
-        // Skip feedback function
         function skipFeedback() {
-            window.location.href = 'index.php';
+            if (confirm('Are you sure you want to skip feedback? You can provide it later.')) {
+                window.location.href = 'index.php';
+            }
         }
     </script>
 </body>

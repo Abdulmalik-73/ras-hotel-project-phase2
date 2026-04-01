@@ -98,9 +98,7 @@ $total_pages = ceil($total_records / $limit);
                 <a href="admin.php" class="btn btn-outline-light btn-sm me-2">
                     <i class="fas fa-arrow-left"></i> Back to Dashboard
                 </a>
-                <a href="../index.php" class="btn btn-outline-light btn-sm me-2">
-                    <i class="fas fa-home"></i> Back to Website
-                </a>
+                
                 <span class="text-white me-3">
                     <i class="fas fa-user-shield"></i> <?php echo $_SESSION['user_name']; ?>
                 </span>

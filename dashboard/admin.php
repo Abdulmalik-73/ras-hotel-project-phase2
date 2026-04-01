@@ -216,9 +216,7 @@ $recent_bookings = $conn->query($recent_bookings_query)->fetch_all(MYSQLI_ASSOC)
                 <i class="fas fa-hotel text-warning"></i> <span class="text-white d-none d-sm-inline">Harar Ras Hotel</span><span class="text-white d-sm-none">Ras Hotel</span>
             </a>
             <div class="ms-auto d-flex align-items-center">
-                <a href="../index.php" class="btn btn-outline-light btn-sm me-2 d-none d-sm-inline-block">
-                    <i class="fas fa-home"></i> <span class="d-none d-lg-inline">Back to Website</span>
-                </a>
+                
                 <span class="text-white me-2 d-none d-md-inline">
                     <i class="fas fa-user-shield"></i> Admin
                 </span>

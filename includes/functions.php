@@ -140,6 +140,59 @@ function create_booking($data) {
         return ['success' => false, 'message' => 'Invalid user ID (user_id must be greater than 0)'];
     }
     
+    // ============================================
+    // RESTRICTION: One booking per user per day
+    // ============================================
+    $existing_booking_check = $conn->prepare("
+        SELECT b.id, b.booking_reference, b.check_in_date, b.status, r.name as room_name, r.room_number
+        FROM bookings b
+        JOIN rooms r ON b.room_id = r.id
+        WHERE b.user_id = ? 
+        AND b.booking_type = 'room'
+        AND b.status IN ('pending', 'confirmed', 'checked_in')
+        AND (
+            (b.check_in_date <= ? AND b.check_out_date > ?)
+            OR (b.check_in_date >= ? AND b.check_in_date < ?)
+            OR (? >= b.check_in_date AND ? < b.check_out_date)
+        )
+        LIMIT 1
+    ");
+    
+    if (!$existing_booking_check) {
+        error_log("Failed to prepare existing booking check: " . $conn->error);
+        return ['success' => false, 'message' => 'Database error: ' . $conn->error];
+    }
+    
+    $existing_booking_check->bind_param("issssss", 
+        $user_id, 
+        $check_in_date, $check_in_date,
+        $check_in_date, $check_out_date,
+        $check_in_date, $check_in_date
+    );
+    $existing_booking_check->execute();
+    $existing_result = $existing_booking_check->get_result();
+    
+    if ($existing_result->num_rows > 0) {
+        $existing = $existing_result->fetch_assoc();
+        $status_text = ucfirst($existing['status']);
+        $check_in_formatted = date('F j, Y', strtotime($existing['check_in_date']));
+        
+        error_log("User $user_id already has a booking for overlapping dates");
+        
+        return [
+            'success' => false,
+            'message' => "You already have a booking for these dates. Only one room can be booked per account at a time.",
+            'existing_booking' => [
+                'reference' => $existing['booking_reference'],
+                'room_name' => $existing['room_name'],
+                'room_number' => $existing['room_number'],
+                'check_in_date' => $check_in_formatted,
+                'status' => $status_text
+            ],
+            'error_code' => 'DUPLICATE_BOOKING'
+        ];
+    }
+    
     // Validate user exists
     $user_check = $conn->prepare("SELECT id, email FROM users WHERE id = ?");
     if (!$user_check) {
@@ -615,7 +668,7 @@ function send_payment_rejection_email($booking_id, $rejection_reason) {
                         Payment Verification Failed
                     </div>
                     
-                    <p>We were unable to verify your payment screenshot for the following reason:</p>
+                    <p>We were unable to verify your transaction ID for the following reason:</p>
                     
                     <div class='booking-details'>
                         <p><strong>Reason:</strong> {$rejection_reason}</p>
@@ -625,8 +678,8 @@ function send_payment_rejection_email($booking_id, $rejection_reason) {
                     
                     <h3>What You Need to Do:</h3>
                     <ol>
-                        <li>Please upload a new, clear payment screenshot</li>
-                        <li>Ensure the screenshot shows:
+                        <li>Please submit a new, valid transaction ID</li>
+                        <li>Ensure the transaction ID shows:
                             <ul>
                                 <li>Transaction amount matching your booking</li>
                                 <li>Payment reference number</li>
@@ -638,10 +691,10 @@ function send_payment_rejection_email($booking_id, $rejection_reason) {
                     </ol>
                     
                     <p style='text-align: center;'>
-                        <a href='http://localhost/rashotel/my-bookings.php' class='button'>Upload New Screenshot</a>
+                        <a href='http://localhost/rashotel/my-bookings.php' class='button'>Submit New Transaction ID</a>
                     </p>
                     
-                    <p><strong>Important:</strong> Your booking will remain pending until payment is verified. Please upload a new screenshot as soon as possible.</p>
+                    <p><strong>Important:</strong> Your booking will remain pending until payment is verified. Please submit a new transaction ID as soon as possible.</p>
                     
                     <p>If you need assistance or have questions, please contact us:</p>
                     <ul>

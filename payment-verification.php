@@ -105,7 +105,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && $booking_id) {
             
             // Send rejection email to customer
             if (send_payment_rejection_email($booking_id, $rejection_reason)) {
-                $message = 'Payment rejected. Customer has been notified via email to upload a new screenshot.';
+                $message = 'Payment rejected. Customer has been notified via email to submit a new transaction ID.';
             } else {
                 $message = 'Payment rejected. (Email notification failed - please contact customer manually)';
             }
@@ -328,7 +328,23 @@ if ($stats_result) {
     </style>
 </head>
 <body>
-    <?php include 'includes/navbar.php'; ?>
+    <!-- Staff Navigation Bar -->
+    <nav class="navbar navbar-expand-lg navbar-dark" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">
+                <i class="fas fa-shield-alt"></i> Payment Verification System
+            </a>
+            <div class="ms-auto d-flex align-items-center">
+                <span class="text-white me-3">
+                    <i class="fas fa-user-circle"></i> <?php echo htmlspecialchars($_SESSION['user_name']); ?>
+                    <span class="badge bg-light text-dark ms-2"><?php echo ucfirst($user_role); ?></span>
+                </span>
+                <a href="logout.php" class="btn btn-outline-light btn-sm">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </a>
+            </div>
+        </div>
+    </nav>
     
     <!-- Page Header -->
     <section class="py-3 bg-light">
@@ -341,7 +357,7 @@ if ($stats_result) {
                 </div>
                 <div class="col text-center">
                     <h2 class="mb-0">Payment Verification System</h2>
-                    <p class="text-muted mb-0">Review and verify customer payment screenshots</p>
+                    <p class="text-muted mb-0">Review and verify customer transaction IDs</p>
                 </div>
                 <div class="col-auto">
                     <!-- Spacer for centering -->
@@ -359,7 +375,7 @@ if ($stats_result) {
                     <div class="d-flex justify-content-between align-items-center">
                         <div>
                             <h2><i class="fas fa-shield-alt text-primary"></i> Payment Verification Dashboard</h2>
-                            <p class="text-muted">Review and verify customer payment screenshots</p>
+                            <p class="text-muted">Review and verify customer transaction IDs</p>
                         </div>
                         <div>
                             <a href="dashboard/admin.php" class="btn btn-outline-secondary me-2">
@@ -560,28 +576,21 @@ if ($stats_result) {
                         </div>
                     </div>
                     
-                    <!-- Payment Screenshot -->
-                    <?php if ($booking['payment_screenshot']): ?>
+                    <!-- Transaction ID -->
+                    <?php if ($booking['transaction_id']): ?>
                     <div class="card mb-4">
                         <div class="card-header">
-                            <h5><i class="fas fa-image"></i> Payment Screenshot</h5>
+                            <h5><i class="fas fa-receipt"></i> Transaction ID</h5>
                         </div>
-                        <div class="card-body text-center">
-                            <img src="<?php echo $booking['payment_screenshot']; ?>" 
-                                 alt="Payment Screenshot" 
-                                 class="screenshot-preview"
-                                 onclick="openImageModal(this.src)">
-                            <p class="mt-2">
+                        <div class="card-body">
+                            <div class="alert alert-info">
+                                <h6 class="mb-2">Payment Transaction ID:</h6>
+                                <code class="fs-5"><?php echo htmlspecialchars($booking['transaction_id']); ?></code>
+                            </div>
+                            <p class="mb-0">
                                 <small class="text-muted">
-                                    Uploaded: <?php echo date('F j, Y g:i A', strtotime($booking['screenshot_uploaded_at'])); ?>
+                                    <i class="fas fa-clock"></i> Submitted: <?php echo date('F j, Y g:i A', strtotime($booking['screenshot_uploaded_at'])); ?>
                                 </small>
-                            </p>
-                            <p>
-                                <a href="<?php echo $booking['payment_screenshot']; ?>" 
-                                   target="_blank" 
-                                   class="btn btn-outline-primary btn-sm">
-                                    <i class="fas fa-external-link-alt"></i> Open in New Tab
-                                </a>
                             </p>
                         </div>
                     </div>
@@ -611,7 +620,35 @@ if ($stats_result) {
                                             <?php echo ucfirst(str_replace('_', ' ', $log['action_type'])); ?>
                                         </h6>
                                         <?php if ($log['verification_notes']): ?>
-                                        <p class="mb-1"><?php echo nl2br(htmlspecialchars($log['verification_notes'])); ?></p>
+                                        <p class="mb-1">
+                                            <?php 
+                                            // Check if notes are JSON and decode them
+                                            $notes = $log['verification_notes'];
+                                            $decoded = json_decode($notes, true);
+                                            
+                                            if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                                                // It's JSON, format it nicely
+                                                if (isset($decoded['verified']) && $decoded['verified']) {
+                                                    echo "Payment automatically verified successfully.";
+                                                } elseif (isset($decoded['message'])) {
+                                                    // Simplify technical error messages
+                                                    $message = $decoded['message'];
+                                                    if (strpos($message, 'CURL Error') !== false || strpos($message, 'Could not resolve host') !== false) {
+                                                        echo "Automatic verification unavailable. Requires manual verification.";
+                                                    } else {
+                                                        echo htmlspecialchars($message);
+                                                    }
+                                                } elseif (isset($decoded['requires_manual_verification']) && $decoded['requires_manual_verification']) {
+                                                    echo "Automatic verification unavailable. Requires manual verification.";
+                                                } else {
+                                                    echo "Verification pending. Requires manual review.";
+                                                }
+                                            } else {
+                                                // It's plain text, display as is
+                                                echo nl2br(htmlspecialchars($notes));
+                                            }
+                                            ?>
+                                        </p>
                                         <?php endif; ?>
                                         <small class="text-muted">
                                             <?php echo $log['performed_by_name'] ? 'by ' . $log['performed_by_name'] : 'System'; ?>
@@ -662,7 +699,7 @@ if ($stats_result) {
                             
                             <div id="rejectionReason" class="mb-3" style="display: none;">
                                 <label class="form-label">Rejection Reason <span class="text-danger">*</span></label>
-                                <select name="rejection_reason" class="form-select">
+                                <select name="rejection_reason" id="rejectionReasonSelect" class="form-select" onchange="handleRejectionReasonChange()">
                                     <option value="">Select reason...</option>
                                     <option value="Incorrect amount">Incorrect amount</option>
                                     <option value="Missing payment reference">Missing payment reference</option>
@@ -715,11 +752,11 @@ if ($stats_result) {
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
                 <div class="modal-header">
-                    <h5 class="modal-title">Payment Screenshot</h5>
+                    <h5 class="modal-title">Payment Proof</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body text-center">
-                    <img id="modalImage" src="" alt="Payment Screenshot" class="img-fluid">
+                    <img id="modalImage" src="" alt="Payment Proof" class="img-fluid">
                 </div>
             </div>
         </div>
@@ -739,21 +776,38 @@ if ($stats_result) {
             const rejectionSelect = document.querySelector('select[name="rejection_reason"]');
             
             if (action === 'reject') {
+                // Show rejection reason dropdown first
                 rejectionReason.style.display = 'block';
                 rejectionSelect.required = true;
                 
+                // Check if reason is already selected
                 if (!rejectionSelect.value) {
-                    alert('Please select a rejection reason.');
+                    // If not selected, don't submit yet - let user select
                     return;
                 }
+                
+                // If reason is selected, confirm and submit
+                if (confirm('Are you sure you want to reject this payment?')) {
+                    actionInput.value = action;
+                    form.submit();
+                }
             } else {
+                // For approve action
                 rejectionReason.style.display = 'none';
                 rejectionSelect.required = false;
+                
+                if (confirm('Are you sure you want to approve this payment?')) {
+                    actionInput.value = action;
+                    form.submit();
+                }
             }
-            
-            if (confirm(`Are you sure you want to ${action} this payment?`)) {
-                actionInput.value = action;
-                form.submit();
+        }
+        
+        function handleRejectionReasonChange() {
+            const rejectionSelect = document.getElementById('rejectionReasonSelect');
+            if (rejectionSelect.value) {
+                // Automatically trigger submit when reason is selected
+                submitVerification('reject');
             }
         }
         

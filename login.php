@@ -204,7 +204,7 @@ if (isset($_GET['registered']) && $_GET['registered'] == '1') {
             background: white;
             border-radius: 16px;
             box-shadow: 0 15px 40px rgba(0, 0, 0, 0.3);
-            padding: 30px;
+            padding: 25px 30px;
             width: 100%;
             position: relative;
             overflow: hidden;
@@ -222,7 +222,7 @@ if (isset($_GET['registered']) && $_GET['registered'] == '1') {
         
         .login-header {
             text-align: center;
-            margin-bottom: 25px;
+            margin-bottom: 20px;
         }
         
         .login-header h1 {
@@ -239,7 +239,7 @@ if (isset($_GET['registered']) && $_GET['registered'] == '1') {
         }
         
         .form-floating {
-            margin-bottom: 16px;
+            margin-bottom: 14px;
             position: relative;
         }
         
@@ -290,7 +290,7 @@ if (isset($_GET['registered']) && $_GET['registered'] == '1') {
         
         .forgot-password {
             text-align: right;
-            margin-bottom: 20px;
+            margin-bottom: 16px;
         }
         
         .forgot-password a {
@@ -310,14 +310,14 @@ if (isset($_GET['registered']) && $_GET['registered'] == '1') {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             border: none;
-            padding: 13px;
+            padding: 12px;
             border-radius: 10px;
             font-weight: 600;
             font-size: 15px;
             width: 100%;
             cursor: pointer;
             transition: all 0.3s ease;
-            margin-bottom: 12px;
+            margin-bottom: 16px;
             position: relative;
             overflow: hidden;
         }
@@ -350,6 +350,8 @@ if (isset($_GET['registered']) && $_GET['registered'] == '1') {
             to { transform: rotate(360deg); }
         }
         
+
+        
         .divider {
             text-align: center;
             margin: 12px 0;
@@ -376,11 +378,42 @@ if (isset($_GET['registered']) && $_GET['registered'] == '1') {
             z-index: 1;
         }
         
+        .btn-oauth {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 12px;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 14px;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            border: 2px solid #e2e8f0;
+            background: white;
+            width: 100%;
+        }
+        
+        .btn-oauth:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
+            text-decoration: none;
+        }
+        
+        .btn-google {
+            color: #3c4043;
+        }
+        
+        .btn-google:hover {
+            border-color: #4285F4;
+            background: #f8f9fa;
+        }
+        
         .btn-create {
             background: white;
             color: #667eea;
             border: 2px solid #667eea;
-            padding: 13px;
+            padding: 12px;
             border-radius: 10px;
             font-weight: 600;
             font-size: 15px;
@@ -401,15 +434,15 @@ if (isset($_GET['registered']) && $_GET['registered'] == '1') {
         
         .footer-text {
             text-align: center;
-            margin-top: 16px;
+            margin-top: 14px;
             color: #a0aec0;
             font-size: 13px;
         }
         
         .alert {
             border-radius: 10px;
-            padding: 12px;
-            margin-bottom: 20px;
+            padding: 10px;
+            margin-bottom: 16px;
             font-size: 13px;
             border: none;
             display: flex;
@@ -443,7 +476,7 @@ if (isset($_GET['registered']) && $_GET['registered'] == '1') {
             }
             
             .login-container {
-                padding: 25px 20px;
+                padding: 20px;
                 border-radius: 14px;
             }
             
@@ -459,11 +492,15 @@ if (isset($_GET['registered']) && $_GET['registered'] == '1') {
                 font-size: 13px;
                 padding: 5px 8px;
             }
+            
+            .form-floating {
+                margin-bottom: 12px;
+            }
         }
         
         @media (max-width: 480px) {
             .login-container {
-                padding: 20px 16px;
+                padding: 18px 16px;
                 border-radius: 12px;
             }
             
@@ -473,6 +510,11 @@ if (isset($_GET['registered']) && $_GET['registered'] == '1') {
             
             .login-header p {
                 font-size: 13px;
+            }
+            
+            .btn-signin, .btn-create {
+                padding: 11px;
+                font-size: 14px;
             }
         }
         
@@ -485,6 +527,7 @@ if (isset($_GET['registered']) && $_GET['registered'] == '1') {
         .form-floating:nth-child(2) { animation-delay: 0.2s; }
         .btn-signin { animation: slideUp 0.6s ease-out 0.3s both; }
         .divider { animation: slideUp 0.6s ease-out 0.4s both; }
+        .btn-oauth { animation: slideUp 0.6s ease-out 0.45s both; }
         .btn-create { animation: slideUp 0.6s ease-out 0.5s both; }
         
         @keyframes slideUp {

@@ -258,12 +258,23 @@ $rooms = get_all_rooms();
                                 $room_status = $room_statuses[$room_num] ?? 'available';
                                 $status_info = $status_config[$room_status];
                                 ?>
-                                <p class="mb-3">
+                                <p class="mb-2">
                                     <strong>Room Status:</strong> 
                                     <span class="<?php echo $status_info['class']; ?>">
                                         <?php echo $status_info['text']; ?> <?php echo $status_info['icon']; ?>
                                     </span>
                                 </p>
+                                
+                                <!-- Services Section -->
+                                <div class="mb-2">
+                                    <p class="mb-1 small"><strong>Services:</strong></p>
+                                    <div class="d-flex flex-wrap gap-1">
+                                        <?php foreach ($room_type['amenities'] as $amenity): ?>
+                                            <span class="badge bg-light text-dark border" style="font-size: 0.7rem;"><?php echo $amenity; ?></span>
+                                        <?php endforeach; ?>
+                                    </div>
+                                </div>
+                                
                                 <div class="d-flex justify-content-between align-items-center mt-3">
                                     <span class="h5 text-gold mb-0">ETB <?php echo number_format($room_type['price'], 2); ?><small class="text-muted">/night</small></span>
                                     <div class="d-flex flex-column gap-2">

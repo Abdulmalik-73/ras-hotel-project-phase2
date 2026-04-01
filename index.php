@@ -1,5 +1,4 @@
-<?php
-session_start();
+<?php session_start();
 require_once 'includes/config.php';
 require_once 'includes/functions.php';
 
@@ -77,6 +76,87 @@ $food_images = [
     <link rel="stylesheet" href="assets/css/style.css">
     
     <style>
+        /* Clean Room Images Grid - Pexels Style */
+        .rooms-image-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 16px;
+            margin-bottom: 40px;
+        }
+        
+        .room-image-item {
+            position: relative;
+            width: 100%;
+            height: 280px;
+            overflow: hidden;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: transform 0.3s ease;
+        }
+        
+        .room-image-item:hover {
+            transform: scale(1.02);
+        }
+        
+        .room-image-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+        
+        /* Responsive Grid */
+        @media (min-width: 1400px) {
+            .rooms-image-grid {
+                grid-template-columns: repeat(6, 1fr);
+            }
+        }
+        
+        @media (min-width: 1200px) and (max-width: 1399px) {
+            .rooms-image-grid {
+                grid-template-columns: repeat(5, 1fr);
+            }
+        }
+        
+        @media (min-width: 992px) and (max-width: 1199px) {
+            .rooms-image-grid {
+                grid-template-columns: repeat(4, 1fr);
+            }
+        }
+        
+        @media (min-width: 768px) and (max-width: 991px) {
+            .rooms-image-grid {
+                grid-template-columns: repeat(3, 1fr);
+                gap: 12px;
+            }
+            
+            .room-image-item {
+                height: 240px;
+            }
+        }
+        
+        @media (min-width: 576px) and (max-width: 767px) {
+            .rooms-image-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 10px;
+            }
+            
+            .room-image-item {
+                height: 220px;
+            }
+        }
+        
+        @media (max-width: 575px) {
+            .rooms-image-grid {
+                grid-template-columns: 1fr;
+                gap: 10px;
+            }
+            
+            .room-image-item {
+                height: 250px;
+            }
+        }
+        
         /* Gallery Card Styles - Responsive Grid Layout */
         .gallery-card {
             background: white;
@@ -207,125 +287,108 @@ $food_images = [
     <!-- Hero Section -->
     <section class="hero-section" style="background: linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.4)), url('assets/images/hotel/exterior/hotel-main.png') center/cover no-repeat; min-height: 500px; display: flex; align-items: center;">
         <div class="container">
-            <h1 class="hero-title">Welcome to Harar Ras Hotel</h1>
-            <p class="hero-subtitle">Experience Luxury & Comfort</p>
+            <h1 class="hero-title"><?php echo __('home.welcome_title'); ?></h1>
+            <p class="hero-subtitle"><?php echo __('home.welcome_subtitle'); ?></p>
             <div class="d-flex gap-3 justify-content-center">
                 <a href="rooms.php" class="btn btn-light btn-lg">
-                    <i class="fas fa-bed me-2"></i>View All Rooms
+                    <i class="fas fa-bed me-2"></i><?php echo __('home.view_all_rooms'); ?>
                 </a>
                 <a href="services.php" class="btn btn-outline-light btn-lg">
-                    <i class="fas fa-concierge-bell me-2"></i>Our Services
+                    <i class="fas fa-concierge-bell me-2"></i><?php echo __('home.our_services'); ?>
                 </a>
             </div>
         </div>
     </section>
     
-    <!-- Gallery Section -->
-    <section class="py-5 bg-light">
+    <!-- Room Images Grid - 39 Rooms -->
+    <section class="py-5 bg-white">
         <div class="container">
             <div class="text-center mb-5">
-                <h2 class="fw-bold mb-2">Discover Our Spaces</h2>
-                <p class="text-muted mb-3">Explore our beautiful rooms and delicious cuisine</p>
-                <p class="text-muted small">Experience comfort and luxury in every corner of our hotel</p>
+                <h2 class="fw-bold mb-2"><?php echo __('home.discover_spaces'); ?></h2>
+                <p class="text-muted mb-3"><?php echo __('home.explore_text'); ?></p>
+                <p class="text-muted small"><?php echo __('home.experience_text'); ?></p>
             </div>
-            
-            <div class="row g-4 justify-content-center">
+        </div>
+        
+        <div class="container-fluid px-4">
+            <div class="rooms-image-grid">
                 <?php
-                // Mix rooms and foods randomly
-                $gallery_items = [];
+                // Display 40 images total: 39 rooms + 1 food image
+                $all_rooms_query = "SELECT id, room_number, image FROM rooms ORDER BY CAST(room_number AS UNSIGNED) LIMIT 39";
+                $all_rooms_result = $conn->query($all_rooms_query);
                 
-                // Room descriptions mapping
-                $room_descriptions = [
-                    'Standard Single Room' => 'Cozy and comfortable space perfect for solo travelers',
-                    'Standard Double Room' => 'Ideal for couples seeking comfort and convenience',
-                    'Deluxe Single Room' => 'Premium amenities with stunning city views',
-                    'Deluxe Double Room' => 'Elegant furnishings in a spacious setting',
-                    'Double (King Size)' => 'Luxurious king-size comfort for ultimate relaxation',
-                    'Suite Room' => 'Spacious suite with separate living area',
-                    'Family (Team Bed)' => 'Perfect family accommodation with multiple beds',
-                    'Executive Suite' => 'Executive luxury with premium services',
-                    'Presidential Suite' => 'Ultimate luxury with panoramic views'
+                // Images array with 39 room images + 1 food image = 40 total
+                $default_images = [
+                    // Room images (31 images)
+                    'assets/images/rooms/deluxe/room.jpg',
+                    'assets/images/rooms/deluxe/room2.jpg',
+                    'assets/images/rooms/deluxe/room3.jpg',
+                    'assets/images/rooms/deluxe/room4.jpg',
+                    'assets/images/rooms/deluxe/room5.jpg',
+                    'assets/images/rooms/deluxe/room6.jpg',
+                    'assets/images/rooms/deluxe/room7.jpg',
+                    'assets/images/rooms/deluxe/room8.jpg',
+                    'assets/images/rooms/deluxe/room9.jpg',
+                    'assets/images/rooms/deluxe/room10.jpg',
+                    'assets/images/rooms/standard/room12.jpg',
+                    'assets/images/rooms/standard/room13.jpg',
+                    'assets/images/rooms/standard/room14.jpg',
+                    'assets/images/rooms/standard/room15.jpg',
+                    'assets/images/rooms/standard/room16.jpg',
+                    'assets/images/rooms/suite/room21.jpg',
+                    'assets/images/rooms/suite/room22.jpg',
+                    'assets/images/rooms/suite/room23.jpg',
+                    'assets/images/rooms/family/room27.jpg',
+                    'assets/images/rooms/family/room28.jpg',
+                    'assets/images/rooms/family/room29.jpg',
+                    'assets/images/rooms/family/room30.jpg',
+                    'assets/images/rooms/family/room31.jpg',
+                    'assets/images/rooms/family/room32.jpg',
+                    'assets/images/rooms/family/room33.jpg',
+                    'assets/images/rooms/family/room34.jpg',
+                    'assets/images/rooms/presidential/room35.jpg',
+                    'assets/images/rooms/presidential/room36.jpg',
+                    'assets/images/rooms/presidential/room37.jpg',
+                    'assets/images/rooms/presidential/room38.jpg',
+                    'assets/images/rooms/presidential/room39.jpg',
+                    // Food images to fill remaining 9 slots (to make 40 total)
+                    'assets/images/food/ethiopian/food1.jpg',
+                    'assets/images/food/ethiopian/food3.jpg',
+                    'assets/images/food/ethiopian/food4.jpg',
+                    'assets/images/food/ethiopian/food5.jpg',
+                    'assets/images/food/ethiopian/food6.jpg',
+                    'assets/images/food/ethiopian/food7.jpg',
+                    'assets/images/food/ethiopian/food8.jpg',
+                    'assets/images/food/ethiopian/food10.jpg',
+                    'assets/images/food/ethiopian/food12.jpg',
                 ];
                 
-                // Food descriptions mapping
-                $food_descriptions = [
-                    'Ethiopian Traditional Platter' => 'Authentic Ethiopian flavors on a traditional platter',
-                    'Ethiopian Breakfast' => 'Start your day with traditional Ethiopian breakfast',
-                    'Ethiopian Coffee Ceremony' => 'Experience our authentic coffee ceremony',
-                    'Ethiopian Lunch Special' => 'Delicious lunch featuring local specialties',
-                    'International Breakfast Buffet' => 'Wide selection of international breakfast items',
-                    'International Lunch Buffet' => 'Global cuisine for your midday meal',
-                    'International Dinner Buffet' => 'Premium dinner buffet with diverse options',
-                    'International Weekend Brunch' => 'Leisurely weekend brunch experience'
-                ];
+                $index = 0;
+                $displayed = 0;
                 
-                // Add room images - assign one unique image per room
-                $room_index = 0;
-                while ($room = $rooms_result->fetch_assoc()) {
-                    // Only add if we have a unique image available
-                    if ($room_index < count($room_images)) {
-                        $room_name = $room['name'];
-                        $description = $room_descriptions[$room_name] ?? 'Comfortable accommodation with modern amenities';
-                        
-                        $gallery_items[] = [
-                            'type' => 'room',
-                            'name' => $room['name'],
-                            'description' => $description,
-                            'image' => $room_images[$room_index],
-                            'link' => 'rooms.php',
-                            'id' => $room['id']
-                        ];
-                    }
-                    $room_index++;
-                }
-                
-                // Add food images - assign one unique image per food item
-                $food_index = 0;
-                while ($food = $foods_result->fetch_assoc()) {
-                    // Only add if we have a unique image available
-                    if ($food_index < count($food_images)) {
-                        $food_name = $food['name'];
-                        $description = $food_descriptions[$food_name] ?? 'Delicious cuisine prepared by our expert chefs';
-                        
-                        $gallery_items[] = [
-                            'type' => 'food',
-                            'name' => $food['name'],
-                            'description' => $description,
-                            'image' => !empty($food['image']) ? $food['image'] : $food_images[$food_index],
-                            'link' => 'services.php#restaurant',
-                            'id' => $food['id']
-                        ];
-                    }
-                    $food_index++;
-                }
-                
-                // Shuffle for random display
-                shuffle($gallery_items);
-                
-                // Display gallery items - show exactly 9 items (3 rows x 3 columns)
-                $count = 0;
-                foreach ($gallery_items as $item) {
-                    if ($count >= 9) break; // Show exactly 9 items
-                    echo '<div class="col-12 col-sm-6 col-md-4 col-lg-4">';
-                    echo '<div class="gallery-card" onclick="window.location.href=\'' . $item['link'] . '\'">';
-                    echo '<div class="gallery-card-image">';
-                    echo '<img src="' . htmlspecialchars($item['image']) . '" alt="' . htmlspecialchars($item['name']) . '" loading="lazy">';
-                    echo '</div>';
-                    echo '<div class="gallery-card-body">';
-                    echo '<h6 class="gallery-card-title">' . htmlspecialchars($item['name']) . '</h6>';
-                    echo '<p class="gallery-card-description text-muted small mb-0">' . htmlspecialchars($item['description']) . '</p>';
-                    echo '</div>';
-                    echo '</div>';
-                    echo '</div>';
-                    $count++;
-                }
+                // Display 39 rooms
+                while ($room = $all_rooms_result->fetch_assoc()):
+                    if ($displayed >= 39) break;
+                    
+                    $room_image = !empty($room['image']) ? $room['image'] : ($default_images[$index] ?? 'assets/images/rooms/deluxe/room.jpg');
                 ?>
-            </div>
-            
-            <div class="text-center mt-4">
-                <a href="rooms.php" class="btn btn-gold btn-lg">
-                    <i class="fas fa-eye me-2"></i>View All
-                </a>
+                
+                <div class="room-image-item">
+                    <img src="<?php echo htmlspecialchars($room_image); ?>" alt="Room <?php echo htmlspecialchars($room['room_number']); ?>" loading="lazy">
+                </div>
+                
+                <?php 
+                    $index++;
+                    $displayed++;
+                endwhile;
+                
+                // Add 1 food image to make it 40 total
+                ?>
+                <div class="room-image-item">
+                    <img src="assets/images/food/ethiopian/food1.jpg" alt="Ethiopian Cuisine" loading="lazy">
+                </div>
+                <?php
+                ?>
             </div>
         </div>
     </section>

@@ -144,7 +144,26 @@ $stats = $conn->query($stats_query)->fetch_assoc();
     </style>
 </head>
 <body>
-    <?php include '../includes/navbar.php'; ?>
+    <!-- Manager Navigation Bar -->
+    <nav class="navbar navbar-expand-lg navbar-dark" style="background: linear-gradient(135deg, #d4a574 0%, #c9963d 100%);">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="manager.php">
+                <i class="fas fa-star"></i> Customer Feedback Management
+            </a>
+            <div class="ms-auto d-flex align-items-center">
+                <a href="manager.php" class="btn btn-outline-light btn-sm me-2">
+                    <i class="fas fa-arrow-left"></i> Back to Dashboard
+                </a>
+                <span class="text-white me-3">
+                    <i class="fas fa-user-circle"></i> <?php echo htmlspecialchars($_SESSION['user_name']); ?>
+                    <span class="badge bg-light text-dark ms-2">Manager</span>
+                </span>
+                <a href="../logout.php" class="btn btn-outline-light btn-sm">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </a>
+            </div>
+        </div>
+    </nav>
     
     <div class="container-fluid py-4">
         <div class="row">

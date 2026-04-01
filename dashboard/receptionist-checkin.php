@@ -216,9 +216,7 @@ if ($_POST && isset($_POST['action'])) {
                 <span class="text-white fw-bold">Harar Ras Hotel - Receptionist Dashboard</span>
             </a>
             <div class="ms-auto">
-                <a href="../index.php" class="btn btn-outline-light btn-sm me-2">
-                    <i class="fas fa-home"></i> Back to Website
-                </a>
+                
                 <span class="text-white me-3">
                     <i class="fas fa-user-tie"></i> Receptionist
                 </span>
@@ -260,10 +258,7 @@ if ($_POST && isset($_POST['action'])) {
                         <a href="../generate_bill.php" class="nav-link" target="_blank">
                             <i class="fas fa-file-invoice-dollar me-2"></i> Generate Bill
                         </a>
-                        <a href="../index.php" class="nav-link">
-                            <i class="fas fa-home me-2"></i> Hotel Website
-                        </a>
-                    </nav>
+                        </nav>
                     
                     <div class="mt-auto">
                         <a href="../logout.php" class="nav-link text-white">

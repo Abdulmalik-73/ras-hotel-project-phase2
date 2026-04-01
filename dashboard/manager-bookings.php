@@ -16,11 +16,81 @@ if ($_POST) {
     
     switch ($action) {
         case 'confirm':
-            $query = "UPDATE bookings SET status = 'confirmed' WHERE id = $booking_id";
-            if ($conn->query($query)) {
-                set_message('success', 'Booking confirmed successfully');
+            // UNIFIED APPROVAL: pending → checked_in (not just confirmed)
+            $query = "UPDATE bookings SET status = 'checked_in', actual_checkin_time = NOW(), checked_in_by = ? WHERE id = ? AND status = 'pending'";
+            $stmt = $conn->prepare($query);
+            $stmt->bind_param("ii", $_SESSION['user_id'], $booking_id);
+            
+            if ($stmt->execute() && $stmt->affected_rows > 0) {
+                // Log the approval and check-in
+                $booking_query = "SELECT b.*, r.name as room_name, r.room_number, 
+                                 CONCAT(u.first_name, ' ', u.last_name) as guest_name,
+                                 u.email, u.phone
+                                 FROM bookings b
+                                 LEFT JOIN rooms r ON b.room_id = r.id
+                                 JOIN users u ON b.user_id = u.id
+                                 WHERE b.id = ?";
+                $log_stmt = $conn->prepare($booking_query);
+                $log_stmt->bind_param("i", $booking_id);
+                $log_stmt->execute();
+                $booking = $log_stmt->get_result()->fetch_assoc();
+                
+                if ($booking) {
+                    // Create checkin record
+                    $nights = (int)((strtotime($booking['check_out_date']) - strtotime($booking['check_in_date'])) / (60 * 60 * 24));
+                    $confirmation_number = 'CHK-' . date('Ymd') . '-' . strtoupper(substr(uniqid(), -6));
+                    
+                    $checkin_insert = $conn->prepare("
+                        INSERT INTO checkins (
+                            customer_id, booking_id, hotel_name, hotel_location, 
+                            check_in_date, check_out_date,
+                            guest_full_name, guest_date_of_birth, guest_id_type, guest_id_number, 
+                            guest_nationality, guest_home_address, guest_phone_number, guest_email_address,
+                            room_type, room_number, nights_stay, number_of_guests, rate_per_night,
+                            payment_type, amount_paid, balance_due, confirmation_number, 
+                            additional_requests, checked_in_by
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ");
+                    
+                    $hotel_name = 'Harar Ras Hotel';
+                    $hotel_location = 'Jugol Street, Harar, Ethiopia';
+                    $guest_dob = '1990-01-01';
+                    $id_type = $booking['id_type'] ?? 'national_id';
+                    $id_number = $booking['id_number'] ?? 'N/A';
+                    $nationality = 'Ethiopian';
+                    $address = $booking['special_requests'] ?? 'N/A';
+                    $payment_type = $booking['payment_method'] ?? 'cash';
+                    $amount_paid = (float)$booking['total_price'];
+                    $balance_due = 0.00;
+                    $additional_requests = $booking['special_requests'] ?? '';
+                    $number_of_guests = (int)$booking['customers'];
+                    $rate_per_night = (float)$booking['total_price'];
+                    $user_id = (int)$booking['user_id'];
+                    $checked_in_by = (int)$_SESSION['user_id'];
+                    
+                    $guest_phone = $booking['phone'] ?? 'N/A';
+                    $guest_email = $booking['email'] ?? 'noemail@example.com';
+                    $guest_name = $booking['guest_name'] ?? 'Guest';
+                    $room_name = $booking['room_name'] ?? 'Standard Room';
+                    $room_number = $booking['room_number'] ?? 'N/A';
+                    
+                    $checkin_insert->bind_param(
+                        "iissssssssssssssiidsddssi",
+                        $user_id, $booking_id, $hotel_name, $hotel_location,
+                        $booking['check_in_date'], $booking['check_out_date'],
+                        $guest_name, $guest_dob, $id_type, $id_number,
+                        $nationality, $address, $guest_phone, $guest_email,
+                        $room_name, $room_number, $nights, $number_of_guests,
+                        $rate_per_night, $payment_type, $amount_paid, $balance_due,
+                        $confirmation_number, $additional_requests, $checked_in_by
+                    );
+                    
+                    $checkin_insert->execute();
+                }
+                
+                set_message('success', 'Booking approved and guest checked in successfully');
             } else {
-                set_message('error', 'Failed to confirm booking');
+                set_message('error', 'Failed to approve booking or booking already processed');
             }
             break;
             
@@ -35,19 +105,102 @@ if ($_POST) {
             break;
             
         case 'checkin':
-            $query = "UPDATE bookings SET status = 'checked_in', actual_checkin_time = NOW() WHERE id = $booking_id";
-            if ($conn->query($query)) {
-                // Also create checkin record
-                $checkin_query = "INSERT INTO checkins (booking_id, room_number, customer_name, customer_phone, customer_email, expected_checkout) 
-                                 SELECT b.id, r.room_number, CONCAT(u.first_name, ' ', u.last_name), u.phone, u.email, b.check_out_date
-                                 FROM bookings b 
-                                 JOIN users u ON b.user_id = u.id 
-                                 JOIN rooms r ON b.room_id = r.id 
-                                 WHERE b.id = $booking_id";
-                $conn->query($checkin_query);
-                set_message('success', 'Guest checked in successfully');
+            // Get booking details first
+            $booking_query = "SELECT b.*, r.name as room_name, r.room_number, 
+                             CONCAT(u.first_name, ' ', u.last_name) as guest_name,
+                             u.email, u.phone
+                             FROM bookings b
+                             LEFT JOIN rooms r ON b.room_id = r.id
+                             JOIN users u ON b.user_id = u.id
+                             WHERE b.id = $booking_id";
+            $booking_result = $conn->query($booking_query);
+            
+            if ($booking_result && $booking_result->num_rows > 0) {
+                $booking = $booking_result->fetch_assoc();
+                
+                // Update booking status
+                $query = "UPDATE bookings SET status = 'checked_in', actual_checkin_time = NOW(), checked_in_by = {$_SESSION['user_id']} WHERE id = $booking_id";
+                if ($conn->query($query)) {
+                    // Create checkin record
+                    $nights = (int)((strtotime($booking['check_out_date']) - strtotime($booking['check_in_date'])) / (60 * 60 * 24));
+                    $confirmation_number = 'CHK-' . date('Ymd') . '-' . strtoupper(substr(uniqid(), -6));
+                    
+                    $checkin_insert = $conn->prepare("
+                        INSERT INTO checkins (
+                            customer_id, booking_id, hotel_name, hotel_location, 
+                            check_in_date, check_out_date,
+                            guest_full_name, guest_date_of_birth, guest_id_type, guest_id_number, 
+                            guest_nationality, guest_home_address, guest_phone_number, guest_email_address,
+                            room_type, room_number, nights_stay, number_of_guests, rate_per_night,
+                            payment_type, amount_paid, balance_due, confirmation_number, 
+                            additional_requests, checked_in_by
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ");
+                    
+                    // Prepare all variables with proper defaults
+                    $hotel_name = 'Harar Ras Hotel';
+                    $hotel_location = 'Jugol Street, Harar, Ethiopia';
+                    $guest_dob = '1990-01-01';
+                    $id_type = $booking['id_type'] ?? 'national_id';
+                    $id_number = $booking['id_number'] ?? 'N/A';
+                    $nationality = 'Ethiopian';
+                    $address = $booking['special_requests'] ?? 'N/A';
+                    $payment_type = $booking['payment_method'] ?? 'cash';
+                    $amount_paid = (float)$booking['total_price'];
+                    $balance_due = 0.00;
+                    $additional_requests = $booking['special_requests'] ?? '';
+                    $number_of_guests = (int)$booking['customers'];
+                    $rate_per_night = (float)$booking['total_price'];
+                    $user_id = (int)$booking['user_id'];
+                    $checked_in_by = (int)$_SESSION['user_id'];
+                    
+                    // Handle NULL phone and email with defaults
+                    $guest_phone = $booking['phone'] ?? 'N/A';
+                    $guest_email = $booking['email'] ?? 'noemail@example.com';
+                    $guest_name = $booking['guest_name'] ?? 'Guest';
+                    $room_name = $booking['room_name'] ?? 'Standard Room';
+                    $room_number = $booking['room_number'] ?? 'N/A';
+                    
+                    // 25 parameters: i i s s s s s s s s s s s s s s i i d s d d s s i
+                    $checkin_insert->bind_param(
+                        "iissssssssssssssiidsddssi",
+                        $user_id,              // 1 - i (integer)
+                        $booking_id,           // 2 - i (integer)
+                        $hotel_name,           // 3 - s (string)
+                        $hotel_location,       // 4 - s (string)
+                        $booking['check_in_date'],   // 5 - s (string/date)
+                        $booking['check_out_date'],  // 6 - s (string/date)
+                        $guest_name,           // 7 - s (string)
+                        $guest_dob,            // 8 - s (string/date)
+                        $id_type,              // 9 - s (string)
+                        $id_number,            // 10 - s (string)
+                        $nationality,          // 11 - s (string)
+                        $address,              // 12 - s (string)
+                        $guest_phone,          // 13 - s (string) - FIXED: Now has default
+                        $guest_email,          // 14 - s (string) - FIXED: Now has default
+                        $room_name,            // 15 - s (string) - FIXED: Now has default
+                        $room_number,          // 16 - s (string) - FIXED: Now has default
+                        $nights,               // 17 - i (integer)
+                        $number_of_guests,     // 18 - i (integer)
+                        $rate_per_night,       // 19 - d (decimal)
+                        $payment_type,         // 20 - s (string)
+                        $amount_paid,          // 21 - d (decimal)
+                        $balance_due,          // 22 - d (decimal)
+                        $confirmation_number,  // 23 - s (string)
+                        $additional_requests,  // 24 - s (string)
+                        $checked_in_by         // 25 - i (integer)
+                    );
+                    
+                    if ($checkin_insert->execute()) {
+                        set_message('success', 'Guest checked in successfully');
+                    } else {
+                        set_message('error', 'Failed to create check-in record: ' . $checkin_insert->error);
+                    }
+                } else {
+                    set_message('error', 'Failed to check in guest: ' . $conn->error);
+                }
             } else {
-                set_message('error', 'Failed to check in guest');
+                set_message('error', 'Booking not found');
             }
             break;
             
@@ -246,9 +399,7 @@ $bookings = $conn->query($bookings_query);
                 <span class="text-white fw-bold">Harar Ras Hotel - Manager Dashboard</span>
             </a>
             <div class="ms-auto">
-                <a href="../index.php" class="btn btn-outline-light btn-sm me-2">
-                    <i class="fas fa-home"></i> Back to Website
-                </a>
+                
                 <span class="text-white me-3">
                     <i class="fas fa-user-tie"></i> Manager
                 </span>
@@ -389,7 +540,7 @@ $bookings = $conn->query($bookings_query);
                                                     <td>
                                                         <strong>In:</strong> <?php echo date('M j', strtotime($booking['check_in_date'])); ?>
                                                         <br><strong>Out:</strong> <?php echo date('M j', strtotime($booking['check_out_date'])); ?>
-                                                        <br><small class="text-muted"><?php echo $booking['customers']; ?> guests</small>
+                                                        <br><small class="text-muted"><?php echo isset($booking['number_of_guests']) ? $booking['number_of_guests'] : '1'; ?> guests</small>
                                                     </td>
                                                     <td>
                                                         <strong><?php echo formatCurrency($booking['total_price']); ?></strong>
