@@ -374,7 +374,7 @@ $food_images = [
                 ?>
                 
                 <div class="room-image-item">
-                    <img src="<?php echo htmlspecialchars($room_image); ?>" alt="Room <?php echo htmlspecialchars($room['room_number']); ?>" loading="lazy">
+                    <img src="<?php echo htmlspecialchars($room_image); ?>" alt="Room <?php echo htmlspecialchars($room['room_number']); ?>">
                 </div>
                 
                 <?php 
@@ -385,7 +385,7 @@ $food_images = [
                 // Add 1 food image to make it 40 total
                 ?>
                 <div class="room-image-item">
-                    <img src="assets/images/food/ethiopian/food1.jpg" alt="Ethiopian Cuisine" loading="lazy">
+                    <img src="assets/images/food/ethiopian/food1.jpg" alt="Ethiopian Cuisine">
                 </div>
                 <?php
                 ?>

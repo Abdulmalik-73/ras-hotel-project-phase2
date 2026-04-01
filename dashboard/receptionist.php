@@ -1,7 +1,8 @@
 <?php
 // Suppress PHP warnings and notices for production
-error_reporting(E_ERROR | E_PARSE);
+error_reporting(0);
 ini_set('display_errors', 0);
+ini_set('log_errors', 1);
 
 session_start();
 require_once '../includes/config.php';
@@ -14,7 +15,15 @@ $error = '';
 
 // Handle AJAX requests for check-in/check-out actions
 if ($_POST && isset($_POST['action'])) {
+    // Clear any output buffers to prevent HTML before JSON
+    while (ob_get_level()) {
+        ob_end_clean();
+    }
+    ob_start();
+    
     header('Content-Type: application/json');
+    
+    try {
     
     switch ($_POST['action']) {
         case 'checkin':
@@ -59,7 +68,47 @@ if ($_POST && isset($_POST['action'])) {
         case 'confirm_booking':
             $booking_ref = sanitize_input($_POST['booking_ref']);
             
-            // UNIFIED APPROVAL: pending → checked_in (not just confirmed)
+            // Get booking type first to determine how to handle it
+            $type_query = "SELECT booking_type FROM bookings WHERE booking_reference = ? AND status = 'pending'";
+            $type_stmt = $conn->prepare($type_query);
+            $type_stmt->bind_param("s", $booking_ref);
+            $type_stmt->execute();
+            $type_result = $type_stmt->get_result();
+            
+            if ($type_result->num_rows == 0) {
+                echo json_encode(['success' => false, 'message' => 'Failed to approve booking or booking already processed']);
+                exit();
+            }
+            
+            $booking_type_data = $type_result->fetch_assoc();
+            $booking_type = $booking_type_data['booking_type'];
+            
+            // For food orders and services, just mark as confirmed (not checked_in)
+            if ($booking_type == 'food_order' || $booking_type == 'spa_service' || $booking_type == 'laundry_service') {
+                $query = "UPDATE bookings SET status = 'confirmed', verified_at = NOW(), verified_by = ? WHERE booking_reference = ? AND status = 'pending'";
+                $stmt = $conn->prepare($query);
+                $stmt->bind_param("is", $_SESSION['user_id'], $booking_ref);
+                
+                if ($stmt->execute() && $stmt->affected_rows > 0) {
+                    // Get booking details for logging
+                    $booking_query = "SELECT b.id, b.user_id FROM bookings b WHERE b.booking_reference = ?";
+                    $log_stmt = $conn->prepare($booking_query);
+                    $log_stmt->bind_param("s", $booking_ref);
+                    $log_stmt->execute();
+                    $booking = $log_stmt->get_result()->fetch_assoc();
+                    
+                    if ($booking) {
+                        log_booking_activity($booking['id'], $booking['user_id'], 'confirmed', 'pending', 'confirmed', 'Order confirmed by receptionist', $_SESSION['user_id']);
+                    }
+                    
+                    echo json_encode(['success' => true, 'message' => 'Order confirmed successfully']);
+                } else {
+                    echo json_encode(['success' => false, 'message' => 'Failed to confirm order or order already processed']);
+                }
+                exit();
+            }
+            
+            // For room bookings: pending → checked_in
             $query = "UPDATE bookings SET status = 'checked_in', actual_checkin_time = NOW(), checked_in_by = ? WHERE booking_reference = ? AND status = 'pending'";
             $stmt = $conn->prepare($query);
             $stmt->bind_param("is", $_SESSION['user_id'], $booking_ref);
@@ -82,7 +131,7 @@ if ($_POST && isset($_POST['action'])) {
                     // Log the activity
                     log_booking_activity($booking['id'], $booking['user_id'], 'checked_in', 'pending', 'checked_in', 'Booking approved and checked in by receptionist', $_SESSION['user_id']);
                     
-                    // Create checkin record
+                    // Create checkin record only for room bookings
                     $nights = (int)((strtotime($booking['check_out_date']) - strtotime($booking['check_in_date'])) / (60 * 60 * 24));
                     $confirmation_number = 'CHK-' . date('Ymd') . '-' . strtoupper(substr(uniqid(), -6));
                     
@@ -156,6 +205,18 @@ if ($_POST && isset($_POST['action'])) {
             }
             exit();
     }
+    
+    } catch (Exception $e) {
+        // Clean output buffer and send error as JSON
+        ob_clean();
+        echo json_encode(['success' => false, 'message' => 'Server error: ' . $e->getMessage()]);
+        exit();
+    }
+    
+    // Clean output buffer and send final response
+    $output = ob_get_clean();
+    echo $output;
+    exit();
 }
 
 // Get today's check-ins and check-outs
@@ -265,11 +326,12 @@ $pending_bookings = $conn->query("
         /* Service Type Badge Styling */
         .service-type-badge {
             display: inline-block;
-            max-width: 200px;
+            max-width: 250px;
             white-space: normal !important;
             line-height: 1.3;
             padding: 0.5rem 0.75rem;
             text-align: center;
+            min-height: 60px;
         }
         
         .service-type-badge strong {
@@ -281,10 +343,9 @@ $pending_bookings = $conn->query("
         .service-type-badge small {
             display: block;
             font-size: 0.75rem;
-            line-height: 1.2;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            max-height: 2.4em;
+            line-height: 1.3;
+            white-space: normal !important;
+            word-wrap: break-word;
         }
         
         /* Make table cells more compact */
@@ -400,11 +461,8 @@ $pending_bookings = $conn->query("
                                             $food_result = $conn->query($food_items_query);
                                             $food_data = $food_result ? $food_result->fetch_assoc() : null;
                                             $items_text = $food_data['items'] ?? 'Food items';
-                                            // Truncate if too long
-                                            if (strlen($items_text) > 40) {
-                                                $items_text = substr($items_text, 0, 37) . '...';
-                                            }
-                                            $service_display = '<strong>Food Order</strong><br><small>' . htmlspecialchars($items_text) . '</small>';
+                                            // Show all items without truncation
+                                            $service_display = '<strong>Food Order</strong><br><small style="white-space: normal; line-height: 1.4;">' . htmlspecialchars($items_text) . '</small>';
                                             $service_badge_class = 'bg-success';
                                         } elseif ($booking_type == 'spa_service') {
                                             $service_display = '<strong>Spa & Wellness</strong><br><small>' . htmlspecialchars($booking['service_name'] ?? 'Spa service') . '</small>';
@@ -648,11 +706,8 @@ $pending_bookings = $conn->query("
                                             $food_result = $conn->query($food_items_query);
                                             $food_data = $food_result ? $food_result->fetch_assoc() : null;
                                             $items_text = $food_data['items'] ?? 'Food items';
-                                            // Truncate if too long
-                                            if (strlen($items_text) > 40) {
-                                                $items_text = substr($items_text, 0, 37) . '...';
-                                            }
-                                            $service_display = '<strong>Food Order</strong><br><small>' . htmlspecialchars($items_text) . '</small>';
+                                            // Show all items without truncation
+                                            $service_display = '<strong>Food Order</strong><br><small style="white-space: normal; line-height: 1.4;">' . htmlspecialchars($items_text) . '</small>';
                                             $service_badge_class = 'bg-success';
                                         } elseif ($booking_type == 'spa_service') {
                                             $service_display = '<strong>Spa & Wellness</strong><br><small>' . htmlspecialchars($booking['service_name'] ?? 'Spa service') . '</small>';

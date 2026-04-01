@@ -12,6 +12,46 @@ if (!is_logged_in() || !in_array($_SESSION['role'], ['manager', 'admin', 'super_
 $error = '';
 $success = '';
 
+// Handle delete feedback
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['delete_feedback'])) {
+    $feedback_id = (int)$_POST['feedback_id'];
+    
+    $delete_query = "DELETE FROM customer_feedback WHERE id = ?";
+    $stmt = $conn->prepare($delete_query);
+    $stmt->bind_param("i", $feedback_id);
+    
+    if ($stmt->execute()) {
+        $success = 'Feedback deleted successfully!';
+    } else {
+        $error = 'Failed to delete feedback: ' . $conn->error;
+    }
+}
+
+// Handle edit feedback
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['edit_feedback'])) {
+    $feedback_id = (int)$_POST['feedback_id'];
+    $overall_rating = (int)$_POST['overall_rating'];
+    $service_quality = (int)$_POST['service_quality'];
+    $cleanliness = (int)$_POST['cleanliness'];
+    $comments = sanitize_input($_POST['comments']);
+    
+    $update_query = "UPDATE customer_feedback 
+                     SET overall_rating = ?, 
+                         service_quality = ?, 
+                         cleanliness = ?, 
+                         comments = ?
+                     WHERE id = ?";
+    
+    $stmt = $conn->prepare($update_query);
+    $stmt->bind_param("iiisi", $overall_rating, $service_quality, $cleanliness, $comments, $feedback_id);
+    
+    if ($stmt->execute()) {
+        $success = 'Feedback updated successfully!';
+    } else {
+        $error = 'Failed to update feedback: ' . $conn->error;
+    }
+}
+
 // Handle feedback response
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['respond_feedback'])) {
     $feedback_id = (int)$_POST['feedback_id'];
@@ -365,9 +405,63 @@ $stats = $conn->query($stats_query)->fetch_assoc();
                     <?php endif; ?>
                     
                     <!-- Response Form -->
-                    <button class="btn btn-sm btn-primary" type="button" data-bs-toggle="collapse" data-bs-target="#response<?php echo $feedback['id']; ?>">
-                        <i class="fas fa-reply"></i> <?php echo $feedback['admin_response'] ? 'Update Response' : 'Add Response'; ?>
-                    </button>
+                    <div class="btn-group" role="group">
+                        <button class="btn btn-sm btn-primary" type="button" data-bs-toggle="collapse" data-bs-target="#response<?php echo $feedback['id']; ?>">
+                            <i class="fas fa-reply"></i> <?php echo $feedback['admin_response'] ? 'Update Response' : 'Add Response'; ?>
+                        </button>
+                        <button class="btn btn-sm btn-warning" type="button" data-bs-toggle="collapse" data-bs-target="#edit<?php echo $feedback['id']; ?>">
+                            <i class="fas fa-edit"></i> Edit Feedback
+                        </button>
+                        <button class="btn btn-sm btn-danger" type="button" onclick="deleteFeedback(<?php echo $feedback['id']; ?>, '<?php echo htmlspecialchars($feedback['booking_reference']); ?>')">
+                            <i class="fas fa-trash"></i> Delete
+                        </button>
+                    </div>
+                    
+                    <!-- Edit Feedback Form -->
+                    <div class="collapse" id="edit<?php echo $feedback['id']; ?>">
+                        <div class="response-form mt-3">
+                            <h6><i class="fas fa-edit"></i> Edit Feedback</h6>
+                            <form method="POST">
+                                <input type="hidden" name="feedback_id" value="<?php echo $feedback['id']; ?>">
+                                <div class="row mb-3">
+                                    <div class="col-md-4">
+                                        <label class="form-label">Overall Rating</label>
+                                        <select name="overall_rating" class="form-select" required>
+                                            <?php for ($i = 1; $i <= 5; $i++): ?>
+                                            <option value="<?php echo $i; ?>" <?php echo $feedback['overall_rating'] == $i ? 'selected' : ''; ?>><?php echo $i; ?> Star<?php echo $i > 1 ? 's' : ''; ?></option>
+                                            <?php endfor; ?>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">Service Quality</label>
+                                        <select name="service_quality" class="form-select" required>
+                                            <?php for ($i = 1; $i <= 5; $i++): ?>
+                                            <option value="<?php echo $i; ?>" <?php echo $feedback['service_quality'] == $i ? 'selected' : ''; ?>><?php echo $i; ?> Star<?php echo $i > 1 ? 's' : ''; ?></option>
+                                            <?php endfor; ?>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <label class="form-label">Cleanliness</label>
+                                        <select name="cleanliness" class="form-select" required>
+                                            <?php for ($i = 1; $i <= 5; $i++): ?>
+                                            <option value="<?php echo $i; ?>" <?php echo $feedback['cleanliness'] == $i ? 'selected' : ''; ?>><?php echo $i; ?> Star<?php echo $i > 1 ? 's' : ''; ?></option>
+                                            <?php endfor; ?>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Comments</label>
+                                    <textarea name="comments" class="form-control" rows="3"><?php echo htmlspecialchars($feedback['comments'] ?? ''); ?></textarea>
+                                </div>
+                                <button type="submit" name="edit_feedback" class="btn btn-warning">
+                                    <i class="fas fa-save"></i> Update Feedback
+                                </button>
+                                <button type="button" class="btn btn-secondary" data-bs-toggle="collapse" data-bs-target="#edit<?php echo $feedback['id']; ?>">
+                                    <i class="fas fa-times"></i> Cancel
+                                </button>
+                            </form>
+                        </div>
+                    </div>
                     
                     <div class="collapse <?php echo !$feedback['admin_response'] && $feedback['status'] == 'pending' ? 'show' : ''; ?>" id="response<?php echo $feedback['id']; ?>">
                         <div class="response-form">
@@ -399,6 +493,21 @@ $stats = $conn->query($stats_query)->fetch_assoc();
     </div>
     
     <?php include '../includes/footer.php'; ?>
+    
+    <!-- Hidden form for delete -->
+    <form id="deleteForm" method="POST" style="display: none;">
+        <input type="hidden" name="feedback_id" id="deleteFeedbackId">
+        <input type="hidden" name="delete_feedback" value="1">
+    </form>
+    
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function deleteFeedback(feedbackId, bookingRef) {
+            if (confirm('Are you sure you want to delete this feedback for booking ' + bookingRef + '?\n\nThis action cannot be undone!')) {
+                document.getElementById('deleteFeedbackId').value = feedbackId;
+                document.getElementById('deleteForm').submit();
+            }
+        }
+    </script>
 </body>
 </html>

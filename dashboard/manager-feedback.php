@@ -5,6 +5,49 @@ require_once '../includes/functions.php';
 
 require_role('manager');
 
+$success = '';
+$error = '';
+
+// Handle delete feedback
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['delete_feedback'])) {
+    $feedback_id = (int)$_POST['feedback_id'];
+    
+    $delete_query = "DELETE FROM customer_feedback WHERE id = ?";
+    $stmt = $conn->prepare($delete_query);
+    $stmt->bind_param("i", $feedback_id);
+    
+    if ($stmt->execute()) {
+        $success = 'Feedback deleted successfully!';
+    } else {
+        $error = 'Failed to delete feedback: ' . $conn->error;
+    }
+}
+
+// Handle edit feedback
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['edit_feedback'])) {
+    $feedback_id = (int)$_POST['feedback_id'];
+    $overall_rating = (int)$_POST['overall_rating'];
+    $service_quality = (int)$_POST['service_quality'];
+    $cleanliness = (int)$_POST['cleanliness'];
+    $comments = sanitize_input($_POST['comments']);
+    
+    $update_query = "UPDATE customer_feedback 
+                     SET overall_rating = ?, 
+                         service_quality = ?, 
+                         cleanliness = ?, 
+                         comments = ?
+                     WHERE id = ?";
+    
+    $stmt = $conn->prepare($update_query);
+    $stmt->bind_param("iiisi", $overall_rating, $service_quality, $cleanliness, $comments, $feedback_id);
+    
+    if ($stmt->execute()) {
+        $success = 'Feedback updated successfully!';
+    } else {
+        $error = 'Failed to update feedback: ' . $conn->error;
+    }
+}
+
 // Get filter parameters
 $rating_filter = isset($_GET['rating']) ? (int)$_GET['rating'] : 0;
 $date_filter = isset($_GET['date']) ? sanitize_input($_GET['date']) : '';
@@ -266,6 +309,20 @@ $stats['one_star'] = (int)($stats['one_star'] ?? 0);
                         </a>
                     </div>
                     
+                    <?php if ($success): ?>
+                    <div class="alert alert-success alert-dismissible fade show">
+                        <i class="fas fa-check-circle"></i> <?php echo $success; ?>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                    <?php endif; ?>
+                    
+                    <?php if ($error): ?>
+                    <div class="alert alert-danger alert-dismissible fade show">
+                        <i class="fas fa-exclamation-circle"></i> <?php echo $error; ?>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                    <?php endif; ?>
+                    
                     <!-- Statistics Cards -->
                     <div class="row mb-4">
                         <div class="col-md-3">
@@ -436,7 +493,7 @@ $stats['one_star'] = (int)($stats['one_star'] ?? 0);
                                                 </div>
                                             </div>
                                             
-                                            <div class="mb-2">
+                                            <div class="mb-3">
                                                 <strong>Cleanliness</strong>
                                                 <div class="rating-stars">
                                                     <?php for ($i = 1; $i <= 5; $i++): ?>
@@ -445,7 +502,63 @@ $stats['one_star'] = (int)($stats['one_star'] ?? 0);
                                                     <span class="ms-1"><?php echo $feedback['cleanliness']; ?>/5</span>
                                                 </div>
                                             </div>
+                                            
+                                            <!-- Action Buttons -->
+                                            <div class="d-grid gap-2">
+                                                <button class="btn btn-sm btn-warning" type="button" data-bs-toggle="collapse" data-bs-target="#edit<?php echo $feedback['id']; ?>">
+                                                    <i class="fas fa-edit"></i> Edit
+                                                </button>
+                                                <button class="btn btn-sm btn-danger" type="button" onclick="deleteFeedback(<?php echo $feedback['id']; ?>, '<?php echo htmlspecialchars($feedback['booking_reference']); ?>')">
+                                                    <i class="fas fa-trash"></i> Clear
+                                                </button>
+                                            </div>
                                         </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Edit Form (Collapsed) - Full Width Below -->
+                                <div class="collapse mt-3" id="edit<?php echo $feedback['id']; ?>">
+                                    <div class="card card-body bg-light">
+                                        <h6><i class="fas fa-edit"></i> Edit Feedback</h6>
+                                        <form method="POST">
+                                            <input type="hidden" name="feedback_id" value="<?php echo $feedback['id']; ?>">
+                                            <div class="row mb-2">
+                                                <div class="col-md-4">
+                                                    <label class="form-label small">Overall Rating</label>
+                                                    <select name="overall_rating" class="form-select form-select-sm" required>
+                                                        <?php for ($i = 1; $i <= 5; $i++): ?>
+                                                        <option value="<?php echo $i; ?>" <?php echo $feedback['overall_rating'] == $i ? 'selected' : ''; ?>><?php echo $i; ?> Star<?php echo $i > 1 ? 's' : ''; ?></option>
+                                                        <?php endfor; ?>
+                                                    </select>
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <label class="form-label small">Service Quality</label>
+                                                    <select name="service_quality" class="form-select form-select-sm" required>
+                                                        <?php for ($i = 1; $i <= 5; $i++): ?>
+                                                        <option value="<?php echo $i; ?>" <?php echo $feedback['service_quality'] == $i ? 'selected' : ''; ?>><?php echo $i; ?> Star<?php echo $i > 1 ? 's' : ''; ?></option>
+                                                        <?php endfor; ?>
+                                                    </select>
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <label class="form-label small">Cleanliness</label>
+                                                    <select name="cleanliness" class="form-select form-select-sm" required>
+                                                        <?php for ($i = 1; $i <= 5; $i++): ?>
+                                                        <option value="<?php echo $i; ?>" <?php echo $feedback['cleanliness'] == $i ? 'selected' : ''; ?>><?php echo $i; ?> Star<?php echo $i > 1 ? 's' : ''; ?></option>
+                                                        <?php endfor; ?>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <div class="mb-2">
+                                                <label class="form-label small">Comments</label>
+                                                <textarea name="comments" class="form-control form-control-sm" rows="2"><?php echo htmlspecialchars($feedback['comments'] ?? ''); ?></textarea>
+                                            </div>
+                                            <button type="submit" name="edit_feedback" class="btn btn-sm btn-success">
+                                                <i class="fas fa-save"></i> Save Changes
+                                            </button>
+                                            <button type="button" class="btn btn-sm btn-secondary" data-bs-toggle="collapse" data-bs-target="#edit<?php echo $feedback['id']; ?>">
+                                                <i class="fas fa-times"></i> Cancel
+                                            </button>
+                                        </form>
                                     </div>
                                 </div>
                             </div>
@@ -473,6 +586,12 @@ $stats['one_star'] = (int)($stats['one_star'] ?? 0);
         </div>
     </div>
     
+    <!-- Hidden form for delete -->
+    <form id="deleteForm" method="POST" style="display: none;">
+        <input type="hidden" name="feedback_id" id="deleteFeedbackId">
+        <input type="hidden" name="delete_feedback" value="1">
+    </form>
+    
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         function toggleSidebar() {
@@ -483,6 +602,13 @@ $stats['one_star'] = (int)($stats['one_star'] ?? 0);
             sidebar.classList.toggle('show');
             mainContent.classList.toggle('shifted');
             menuToggle.classList.toggle('shifted');
+        }
+        
+        function deleteFeedback(feedbackId, bookingRef) {
+            if (confirm('Are you sure you want to delete this feedback for booking ' + bookingRef + '?\n\nThis action cannot be undone!')) {
+                document.getElementById('deleteFeedbackId').value = feedbackId;
+                document.getElementById('deleteForm').submit();
+            }
         }
     </script>
 </body>
