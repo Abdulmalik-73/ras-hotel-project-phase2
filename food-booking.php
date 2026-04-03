@@ -415,61 +415,11 @@ $food_items = array_filter($food_items, function($category) {
                             <?php endif; ?>
                             
                             <form method="POST" action="" id="foodOrderForm">
-                                <!-- Food Selection -->
-                                <div class="mb-4">
-                                    <h5 class="mb-3">
-                                        <i class="fas fa-utensils text-gold"></i> <?php echo __('food.select_items'); ?>
-                                    </h5>
-                                    
-                                    <?php foreach ($food_items as $category => $items): ?>
-                                    <div class="mb-4">
-                                        <h6 class="text-gold"><?php 
-                                            // Translate category names
-                                            if ($category == 'Ethiopian Cuisine') echo __('food.ethiopian_cuisine');
-                                            elseif ($category == 'International Cuisine') echo __('food.international_cuisine');
-                                            elseif ($category == 'Desserts') echo __('food.desserts');
-                                            elseif ($category == 'Beverages') echo __('food.beverages');
-                                            else echo $category;
-                                        ?></h6>
-                                        <div class="row">
-                                            <?php foreach ($items as $item_name => $item_data): ?>
-                                            <div class="col-md-6 mb-3">
-                                                <div class="card h-100 shadow-sm">
-                                                    <!-- Food Image -->
-                                                    <img src="<?php echo $item_data['image']; ?>" 
-                                                         class="card-img-top" 
-                                                         alt="<?php echo $item_name; ?>" 
-                                                         style="height: 180px; object-fit: cover;"
-                                                         onerror="this.src='assets/images/food/ethiopian/food1.jpg'">
-                                                    
-                                                    <div class="card-body">
-                                                        <div class="form-check mb-2">
-                                                            <input class="form-check-input food-item" type="checkbox" 
-                                                                   name="food_items[]" value="<?php echo $item_name; ?>" 
-                                                                   id="item_<?php echo str_replace(' ', '_', $item_name); ?>">
-                                                            <label class="form-check-label fw-bold" for="item_<?php echo str_replace(' ', '_', $item_name); ?>">
-                                                                <?php echo $item_name; ?>
-                                                            </label>
-                                                        </div>
-                                                        <p class="small text-muted mb-2"><?php echo $item_data['description']; ?></p>
-                                                        <div class="d-flex justify-content-between align-items-center">
-                                                            <span class="h6 text-gold mb-0"><?php echo format_currency($item_data['price']); ?></span>
-                                                            <div class="input-group" style="width: 100px;">
-                                                                <span class="input-group-text">Qty</span>
-                                                                <input type="number" class="form-control quantity-input" 
-                                                                       name="quantity_<?php echo str_replace(' ', '_', $item_name); ?>" 
-                                                                       min="0" max="10" value="0" 
-                                                                       data-item="<?php echo $item_name; ?>"
-                                                                       data-price="<?php echo $item_data['price']; ?>">
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            <?php endforeach; ?>
-                                        </div>
-                                    </div>
-                                    <?php endforeach; ?>
+                                <!-- Order Summary Info -->
+                                <div class="alert alert-info mb-4">
+                                    <i class="fas fa-info-circle"></i> 
+                                    <strong>Note:</strong> You have selected food items from the Services menu. 
+                                    Please choose your reservation date and time below.
                                 </div>
                                 
                                 <!-- Table Reservation -->
@@ -479,22 +429,22 @@ $food_items = array_filter($food_items, function($category) {
                                     </h5>
                                     <div class="form-check mb-3">
                                         <input class="form-check-input" type="checkbox" name="table_reservation" 
-                                               id="tableReservation" onchange="toggleReservationFields()">
+                                               id="tableReservation" checked onchange="toggleReservationFields()">
                                         <label class="form-check-label" for="tableReservation">
                                             <?php echo __('food.reserve_table'); ?>
                                         </label>
                                     </div>
                                     
-                                    <div id="reservationFields" style="display: none;">
+                                    <div id="reservationFields">
                                         <div class="row">
                                             <div class="col-md-4 mb-3">
                                                 <label class="form-label"><?php echo __('food.reservation_date'); ?></label>
                                                 <input type="date" name="reservation_date" class="form-control" 
-                                                       min="<?php echo date('Y-m-d'); ?>">
+                                                       min="<?php echo date('Y-m-d'); ?>" required>
                                             </div>
                                             <div class="col-md-4 mb-3">
                                                 <label class="form-label"><?php echo __('food.reservation_time'); ?></label>
-                                                <select name="reservation_time" class="form-select">
+                                                <select name="reservation_time" class="form-select" required>
                                                     <option value="">Select time...</option>
                                                     <option value="12:00">12:00 PM</option>
                                                     <option value="12:30">12:30 PM</option>
@@ -541,10 +491,14 @@ $food_items = array_filter($food_items, function($category) {
                         </div>
                         <div class="card-body">
                             <div id="orderSummary">
-                                <p class="text-muted text-center py-4">
-                                    <i class="fas fa-info-circle"></i><br>
-                                    <?php echo __('food.select_to_see_pricing'); ?>
-                                </p>
+                                <div class="alert alert-success">
+                                    <i class="fas fa-check-circle"></i>
+                                    <strong>Food Order Selected</strong>
+                                    <p class="mb-0 mt-2 small">You have selected food items from the Services menu. Please complete the reservation details to place your order.</p>
+                                </div>
+                                <div class="text-muted small">
+                                    <p><i class="fas fa-info-circle"></i> Your order will be confirmed after you submit the form with your preferred date and time.</p>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -559,162 +513,23 @@ $food_items = array_filter($food_items, function($category) {
     <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
     <script src="assets/js/main.js?v=<?php echo time(); ?>"></script>
     <script>
-        // Override formatCurrency function to ensure ETB display
-        function formatCurrency(amount) {
-            return 'ETB ' + parseFloat(amount).toFixed(2);
-        }
-    </script>
-    <script>
+        // Toggle reservation fields
         function toggleReservationFields() {
             const checkbox = document.getElementById('tableReservation');
             const fields = document.getElementById('reservationFields');
             fields.style.display = checkbox.checked ? 'block' : 'none';
-        }
-        
-        function updateOrderSummary() {
-            const checkboxes = document.querySelectorAll('.food-item:checked');
-            const quantities = document.querySelectorAll('.quantity-input');
-            let totalPrice = 0;
-            let orderItems = [];
-            let itemCount = 0;
             
-            checkboxes.forEach((checkbox, index) => {
-                const quantityInput = checkbox.closest('.card-body').querySelector('.quantity-input');
-                const quantity = parseInt(quantityInput.value) || 0;
-                const price = parseFloat(quantityInput.dataset.price);
-                
-                if (quantity > 0) {
-                    itemCount++;
-                    const itemTotal = price * quantity;
-                    totalPrice += itemTotal;
-                    orderItems.push({
-                        name: checkbox.value,
-                        quantity: quantity,
-                        price: price,
-                        total: itemTotal
-                    });
-                }
+            // Make fields required/optional based on checkbox
+            const inputs = fields.querySelectorAll('input, select');
+            inputs.forEach(input => {
+                input.required = checkbox.checked;
             });
-            
-            let html = '';
-            if (orderItems.length > 0) {
-                // Show item count warning if more than 3
-                if (itemCount > 3) {
-                    html += '<div class="alert alert-warning alert-sm mb-3"><i class="fas fa-exclamation-triangle"></i> Maximum 3 different food items allowed. Please remove ' + (itemCount - 3) + ' item(s).</div>';
-                } else {
-                    html += '<div class="alert alert-info alert-sm mb-3"><i class="fas fa-info-circle"></i> ' + itemCount + ' of 3 items selected</div>';
-                }
-                
-                html += '<div class="mb-3">';
-                orderItems.forEach(item => {
-                    html += `
-                        <div class="d-flex justify-content-between mb-2">
-                            <div>
-                                <strong>${item.name}</strong><br>
-                                <small class="text-muted">${formatCurrency(item.price)} × ${item.quantity}</small>
-                            </div>
-                            <div class="text-end">
-                                ${formatCurrency(item.total)}
-                            </div>
-                        </div>
-                    `;
-                });
-                html += '</div><hr><div class="d-flex justify-content-between"><strong>Total:</strong> <span class="text-gold fs-4">' + formatCurrency(totalPrice) + '</span></div>';
-            } else {
-                html = '<p class="text-muted text-center py-4"><i class="fas fa-info-circle"></i><br>Select food items to see pricing<br><small>You can select up to 3 different items</small></p>';
-            }
-            
-            document.getElementById('orderSummary').innerHTML = html;
-            
-            // Disable submit button if more than 3 items
-            const submitBtn = document.querySelector('button[type="submit"]');
-            if (submitBtn) {
-                submitBtn.disabled = itemCount > 3 || itemCount === 0;
-            }
         }
         
-        // Event listeners
+        // Initialize on page load
         document.addEventListener('DOMContentLoaded', function() {
-            const checkboxes = document.querySelectorAll('.food-item');
-            const quantities = document.querySelectorAll('.quantity-input');
-            const form = document.getElementById('foodOrderForm');
-            
-            checkboxes.forEach(checkbox => {
-                checkbox.addEventListener('change', function() {
-                    const quantityInput = this.closest('.card-body').querySelector('.quantity-input');
-                    
-                    // Count currently selected items
-                    const selectedCount = document.querySelectorAll('.food-item:checked').length;
-                    
-                    if (this.checked) {
-                        // Check if already at max
-                        if (selectedCount > 3) {
-                            this.checked = false;
-                            alert('Maximum 3 different food items allowed per order. Please remove an item first.');
-                            return;
-                        }
-                        
-                        if (quantityInput.value == 0) {
-                            quantityInput.value = 1;
-                        }
-                    } else {
-                        quantityInput.value = 0;
-                    }
-                    updateOrderSummary();
-                });
-            });
-            
-            quantities.forEach(input => {
-                input.addEventListener('change', function() {
-                    const checkbox = this.closest('.card-body').querySelector('.food-item');
-                    
-                    if (this.value > 0) {
-                        // Count currently selected items
-                        const selectedCount = document.querySelectorAll('.food-item:checked').length;
-                        
-                        if (!checkbox.checked && selectedCount >= 3) {
-                            this.value = 0;
-                            alert('Maximum 3 different food items allowed per order. Please remove an item first.');
-                            return;
-                        }
-                        
-                        checkbox.checked = true;
-                    } else {
-                        checkbox.checked = false;
-                    }
-                    updateOrderSummary();
-                });
-            });
-            
-            // Form submission validation
-            form.addEventListener('submit', function(e) {
-                const selectedItems = document.querySelectorAll('.food-item:checked');
-                let validItemCount = 0;
-                
-                selectedItems.forEach(checkbox => {
-                    const quantityInput = checkbox.closest('.card-body').querySelector('.quantity-input');
-                    if (parseInt(quantityInput.value) > 0) {
-                        validItemCount++;
-                    }
-                });
-                
-                if (validItemCount === 0) {
-                    e.preventDefault();
-                    alert('Please select at least one food item with quantity greater than 0');
-                    return false;
-                }
-                
-                if (validItemCount > 3) {
-                    e.preventDefault();
-                    alert('Maximum 3 different food items allowed per order. You have selected ' + validItemCount + ' items. Please remove ' + (validItemCount - 3) + ' item(s).');
-                    return false;
-                }
-                
-                return true;
-            });
-            
-            // Initial update
-            updateOrderSummary();
+            // Show reservation fields by default since checkbox is checked
+            toggleReservationFields();
         });
     </script>
 </body>
