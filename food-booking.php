@@ -49,101 +49,100 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             $error = 'Session error: User ID not found. Please log in again.';
             error_log("ERROR: user_id not in session. Session data: " . print_r($_SESSION, true));
         } else {
-                $user_id = (int)$_SESSION['user_id'];
+            $user_id = (int)$_SESSION['user_id'];
+            
+            // Verify user exists in database
+            $user_check = $conn->prepare("SELECT id FROM users WHERE id = ?");
+            $user_check->bind_param("i", $user_id);
+            $user_check->execute();
+            $user_result = $user_check->get_result();
+            
+            if ($user_result->num_rows == 0) {
+                $error = 'User account not found in database. Please log in again.';
+                error_log("ERROR: User ID $user_id not found in users table");
+            } else {
+                // Insert into bookings table with food order type
+                $query = "INSERT INTO bookings (user_id, booking_reference, customers, total_price, special_requests, status, booking_type, verification_status) 
+                         VALUES (?, ?, ?, ?, ?, 'pending', 'food_order', 'pending_payment')";
                 
-                // Verify user exists in database
-                $user_check = $conn->prepare("SELECT id FROM users WHERE id = ?");
-                $user_check->bind_param("i", $user_id);
-                $user_check->execute();
-                $user_result = $user_check->get_result();
-                
-                if ($user_result->num_rows == 0) {
-                    $error = 'User account not found in database. Please log in again.';
-                    error_log("ERROR: User ID $user_id not found in users table");
+                $stmt = $conn->prepare($query);
+                if (!$stmt) {
+                    $error = 'Database error: ' . $conn->error;
+                    error_log("ERROR: Failed to prepare statement: " . $conn->error);
                 } else {
-                    // Insert into bookings table with food order type
-                    $query = "INSERT INTO bookings (user_id, booking_reference, customers, total_price, special_requests, status, booking_type, verification_status) 
-                             VALUES (?, ?, ?, ?, ?, 'pending', 'food_order', 'pending_payment')";
+                    $stmt->bind_param("isids", 
+                        $user_id, 
+                        $order_reference, 
+                        $guests, 
+                        $total_price, 
+                        $special_requests
+                    );
                     
-                    $stmt = $conn->prepare($query);
-                    if (!$stmt) {
-                        $error = 'Database error: ' . $conn->error;
-                        error_log("ERROR: Failed to prepare statement: " . $conn->error);
-                    } else {
-                        $stmt->bind_param("isids", 
+                    if ($stmt->execute()) {
+                        $booking_id = $conn->insert_id;
+                        
+                        // Insert food order details
+                        $food_query = "INSERT INTO food_orders (booking_id, user_id, order_reference, total_price, 
+                                      table_reservation, reservation_date, reservation_time, guests, special_requests, 
+                                      status) 
+                                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')";
+                        
+                        $food_stmt = $conn->prepare($food_query);
+                        $food_stmt->bind_param("iisdisiss", 
+                            $booking_id,
                             $user_id, 
                             $order_reference, 
-                            $guests, 
                             $total_price, 
+                            $table_reservation, 
+                            $reservation_date, 
+                            $reservation_time, 
+                            $guests, 
                             $special_requests
                         );
                         
-                        if ($stmt->execute()) {
-                            $booking_id = $conn->insert_id;
+                        if ($food_stmt->execute()) {
+                            $order_id = $conn->insert_id;
                             
-                            // Insert food order details
-                            $food_query = "INSERT INTO food_orders (booking_id, user_id, order_reference, total_price, 
-                                          table_reservation, reservation_date, reservation_time, guests, special_requests, 
-                                          status) 
-                                          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')";
+                            // Insert order items
+                            $item_query = "INSERT INTO food_order_items (order_id, item_name, quantity, price, total_price) VALUES (?, ?, ?, ?, ?)";
+                            $item_stmt = $conn->prepare($item_query);
                             
-                            $food_stmt = $conn->prepare($food_query);
-                            $food_stmt->bind_param("iisdisiss", 
-                                $booking_id,
-                                $user_id, 
-                                $order_reference, 
-                                $total_price, 
-                                $table_reservation, 
-                                $reservation_date, 
-                                $reservation_time, 
-                                $guests, 
-                                $special_requests
-                            );
-                            
-                            if ($food_stmt->execute()) {
-                                $order_id = $conn->insert_id;
-                                
-                                // Insert order items
-                                $item_query = "INSERT INTO food_order_items (order_id, item_name, quantity, price, total_price) VALUES (?, ?, ?, ?, ?)";
-                                $item_stmt = $conn->prepare($item_query);
-                                
-                                foreach ($order_items as $item) {
-                                    $item_stmt->bind_param("isidd", $order_id, $item['item'], $item['quantity'], $item['price'], $item['total']);
-                                    $item_stmt->execute();
-                                }
-                                
-                                // Generate payment reference and deadline (same as room bookings)
-                                $payment_ref = 'HRH-' . str_pad($booking_id, 4, '0', STR_PAD_LEFT) . '-' . strtoupper(substr(md5($booking_id . time()), 0, 6));
-                                $deadline = date('Y-m-d H:i:s', strtotime('+30 minutes'));
-                                
-                                // Update booking with payment details
-                                $update_query = "UPDATE bookings SET payment_reference = ?, payment_deadline = ?, verification_status = 'pending_payment' WHERE id = ?";
-                                $update_stmt = $conn->prepare($update_query);
-                                $update_stmt->bind_param("ssi", $payment_ref, $deadline, $booking_id);
-                                $update_stmt->execute();
-                                
-                                // Log user activity for food order
-                                log_user_activity($user_id, 'booking', 'Food order placed: ' . $order_reference . ' - Total: ETB ' . number_format($total_price, 2), $_SERVER['REMOTE_ADDR'] ?? '', $_SERVER['HTTP_USER_AGENT'] ?? '');
-                                
-                                $success = "Food order placed successfully! Please complete payment within 30 minutes to confirm your order.";
-                                
-                                // Store order reference in session for payment
-                                $_SESSION['pending_food_order'] = $order_reference;
-                                
-                                // Debug: Log the redirect
-                                error_log("Redirecting to payment-upload.php?booking=" . $booking_id . "&type=food");
-                                
-                                // Redirect to payment upload page (same as room bookings)
-                                header('Location: payment-upload.php?booking=' . $booking_id . '&type=food');
-                                exit();
-                            } else {
-                                $error = 'Failed to create food order details: ' . $food_stmt->error;
-                                error_log("ERROR: Failed to insert food order: " . $food_stmt->error);
+                            foreach ($order_items as $item) {
+                                $item_stmt->bind_param("isidd", $order_id, $item['item'], $item['quantity'], $item['price'], $item['total']);
+                                $item_stmt->execute();
                             }
+                            
+                            // Generate payment reference and deadline (same as room bookings)
+                            $payment_ref = 'HRH-' . str_pad($booking_id, 4, '0', STR_PAD_LEFT) . '-' . strtoupper(substr(md5($booking_id . time()), 0, 6));
+                            $deadline = date('Y-m-d H:i:s', strtotime('+30 minutes'));
+                            
+                            // Update booking with payment details
+                            $update_query = "UPDATE bookings SET payment_reference = ?, payment_deadline = ?, verification_status = 'pending_payment' WHERE id = ?";
+                            $update_stmt = $conn->prepare($update_query);
+                            $update_stmt->bind_param("ssi", $payment_ref, $deadline, $booking_id);
+                            $update_stmt->execute();
+                            
+                            // Log user activity for food order
+                            log_user_activity($user_id, 'booking', 'Food order placed: ' . $order_reference . ' - Total: ETB ' . number_format($total_price, 2), $_SERVER['REMOTE_ADDR'] ?? '', $_SERVER['HTTP_USER_AGENT'] ?? '');
+                            
+                            $success = "Food order placed successfully! Please complete payment within 30 minutes to confirm your order.";
+                            
+                            // Store order reference in session for payment
+                            $_SESSION['pending_food_order'] = $order_reference;
+                            
+                            // Debug: Log the redirect
+                            error_log("Redirecting to payment-upload.php?booking=" . $booking_id . "&type=food");
+                            
+                            // Redirect to payment upload page (same as room bookings)
+                            header('Location: payment-upload.php?booking=' . $booking_id . '&type=food');
+                            exit();
                         } else {
-                            $error = 'Failed to create order: ' . $stmt->error;
-                            error_log("ERROR: Failed to insert booking: " . $stmt->error);
+                            $error = 'Failed to create food order details: ' . $food_stmt->error;
+                            error_log("ERROR: Failed to insert food order: " . $food_stmt->error);
                         }
+                    } else {
+                        $error = 'Failed to create order: ' . $stmt->error;
+                        error_log("ERROR: Failed to insert booking: " . $stmt->error);
                     }
                 }
             }
