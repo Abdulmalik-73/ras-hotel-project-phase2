@@ -17,87 +17,38 @@ $error = '';
 $success = '';
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
-    // Debug: Log form submission
-    error_log("Food order form submitted with data: " . print_r($_POST, true));
+    // Get food item from POST (passed as hidden field) or URL
+    $selected_item = sanitize_input($_POST['selected_item'] ?? $selected_item);
+    $selected_price = (float)($_POST['selected_price'] ?? $selected_price);
     
-    $food_items = $_POST['food_items'] ?? [];
     $table_reservation = isset($_POST['table_reservation']) ? 1 : 0;
     $reservation_date = sanitize_input($_POST['reservation_date'] ?? '');
     $reservation_time = sanitize_input($_POST['reservation_time'] ?? '');
     $guests = (int)($_POST['guests'] ?? 1);
     $special_requests = sanitize_input($_POST['special_requests'] ?? '');
     
-    // Debug: Log processed data
-    error_log("Processed food items: " . print_r($food_items, true));
-    
-    // Process food items with quantities > 0
-    $valid_items = [];
-    
-    // Get all food items from database for validation
-    $all_food_query = "SELECT name, price FROM services WHERE category = 'restaurant' AND status = 'active'";
-    $all_food_result = $conn->query($all_food_query);
-    $food_prices = [];
-    
-    while ($row = $all_food_result->fetch_assoc()) {
-        $food_prices[$row['name']] = $row['price'];
-    }
-    
-    // Match selected items with their quantities from POST data
-    if (!empty($food_items)) {
-        foreach ($food_items as $item_name) {
-            // Get quantity from individual field
-            $quantity_field = 'quantity_' . str_replace(' ', '_', $item_name);
-            $quantity = isset($_POST[$quantity_field]) ? (int)$_POST[$quantity_field] : 0;
-            
-            if ($quantity > 0 && isset($food_prices[$item_name])) {
-                $valid_items[] = [
-                    'name' => $item_name,
-                    'quantity' => $quantity,
-                    'price' => $food_prices[$item_name]
-                ];
-            }
-        }
-    }
-    
-    // Validate maximum 3 items
-    if (count($valid_items) > 3) {
-        $error = 'Maximum 3 different food items allowed per order. You selected ' . count($valid_items) . ' items.';
-        error_log("Error: Too many items selected - " . count($valid_items));
-    } elseif (empty($valid_items)) {
-        $error = 'Please select at least one food item with quantity greater than 0';
-        error_log("Error: No valid food items with quantities");
+    // Validate that we have a food item
+    if (empty($selected_item) || $selected_price <= 0) {
+        $error = 'Please select a food item from the Services menu first.';
     } else {
-        $total_price = 0;
-        $order_items = [];
+        // Create single item order
+        $order_items = [[
+            'item' => $selected_item,
+            'quantity' => 1,
+            'price' => $selected_price,
+            'total' => $selected_price
+        ]];
         
-        // Calculate total price and prepare order items
-        foreach ($valid_items as $item_data) {
-            $item_name = $item_data['name'];
-            $quantity = $item_data['quantity'];
-            $price = $item_data['price'];
-            
-            $item_total = $price * $quantity;
-            $total_price += $item_total;
-            
-            $order_items[] = [
-                'item' => $item_name,
-                'quantity' => $quantity,
-                'price' => $price,
-                'total' => $item_total
-            ];
-        }
+        $total_price = $selected_price;
         
-        if (empty($order_items)) {
-            $error = 'Please specify quantities for selected items';
+        // Create food order using the same structure as room bookings
+        $order_reference = 'FO' . date('Ymd') . rand(1000, 9999);
+        
+        // Validate user_id exists
+        if (!isset($_SESSION['user_id']) || empty($_SESSION['user_id'])) {
+            $error = 'Session error: User ID not found. Please log in again.';
+            error_log("ERROR: user_id not in session. Session data: " . print_r($_SESSION, true));
         } else {
-            // Create food order using the same structure as room bookings
-            $order_reference = 'FO' . date('Ymd') . rand(1000, 9999);
-            
-            // Validate user_id exists
-            if (!isset($_SESSION['user_id']) || empty($_SESSION['user_id'])) {
-                $error = 'Session error: User ID not found. Please log in again.';
-                error_log("ERROR: user_id not in session. Session data: " . print_r($_SESSION, true));
-            } else {
                 $user_id = (int)$_SESSION['user_id'];
                 
                 // Verify user exists in database
@@ -419,6 +370,10 @@ $food_items = array_filter($food_items, function($category) {
                             <?php endif; ?>
                             
                             <form method="POST" action="" id="foodOrderForm">
+                                <!-- Hidden fields for selected food item -->
+                                <input type="hidden" name="selected_item" value="<?php echo htmlspecialchars($selected_item); ?>">
+                                <input type="hidden" name="selected_price" value="<?php echo $selected_price; ?>">
+                                
                                 <!-- Order Summary Info -->
                                 <div class="alert alert-info mb-4">
                                     <i class="fas fa-info-circle"></i> 
