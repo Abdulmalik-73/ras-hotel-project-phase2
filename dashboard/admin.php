@@ -25,7 +25,8 @@ $stats = $stats_result->fetch_assoc();
 
 // Get recent bookings
 $recent_bookings_query = "SELECT b.*, 
-                          COALESCE(r.name, 'Food Order') as room_name, 
+                          COALESCE(r.name, 'Food Order') as room_name,
+                          r.room_number,
                           CONCAT(u.first_name, ' ', u.last_name) as guest_name 
                           FROM bookings b 
                           LEFT JOIN rooms r ON b.room_id = r.id 
@@ -433,7 +434,14 @@ $recent_bookings = $conn->query($recent_bookings_query)->fetch_all(MYSQLI_ASSOC)
                                     <tr>
                                         <td><strong><?php echo $booking['booking_reference']; ?></strong></td>
                                         <td><?php echo htmlspecialchars($booking['guest_name']); ?></td>
-                                        <td><?php echo htmlspecialchars($booking['room_name']); ?></td>
+                                        <td>
+                                            <?php 
+                                            echo htmlspecialchars($booking['room_name']); 
+                                            if (!empty($booking['room_number'])) {
+                                                echo ' <span class="text-muted">(No: ' . htmlspecialchars($booking['room_number']) . ')</span>';
+                                            }
+                                            ?>
+                                        </td>
                                         <td><?php echo date('M j, Y', strtotime($booking['check_in_date'])); ?></td>
                                         <td><?php echo date('M j, Y', strtotime($booking['check_out_date'])); ?></td>
                                         <td><?php echo format_currency($booking['total_price']); ?></td>
