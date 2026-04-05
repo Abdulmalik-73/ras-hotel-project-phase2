@@ -2374,13 +2374,16 @@ DELIMITER ;
 -- SET GLOBAL event_scheduler = ON;
 
 -- Drop existing event if exists
-DROP EVENT IF EXISTS auto_cleanup_expired_locks;
+-- DROP EVENT IF EXISTS auto_cleanup_expired_locks;
 
--- Create event to run every minute (optional - requires event_scheduler to be ON)
+-- Create event to run every minute (DISABLED - requires event_scheduler to be ON)
+-- Uncomment below lines after enabling event_scheduler manually
+/*
 CREATE EVENT IF NOT EXISTS auto_cleanup_expired_locks
 ON SCHEDULE EVERY 1 MINUTE
 DO
     CALL cleanup_expired_locks();
+*/
 
 -- =====================================================
 -- CREATE INDEXES FOR PERFORMANCE
@@ -2785,14 +2788,17 @@ DELIMITER ;
 -- =====================================================
 
 -- Drop existing event if exists
-DROP EVENT IF EXISTS auto_detect_no_shows;
+-- DROP EVENT IF EXISTS auto_detect_no_shows;
 
--- Create event to run every hour
+-- Create event to run every hour (DISABLED - requires event_scheduler to be ON)
+-- Uncomment below lines after enabling event_scheduler manually
+/*
 CREATE EVENT IF NOT EXISTS auto_detect_no_shows
 ON SCHEDULE EVERY 1 HOUR
 STARTS CURRENT_TIMESTAMP
 DO
     CALL detect_no_shows();
+*/
 
 -- =====================================================
 -- REFUND SYSTEM SETUP COMPLETE
@@ -3074,9 +3080,11 @@ DELIMITER ;
 -- SET GLOBAL event_scheduler = ON;
 
 -- Drop existing event if exists
-DROP EVENT IF EXISTS cleanup_old_mpesa_logs;
+-- DROP EVENT IF EXISTS cleanup_old_mpesa_logs;
 
--- Create event to cleanup logs older than 90 days (optional - requires event_scheduler to be ON)
+-- Create event to cleanup logs older than 90 days (DISABLED - requires event_scheduler to be ON)
+-- Uncomment below lines after enabling event_scheduler manually
+/*
 CREATE EVENT IF NOT EXISTS cleanup_old_mpesa_logs
 ON SCHEDULE EVERY 1 DAY
 STARTS CURRENT_TIMESTAMP
@@ -3095,6 +3103,7 @@ BEGIN
     SET is_active = 0 
     WHERE expires_at < NOW() AND is_active = 1;
 END;
+*/
 
 -- =====================================================
 -- M-PESA INTEGRATION SETUP COMPLETED
