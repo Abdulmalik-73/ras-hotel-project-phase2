@@ -31,6 +31,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $error_message = 'Failed to delete booking activity logs: ' . $conn->error;
             }
         }
+    } elseif (isset($_POST['delete_users'])) {
+        // Delete selected users
+        $ids = $_POST['user_ids'] ?? [];
+        if (!empty($ids)) {
+            // Prevent deleting super admin
+            $ids_str = implode(',', array_map('intval', $ids));
+            $check_query = "SELECT COUNT(*) as count FROM users WHERE id IN ($ids_str) AND role = 'super_admin'";
+            $check_result = $conn->query($check_query);
+            $has_super_admin = $check_result->fetch_assoc()['count'] > 0;
+            
+            if ($has_super_admin) {
+                $error_message = 'Cannot delete Super Admin accounts!';
+            } else {
+                // Start transaction
+                $conn->begin_transaction();
+                try {
+                    // Update foreign key references
+                    $conn->query("UPDATE bookings SET verified_by = NULL WHERE verified_by IN ($ids_str)");
+                    $conn->query("UPDATE bookings SET checked_in_by = NULL WHERE checked_in_by IN ($ids_str)");
+                    $conn->query("UPDATE bookings SET checked_out_by = NULL WHERE checked_out_by IN ($ids_str)");
+                    
+                    // Delete users
+                    $delete_query = "DELETE FROM users WHERE id IN ($ids_str)";
+                    if ($conn->query($delete_query)) {
+                        $conn->commit();
+                        $success_message = count($ids) . ' user(s) deleted successfully!';
+                    } else {
+                        throw new Exception($conn->error);
+                    }
+                } catch (Exception $e) {
+                    $conn->rollback();
+                    $error_message = 'Failed to delete users: ' . $e->getMessage();
+                }
+            }
+        }
     } elseif (isset($_POST['clear_all_activity'])) {
         // Clear all activity logs
         $delete_query = "DELETE FROM user_activity_log";
@@ -64,6 +99,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $success_message = $affected . ' old booking activity log(s) deleted successfully!';
         } else {
             $error_message = 'Failed to delete old booking activity logs: ' . $conn->error;
+        }
+    } elseif (isset($_POST['delete_inactive_users'])) {
+        // Delete inactive users (not super_admin)
+        $delete_query = "DELETE FROM users WHERE status = 'inactive' AND role != 'super_admin'";
+        if ($conn->query($delete_query)) {
+            $affected = $conn->affected_rows;
+            $success_message = $affected . ' inactive user(s) deleted successfully!';
+        } else {
+            $error_message = 'Failed to delete inactive users: ' . $conn->error;
         }
     }
 }
@@ -234,6 +278,10 @@ $total_pages = ceil($total_records / $limit);
                             <button type="button" class="btn btn-sm btn-danger" data-bs-toggle="modal" data-bs-target="#clearAllBookingModal">
                                 <i class="fas fa-trash-alt"></i> Clear All
                             </button>
+                            <?php elseif ($data_type == 'users'): ?>
+                            <button type="button" class="btn btn-sm btn-warning" data-bs-toggle="modal" data-bs-target="#deleteInactiveUsersModal">
+                                <i class="fas fa-user-slash"></i> Delete Inactive Users
+                            </button>
                             <?php endif; ?>
                         </div>
                     </div>
@@ -260,6 +308,14 @@ $total_pages = ceil($total_records / $limit);
                                     <i class="fas fa-trash"></i> Delete Selected
                                 </button>
                                 <span class="text-muted ms-2" id="selectedBookingCount">0 selected</span>
+                            </div>
+                        <?php elseif ($data_type == 'users'): ?>
+                        <form method="POST" id="usersForm">
+                            <div class="mb-3">
+                                <button type="submit" name="delete_users" class="btn btn-sm btn-danger" id="deleteSelectedUsersBtn" disabled>
+                                    <i class="fas fa-trash"></i> Delete Selected
+                                </button>
+                                <span class="text-muted ms-2" id="selectedUsersCount">0 selected</span>
                             </div>
                         <?php endif; ?>
                         <div class="table-responsive">
@@ -288,6 +344,9 @@ $total_pages = ceil($total_records / $limit);
                                         <th>Status</th>
                                         <th>Created</th>
                                         <?php elseif ($data_type == 'users'): ?>
+                                        <th style="width: 40px;">
+                                            <input type="checkbox" id="selectAllUsers" class="form-check-input">
+                                        </th>
                                         <th>ID</th>
                                         <th>Name</th>
                                         <th>Email</th>
@@ -376,6 +435,9 @@ $total_pages = ceil($total_records / $limit);
                                         <td><?php echo date('M j, Y H:i', strtotime($row['created_at'])); ?></td>
                                         
                                         <?php elseif ($data_type == 'users'): ?>
+                                        <td>
+                                            <input type="checkbox" name="user_ids[]" value="<?php echo $row['id']; ?>" class="form-check-input user-checkbox" <?php echo $row['role'] == 'super_admin' ? 'disabled title="Cannot delete Super Admin"' : ''; ?>>
+                                        </td>
                                         <td><?php echo $row['id']; ?></td>
                                         <td><?php echo htmlspecialchars(($row['first_name'] ?? '') . ' ' . ($row['last_name'] ?? '')); ?></td>
                                         <td><?php echo htmlspecialchars($row['email'] ?? ''); ?></td>
@@ -441,7 +503,7 @@ $total_pages = ceil($total_records / $limit);
                                 </tbody>
                             </table>
                         </div>
-                        <?php if ($data_type == 'user_activity' || $data_type == 'booking_activity'): ?>
+                        <?php if ($data_type == 'user_activity' || $data_type == 'booking_activity' || $data_type == 'users'): ?>
                         </form>
                         <?php endif; ?>
                         
@@ -584,6 +646,34 @@ $total_pages = ceil($total_records / $limit);
         </div>
     </div>
     
+    <!-- Delete Inactive Users Modal -->
+    <div class="modal fade" id="deleteInactiveUsersModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-warning text-dark">
+                    <h5 class="modal-title"><i class="fas fa-user-slash me-2"></i> Delete Inactive Users</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form method="POST">
+                    <div class="modal-body">
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            This will delete all users with "inactive" status (excluding Super Admins).
+                        </div>
+                        <p>Are you sure you want to delete all inactive users?</p>
+                        <p class="text-muted small"><i class="fas fa-info-circle me-1"></i> Super Admin accounts will not be deleted.</p>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" name="delete_inactive_users" class="btn btn-warning">
+                            <i class="fas fa-trash me-2"></i> Delete Inactive Users
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         // Checkbox selection for activity logs
@@ -669,6 +759,51 @@ $total_pages = ceil($total_records / $limit);
                     if (e.submitter && e.submitter.name === 'delete_booking_activity_logs') {
                         const checkedCount = Array.from(bookingActivityCheckboxes).filter(cb => cb.checked).length;
                         if (!confirm('Are you sure you want to delete ' + checkedCount + ' booking activity log(s)?')) {
+                            e.preventDefault();
+                        }
+                    }
+                });
+            }
+        }
+        
+        // Checkbox selection for users
+        const selectAllUsers = document.getElementById('selectAllUsers');
+        const userCheckboxes = document.querySelectorAll('.user-checkbox:not([disabled])');
+        const deleteSelectedUsersBtn = document.getElementById('deleteSelectedUsersBtn');
+        const selectedUsersCount = document.getElementById('selectedUsersCount');
+        const usersForm = document.getElementById('usersForm');
+        
+        if (selectAllUsers && userCheckboxes.length > 0) {
+            // Select all functionality
+            selectAllUsers.addEventListener('change', function() {
+                userCheckboxes.forEach(checkbox => {
+                    checkbox.checked = this.checked;
+                });
+                updateUsersDeleteButton();
+            });
+            
+            // Individual checkbox change
+            userCheckboxes.forEach(checkbox => {
+                checkbox.addEventListener('change', function() {
+                    updateUsersDeleteButton();
+                    // Update select all state
+                    selectAllUsers.checked = Array.from(userCheckboxes).every(cb => cb.checked);
+                });
+            });
+            
+            // Update delete button state
+            function updateUsersDeleteButton() {
+                const checkedCount = Array.from(userCheckboxes).filter(cb => cb.checked).length;
+                deleteSelectedUsersBtn.disabled = checkedCount === 0;
+                selectedUsersCount.textContent = checkedCount + ' selected';
+            }
+            
+            // Confirm before deleting
+            if (usersForm) {
+                usersForm.addEventListener('submit', function(e) {
+                    if (e.submitter && e.submitter.name === 'delete_users') {
+                        const checkedCount = Array.from(userCheckboxes).filter(cb => cb.checked).length;
+                        if (!confirm('⚠️ WARNING ⚠️\n\nAre you sure you want to PERMANENTLY DELETE ' + checkedCount + ' user(s)?\n\nThis will also delete:\n• All their bookings\n• All their activity logs\n• All related data\n\nThis action CANNOT be undone!')) {
                             e.preventDefault();
                         }
                     }
