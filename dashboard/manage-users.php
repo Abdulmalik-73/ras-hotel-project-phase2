@@ -524,7 +524,7 @@ $stats = $conn->query($stats_query)->fetch_assoc();
         }
         
         function deleteUser(userId) {
-            if (confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
+            if (confirm('⚠️ PERMANENT DELETION WARNING ⚠️\n\nAre you sure you want to PERMANENTLY DELETE this user?\n\nThis will:\n• Delete the user account permanently\n• Delete all their bookings and data\n• This action CANNOT be undone\n\nClick OK to permanently delete, or Cancel to keep the user.')) {
                 // Create form and submit
                 const form = document.createElement('form');
                 form.method = 'POST';
