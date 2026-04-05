@@ -5,6 +5,40 @@ require_once '../includes/functions.php';
 
 require_role('admin');
 
+// Handle delete actions
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (isset($_POST['delete_activity_logs'])) {
+        // Delete selected activity logs
+        $ids = $_POST['activity_ids'] ?? [];
+        if (!empty($ids)) {
+            $ids_str = implode(',', array_map('intval', $ids));
+            $delete_query = "DELETE FROM user_activity_log WHERE id IN ($ids_str)";
+            if ($conn->query($delete_query)) {
+                $success_message = count($ids) . ' activity log(s) deleted successfully!';
+            } else {
+                $error_message = 'Failed to delete activity logs: ' . $conn->error;
+            }
+        }
+    } elseif (isset($_POST['clear_all_activity'])) {
+        // Clear all activity logs
+        $delete_query = "DELETE FROM user_activity_log";
+        if ($conn->query($delete_query)) {
+            $success_message = 'All activity logs cleared successfully!';
+        } else {
+            $error_message = 'Failed to clear activity logs: ' . $conn->error;
+        }
+    } elseif (isset($_POST['delete_old_activity'])) {
+        // Delete activity logs older than 30 days
+        $delete_query = "DELETE FROM user_activity_log WHERE created_at < DATE_SUB(NOW(), INTERVAL 30 DAY)";
+        if ($conn->query($delete_query)) {
+            $affected = $conn->affected_rows;
+            $success_message = $affected . ' old activity log(s) deleted successfully!';
+        } else {
+            $error_message = 'Failed to delete old activity logs: ' . $conn->error;
+        }
+    }
+}
+
 // Get data type from URL parameter
 $data_type = isset($_GET['type']) ? $_GET['type'] : 'bookings';
 
@@ -137,10 +171,35 @@ $total_pages = ceil($total_records / $limit);
             </div>
             
             <div class="col-md-9">
+                <!-- Success/Error Messages -->
+                <?php if (isset($success_message)): ?>
+                <div class="alert alert-success alert-dismissible fade show" role="alert">
+                    <i class="fas fa-check-circle me-2"></i><?php echo htmlspecialchars($success_message); ?>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+                <?php endif; ?>
+                
+                <?php if (isset($error_message)): ?>
+                <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                    <i class="fas fa-exclamation-circle me-2"></i><?php echo htmlspecialchars($error_message); ?>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+                <?php endif; ?>
+                
                 <div class="card">
                     <div class="card-header d-flex justify-content-between align-items-center">
                         <h4 class="mb-0"><?php echo $title; ?></h4>
-                        <span class="badge bg-primary"><?php echo $total_records; ?> Total Records</span>
+                        <div>
+                            <span class="badge bg-primary me-2"><?php echo $total_records; ?> Total Records</span>
+                            <?php if ($data_type == 'user_activity'): ?>
+                            <button type="button" class="btn btn-sm btn-warning me-1" data-bs-toggle="modal" data-bs-target="#deleteOldModal">
+                                <i class="fas fa-clock"></i> Delete Old Logs
+                            </button>
+                            <button type="button" class="btn btn-sm btn-danger" data-bs-toggle="modal" data-bs-target="#clearAllModal">
+                                <i class="fas fa-trash-alt"></i> Clear All
+                            </button>
+                            <?php endif; ?>
+                        </div>
                     </div>
                     <div class="card-body">
                         <?php if (empty($data)): ?>
@@ -150,6 +209,15 @@ $total_pages = ceil($total_records / $limit);
                             <p class="text-muted">No records available for this category.</p>
                         </div>
                         <?php else: ?>
+                        <?php if ($data_type == 'user_activity'): ?>
+                        <form method="POST" id="activityForm">
+                            <div class="mb-3">
+                                <button type="submit" name="delete_activity_logs" class="btn btn-sm btn-danger" id="deleteSelectedBtn" disabled>
+                                    <i class="fas fa-trash"></i> Delete Selected
+                                </button>
+                                <span class="text-muted ms-2" id="selectedCount">0 selected</span>
+                            </div>
+                        <?php endif; ?>
                         <div class="table-responsive">
                             <table class="table table-hover">
                                 <thead class="table-dark">
@@ -184,6 +252,9 @@ $total_pages = ceil($total_records / $limit);
                                         <th>Status</th>
                                         <th>Registered</th>
                                         <?php elseif ($data_type == 'user_activity'): ?>
+                                        <th style="width: 40px;">
+                                            <input type="checkbox" id="selectAll" class="form-check-input">
+                                        </th>
                                         <th>ID</th>
                                         <th>User</th>
                                         <th>Activity</th>
@@ -275,6 +346,9 @@ $total_pages = ceil($total_records / $limit);
                                         <td><?php echo date('M j, Y H:i', strtotime($row['created_at'])); ?></td>
                                         
                                         <?php elseif ($data_type == 'user_activity'): ?>
+                                        <td>
+                                            <input type="checkbox" name="activity_ids[]" value="<?php echo $row['id']; ?>" class="form-check-input activity-checkbox">
+                                        </td>
                                         <td><?php echo $row['id']; ?></td>
                                         <td>
                                             <?php if (!empty($row['user_name'])): ?>
@@ -317,6 +391,9 @@ $total_pages = ceil($total_records / $limit);
                                 </tbody>
                             </table>
                         </div>
+                        <?php if ($data_type == 'user_activity'): ?>
+                        </form>
+                        <?php endif; ?>
                         
                         <!-- Pagination -->
                         <?php if ($total_pages > 1): ?>
@@ -349,6 +426,106 @@ $total_pages = ceil($total_records / $limit);
         </div>
     </div>
     
+    <!-- Delete Old Logs Modal -->
+    <div class="modal fade" id="deleteOldModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-warning text-dark">
+                    <h5 class="modal-title"><i class="fas fa-clock me-2"></i> Delete Old Activity Logs</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <form method="POST">
+                    <div class="modal-body">
+                        <div class="alert alert-warning">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            This will delete all activity logs older than 30 days.
+                        </div>
+                        <p>Are you sure you want to delete old activity logs?</p>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" name="delete_old_activity" class="btn btn-warning">
+                            <i class="fas fa-trash me-2"></i> Delete Old Logs
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Clear All Logs Modal -->
+    <div class="modal fade" id="clearAllModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title"><i class="fas fa-trash-alt me-2"></i> Clear All Activity Logs</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <form method="POST">
+                    <div class="modal-body">
+                        <div class="alert alert-danger">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            <strong>WARNING:</strong> This will permanently delete ALL activity logs!
+                        </div>
+                        <p>This action cannot be undone. Are you sure you want to clear all activity logs?</p>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" name="clear_all_activity" class="btn btn-danger">
+                            <i class="fas fa-trash-alt me-2"></i> Clear All Logs
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Checkbox selection for activity logs
+        const selectAll = document.getElementById('selectAll');
+        const activityCheckboxes = document.querySelectorAll('.activity-checkbox');
+        const deleteSelectedBtn = document.getElementById('deleteSelectedBtn');
+        const selectedCount = document.getElementById('selectedCount');
+        const activityForm = document.getElementById('activityForm');
+        
+        if (selectAll && activityCheckboxes.length > 0) {
+            // Select all functionality
+            selectAll.addEventListener('change', function() {
+                activityCheckboxes.forEach(checkbox => {
+                    checkbox.checked = this.checked;
+                });
+                updateDeleteButton();
+            });
+            
+            // Individual checkbox change
+            activityCheckboxes.forEach(checkbox => {
+                checkbox.addEventListener('change', function() {
+                    updateDeleteButton();
+                    // Update select all state
+                    selectAll.checked = Array.from(activityCheckboxes).every(cb => cb.checked);
+                });
+            });
+            
+            // Update delete button state
+            function updateDeleteButton() {
+                const checkedCount = Array.from(activityCheckboxes).filter(cb => cb.checked).length;
+                deleteSelectedBtn.disabled = checkedCount === 0;
+                selectedCount.textContent = checkedCount + ' selected';
+            }
+            
+            // Confirm before deleting
+            if (activityForm) {
+                activityForm.addEventListener('submit', function(e) {
+                    if (e.submitter && e.submitter.name === 'delete_activity_logs') {
+                        const checkedCount = Array.from(activityCheckboxes).filter(cb => cb.checked).length;
+                        if (!confirm('Are you sure you want to delete ' + checkedCount + ' activity log(s)?')) {
+                            e.preventDefault();
+                        }
+                    }
+                });
+            }
+        }
+    </script>
 </body>
 </html>
