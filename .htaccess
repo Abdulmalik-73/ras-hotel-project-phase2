@@ -1,4 +1,4 @@
-# Group Brand Hotel - Apache Configuration
+# Harar Ras Hotel - Apache Configuration
 
 # Enable Rewrite Engine
 <IfModule mod_rewrite.c>

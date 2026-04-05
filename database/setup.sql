@@ -457,8 +457,8 @@ CREATE TABLE IF NOT EXISTS hotel_settings (
 
 -- Insert default hotel settings
 INSERT INTO hotel_settings (setting_key, setting_value, setting_type, description) VALUES
-('hotel_name', 'Group Brand Hotel', 'text', 'Official hotel name'),
-('contact_email', 'info@groupbrand.com', 'email', 'Main contact email address'),
+('hotel_name', 'Harar Ras Hotel', 'text', 'Official hotel name'),
+('contact_email', 'info@hararrashotel.com', 'email', 'Main contact email address'),
 ('contact_phone', '+1-234-567-8900', 'phone', 'Main contact phone number'),
 ('hotel_address', 'Main Street, City, Country', 'textarea', 'Hotel physical address'),
 ('check_in_time', '14:00', 'text', 'Standard check-in time'),
@@ -484,7 +484,7 @@ VALUES
 7. Take screenshot of confirmation', 
 'Ensure the screenshot shows the exact amount, recipient number, reference code, and successful transaction status.', 1),
 
-('cbe_mobile', 'CBE Mobile Banking', 'Commercial Bank of Ethiopia', '1000-1234-5678-90', 'Group Brand Hotel', NULL, 
+('cbe_mobile', 'CBE Mobile Banking', 'Commercial Bank of Ethiopia', '1000-1234-5678-90', 'Harar Ras Hotel', NULL, 
 '1. Open CBE Mobile app
 2. Login to your account
 3. Select Transfer Money
@@ -495,7 +495,7 @@ VALUES
 8. Take screenshot', 
 'Screenshot must show successful transfer with correct amount, account number, and reference code.', 2),
 
-('awash_mobile', 'Awash Mobile Banking', 'Awash Bank', '2000-9876-5432-10', 'Group Brand Hotel', NULL, 
+('awash_mobile', 'Awash Mobile Banking', 'Awash Bank', '2000-9876-5432-10', 'Harar Ras Hotel', NULL, 
 '1. Open Awash Mobile app
 2. Select Fund Transfer
 3. Enter amount: {AMOUNT}
@@ -505,7 +505,7 @@ VALUES
 7. Screenshot confirmation', 
 'Ensure screenshot includes transaction ID, correct amount, and reference number.', 3),
 
-('abyssinia_bank', 'Abyssinia Bank', 'Abyssinia Bank', '244422381', 'Group Brand Hotel', NULL,
+('abyssinia_bank', 'Abyssinia Bank', 'Abyssinia Bank', '244422381', 'Harar Ras Hotel', NULL,
 '1. Login to Abyssinia Bank Mobile/Internet Banking
 2. Select Transfer/Payment
 3. Enter amount: {AMOUNT}
@@ -515,7 +515,7 @@ VALUES
 7. Take screenshot of confirmation',
 'Verify the screenshot shows successful transaction with correct amount, account number 244422381, and reference code.', 4),
 
-('coop_bank_oromia', 'Cooperative Bank Of Oromia', 'Cooperative Bank Of Oromia', '0151143452800', 'Group Brand Hotel', NULL,
+('coop_bank_oromia', 'Cooperative Bank Of Oromia', 'Cooperative Bank Of Oromia', '0151143452800', 'Harar Ras Hotel', NULL,
 '1. Login to Cooperative Bank Mobile/Internet Banking
 2. Select Fund Transfer
 3. Enter amount: {AMOUNT}
@@ -525,7 +525,7 @@ VALUES
 7. Take screenshot of confirmation',
 'Ensure screenshot displays successful transfer with correct amount, account number 0151143452800, and reference code.', 5),
 
-('dashen_bank', 'Dashen Bank', 'Dashen Bank', '106725625', 'Group Brand Hotel', NULL,
+('dashen_bank', 'Dashen Bank', 'Dashen Bank', '106725625', 'Harar Ras Hotel', NULL,
 '1. Login to Dashen Bank Mobile/Internet Banking
 2. Select Transfer Money
 3. Enter amount: {AMOUNT}
@@ -1000,7 +1000,7 @@ CREATE TABLE IF NOT EXISTS checkins (
     booking_id INT DEFAULT NULL,
     
     -- Hotel Information
-    hotel_name VARCHAR(255) NOT NULL DEFAULT 'Group Brand Hotel',
+    hotel_name VARCHAR(255) NOT NULL DEFAULT 'Harar Ras Hotel',
     hotel_location VARCHAR(255) NOT NULL DEFAULT 'Main Street, City, Country',
     check_in_date DATE NOT NULL,
     check_out_date DATE NOT NULL,
@@ -2060,10 +2060,10 @@ SET FOREIGN_KEY_CHECKS = 1;
 -- 
 -- LOGIN CREDENTIALS:
 -- ==================
--- Super Admin: superadmin@groupbrandhotel.com / 123456
--- Admin:       admin@groupbrandhotel.com / 123456  
--- Manager:     manager@groupbrandhotel.com / password
--- Receptionist: receptionist@groupbrandhotel.com / password
+-- Super Admin: superadmin@hararrashotel.com / 123456
+-- Admin:       admin@hararrashotel.com / 123456  
+-- Manager:     manager@hararrashotel.com / password
+-- Receptionist: receptionist@hararrashotel.com / password
 -- Customer:    customer@test.com / password
 -- =====================================================
 
