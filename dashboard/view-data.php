@@ -20,7 +20,7 @@ $title = '';
 switch ($data_type) {
     case 'bookings':
         $title = 'All Bookings Data';
-        $query = "SELECT b.*, r.name as room_name, CONCAT(u.first_name, ' ', u.last_name) as guest_name, u.email, u.phone 
+        $query = "SELECT b.*, r.name as room_name, r.room_number, CONCAT(u.first_name, ' ', u.last_name) as guest_name, u.email, u.phone 
                   FROM bookings b 
                   JOIN rooms r ON b.room_id = r.id 
                   JOIN users u ON b.user_id = u.id 
@@ -211,7 +211,14 @@ $total_pages = ceil($total_records / $limit);
                                             <?php echo htmlspecialchars($row['guest_name'] ?? ''); ?><br>
                                             <small class="text-muted"><?php echo $row['email'] ?? ''; ?></small>
                                         </td>
-                                        <td><?php echo htmlspecialchars($row['room_name'] ?? ''); ?></td>
+                                        <td>
+                                            <?php 
+                                            echo htmlspecialchars($row['room_name'] ?? ''); 
+                                            if (!empty($row['room_number'])) {
+                                                echo ' <span class="text-muted">(No: ' . htmlspecialchars($row['room_number']) . ')</span>';
+                                            }
+                                            ?>
+                                        </td>
                                         <td><?php echo date('M j, Y', strtotime($row['check_in_date'])); ?></td>
                                         <td><?php echo date('M j, Y', strtotime($row['check_out_date'])); ?></td>
                                         <td><?php echo $row['number_of_guests']; ?></td>
