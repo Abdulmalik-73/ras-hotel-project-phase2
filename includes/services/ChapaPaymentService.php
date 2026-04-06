@@ -13,11 +13,12 @@ class ChapaPaymentService {
     private $base_url;
     
     public function __construct() {
-        $this->secret_key = getenv('CHAPA_SECRET_KEY') ?: '';
-        $this->public_key = getenv('CHAPA_PUBLIC_KEY') ?: '';
-        $this->test_mode = getenv('CHAPA_TEST_MODE') === 'true';
-        $this->callback_url = getenv('CHAPA_CALLBACK_URL') ?: '';
-        $this->return_url = getenv('CHAPA_RETURN_URL') ?: '';
+        // Try getenv first, then fall back to defined constants
+        $this->secret_key = getenv('CHAPA_SECRET_KEY') ?: (defined('CHAPA_SECRET_KEY') ? CHAPA_SECRET_KEY : '');
+        $this->public_key = getenv('CHAPA_PUBLIC_KEY') ?: (defined('CHAPA_PUBLIC_KEY') ? CHAPA_PUBLIC_KEY : '');
+        $this->test_mode = getenv('CHAPA_TEST_MODE') === 'true' || (defined('CHAPA_TEST_MODE') && CHAPA_TEST_MODE === 'true');
+        $this->callback_url = getenv('CHAPA_CALLBACK_URL') ?: (defined('CHAPA_CALLBACK_URL') ? CHAPA_CALLBACK_URL : '');
+        $this->return_url = getenv('CHAPA_RETURN_URL') ?: (defined('CHAPA_RETURN_URL') ? CHAPA_RETURN_URL : '');
         
         // Set base URL based on test mode
         $this->base_url = $this->test_mode 
