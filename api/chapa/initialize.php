@@ -56,6 +56,15 @@ $query = "SELECT b.*,
           WHERE b.id = ? AND b.user_id = ?";
 
 $stmt = $conn->prepare($query);
+
+if (!$stmt) {
+    echo json_encode([
+        'success' => false,
+        'message' => 'Database error: ' . $conn->error . '. Please make sure database is set up.'
+    ]);
+    exit;
+}
+
 $stmt->bind_param("ii", $booking_id, $_SESSION['user_id']);
 $stmt->execute();
 $booking = $stmt->get_result()->fetch_assoc();
