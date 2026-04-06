@@ -1206,20 +1206,30 @@ if ($booking['payment_deadline'] && strtotime($booking['payment_deadline']) < ti
                     booking_id: <?php echo $booking_id; ?>
                 })
             })
-            .then(response => response.json())
+            .then(response => {
+                // Check if response is ok
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
             .then(data => {
+                console.log('Chapa API Response:', data); // Debug log
+                
                 if (data.success && data.checkout_url) {
                     // Redirect to Chapa checkout page
                     window.location.href = data.checkout_url;
                 } else {
-                    alert(data.message || 'Failed to initialize payment');
+                    // Show error message
+                    const errorMsg = data.message || 'Failed to initialize payment. Please try manual payment.';
+                    alert(errorMsg);
                     btn.disabled = false;
                     btn.innerHTML = originalText;
                 }
             })
             .catch(error => {
-                console.error('Error:', error);
-                alert('An error occurred. Please try again.');
+                console.error('Chapa Error:', error);
+                alert('Connection error. Please check:\n1. Database is running\n2. Chapa keys are configured\n3. Try manual payment instead');
                 btn.disabled = false;
                 btn.innerHTML = originalText;
             });

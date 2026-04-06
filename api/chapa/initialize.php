@@ -5,11 +5,24 @@
  */
 
 header('Content-Type: application/json');
-session_start();
 
-require_once '../../includes/config.php';
-require_once '../../includes/functions.php';
-require_once '../../includes/services/ChapaPaymentService.php';
+// Start session if not already started
+if (session_status() == PHP_SESSION_NONE) {
+    session_start();
+}
+
+// Error handling
+try {
+    require_once '../../includes/config.php';
+    require_once '../../includes/functions.php';
+    require_once '../../includes/services/ChapaPaymentService.php';
+} catch (Exception $e) {
+    echo json_encode([
+        'success' => false,
+        'message' => 'Configuration error: ' . $e->getMessage()
+    ]);
+    exit;
+}
 
 // Check if user is logged in
 if (!is_logged_in()) {
