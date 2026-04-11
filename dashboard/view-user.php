@@ -3,7 +3,7 @@ session_start();
 require_once '../includes/config.php';
 require_once '../includes/functions.php';
 
-require_role('admin');
+require_auth_role('admin', '../login.php');
 
 $user_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 

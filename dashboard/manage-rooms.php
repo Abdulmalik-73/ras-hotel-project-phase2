@@ -3,7 +3,7 @@ session_start();
 require_once '../includes/config.php';
 require_once '../includes/functions.php';
 
-require_role('admin');
+require_auth_role('admin', '../login.php');
 
 // Handle room actions
 if ($_POST) {
@@ -35,12 +35,25 @@ if ($_POST) {
             }
             
             $query = "INSERT INTO rooms (name, room_number, room_type, description, capacity, price, image, status) 
-                      VALUES ('$name', '$room_number', '$room_type', '$description', $capacity, $price, '$image_path', '$status')";
+                      VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
             
-            if ($conn->query($query)) {
-                set_message('success', 'Room added successfully');
+            $stmt = $conn->prepare($query);
+            $stmt->bind_param("ssssidss", $name, $room_number, $room_type, $description, $capacity, $price, $image_path, $status);
+            
+            if ($stmt->execute()) {
+                $new_room_id = $conn->insert_id;
+                set_message('success', 'Room added successfully!');
+                
+                // Log the room addition for debugging
+                error_log("New room added: ID=$new_room_id, Name=$name, Number=$room_number, Status=$status");
+                
+                // Force a redirect to clear any potential caching
+                header('Location: manage-rooms.php?added=1');
+                exit();
+                
             } else {
-                set_message('error', 'Failed to add room: ' . $conn->error);
+                set_message('error', 'Failed to add room: ' . $stmt->error);
+                error_log("Failed to add room: " . $stmt->error);
             }
             break;
             
@@ -56,6 +69,7 @@ if ($_POST) {
             
             // Handle image upload
             $image_update = '';
+            $image_path = '';
             if (isset($_FILES['image']) && $_FILES['image']['error'] == 0) {
                 $upload_dir = '../assets/images/rooms/';
                 $file_extension = pathinfo($_FILES['image']['name'], PATHINFO_EXTENSION);
@@ -63,18 +77,30 @@ if ($_POST) {
                 $image_path = 'assets/images/rooms/' . $filename;
                 
                 if (move_uploaded_file($_FILES['image']['tmp_name'], $upload_dir . $filename)) {
-                    $image_update = ", image = '$image_path'";
+                    $image_update = ", image = ?";
                 }
             }
             
-            $query = "UPDATE rooms SET name = '$name', room_number = '$room_number', room_type = '$room_type', 
-                      description = '$description', capacity = $capacity, price = $price, status = '$status' $image_update 
-                      WHERE id = $room_id";
-            
-            if ($conn->query($query)) {
-                set_message('success', 'Room updated successfully');
+            if ($image_update) {
+                $query = "UPDATE rooms SET name = ?, room_number = ?, room_type = ?, 
+                          description = ?, capacity = ?, price = ?, status = ? $image_update 
+                          WHERE id = ?";
+                $stmt = $conn->prepare($query);
+                $stmt->bind_param("ssssidsi", $name, $room_number, $room_type, $description, $capacity, $price, $status, $image_path, $room_id);
             } else {
-                set_message('error', 'Failed to update room: ' . $conn->error);
+                $query = "UPDATE rooms SET name = ?, room_number = ?, room_type = ?, 
+                          description = ?, capacity = ?, price = ?, status = ? 
+                          WHERE id = ?";
+                $stmt = $conn->prepare($query);
+                $stmt->bind_param("ssssidsi", $name, $room_number, $room_type, $description, $capacity, $price, $status, $room_id);
+            }
+            
+            if ($stmt->execute()) {
+                set_message('success', 'Room updated successfully!');
+                header('Location: manage-rooms.php?updated=1');
+                exit();
+            } else {
+                set_message('error', 'Failed to update room: ' . $stmt->error);
             }
             break;
             

@@ -7,7 +7,7 @@ session_start();
 require_once '../includes/config.php';
 require_once '../includes/functions.php';
 
-require_role('admin');
+require_auth_role('admin', '../login.php');
 
 $booking_id = (int)($_GET['id'] ?? 0);
 $error = '';

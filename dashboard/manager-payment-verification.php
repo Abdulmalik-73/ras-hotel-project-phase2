@@ -7,7 +7,7 @@ session_start();
 require_once '../includes/config.php';
 require_once '../includes/functions.php';
 
-require_role('manager');
+require_auth_role('manager', '../login.php');
 
 $message = '';
 $error = '';
@@ -244,9 +244,9 @@ $stats = $conn->query($stats_query)->fetch_assoc();
                         <a href="manager-bookings.php" class="nav-link">
                             <i class="fas fa-calendar-check me-2"></i> Manage Bookings
                         </a>
-                        <a href="manager-payment-verification.php" class="nav-link active">
-                            <i class="fas fa-check-circle me-2"></i> Payment Verification
-                        </a>
+                        <button onclick="history.back()" class="nav-link" style="border: none; background: transparent;">
+                            <i class="fas fa-arrow-left me-2"></i> Back
+                        </button>
                         <a href="manager-feedback.php" class="nav-link">
                             <i class="fas fa-star me-2"></i> Customer Feedback
                         </a>

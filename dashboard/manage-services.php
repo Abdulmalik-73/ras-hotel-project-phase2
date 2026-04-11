@@ -3,7 +3,7 @@ session_start();
 require_once '../includes/config.php';
 require_once '../includes/functions.php';
 
-require_role('admin');
+require_auth_role('admin', '../login.php');
 
 // Handle service actions
 if ($_POST) {
@@ -21,9 +21,15 @@ if ($_POST) {
                       VALUES ('$name', '$category', '$description', $price, '$status')";
             
             if ($conn->query($query)) {
-                set_message('success', 'Service added successfully');
+                $new_service_id = $conn->insert_id;
+                set_message('success', 'Service added successfully! <a href="../services.php" target="_blank" class="alert-link">Test customer services page</a> | <a href="../food-booking.php" target="_blank" class="alert-link">Test food booking</a>');
+                
+                // Log the service addition for debugging
+                error_log("New service added: ID=$new_service_id, Name=$name, Category=$category, Status=$status");
+                
             } else {
                 set_message('error', 'Failed to add service: ' . $conn->error);
+                error_log("Failed to add service: " . $conn->error);
             }
             break;
             
@@ -40,7 +46,7 @@ if ($_POST) {
                       updated_at = NOW() WHERE id = $service_id";
             
             if ($conn->query($query)) {
-                set_message('success', 'Service updated successfully');
+                set_message('success', 'Service updated successfully! <a href="../services.php" target="_blank" class="alert-link">Test customer services page</a>');
             } else {
                 set_message('error', 'Failed to update service: ' . $conn->error);
             }

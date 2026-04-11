@@ -1,6 +1,9 @@
 <?php
 // Clean version of functions.php without any duplicates or errors
 
+// Include authentication functions
+require_once __DIR__ . '/auth.php';
+
 // Security Functions
 function sanitize_input($data) {
     global $conn;
@@ -80,12 +83,29 @@ function verify_password($password, $hash) {
 // Room Functions
 function get_all_rooms($limit = null) {
     global $conn;
+    
+    // Ensure we have a fresh connection
+    if (!$conn || $conn->connect_error) {
+        error_log("Database connection error in get_all_rooms: " . ($conn->connect_error ?? 'No connection'));
+        return [];
+    }
+    
     $query = "SELECT * FROM rooms WHERE status = 'active' ORDER BY price ASC";
     if ($limit) {
         $query .= " LIMIT " . (int)$limit;
     }
+    
     $result = $conn->query($query);
-    return $result->fetch_all(MYSQLI_ASSOC);
+    
+    if (!$result) {
+        error_log("Query error in get_all_rooms: " . $conn->error);
+        return [];
+    }
+    
+    $rooms = $result->fetch_all(MYSQLI_ASSOC);
+    error_log("get_all_rooms returned " . count($rooms) . " rooms");
+    
+    return $rooms;
 }
 
 function get_room_by_id($room_id) {

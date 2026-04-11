@@ -9,7 +9,7 @@ file_put_contents('delete_debug.log', "REQUEST_METHOD: " . $_SERVER['REQUEST_MET
 require_once '../includes/config.php';
 require_once '../includes/functions.php';
 
-require_role('admin');
+require_auth_role('admin', '../login.php');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $user_id = isset($_POST['user_id']) ? (int)$_POST['user_id'] : 0;

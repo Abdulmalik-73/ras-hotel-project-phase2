@@ -12,9 +12,13 @@ if (!is_logged_in()) {
 $booking_ref = isset($_GET['ref']) ? sanitize_input($_GET['ref']) : '';
 
 if (empty($booking_ref)) {
+    $_SESSION['error_message'] = 'No booking reference provided.';
     header('Location: my-bookings.php');
     exit();
 }
+
+// Debug: Log the booking reference being searched
+error_log("Booking Details: Searching for booking reference: " . $booking_ref . " for user ID: " . $_SESSION['user_id']);
 
 // Get booking details
 $query = "SELECT b.*, 
@@ -28,19 +32,30 @@ $query = "SELECT b.*,
           COALESCE(r.price, 0) as room_price,
           CONCAT(u.first_name, ' ', u.last_name) as customer_name,
           u.email, u.phone,
-          fo.table_reservation, fo.reservation_date, fo.reservation_time, fo.guests as food_guests
+          fo.table_reservation, fo.reservation_date, fo.reservation_time, fo.guests as food_guests,
+          sb.service_name, sb.service_date, sb.service_time, sb.quantity as service_quantity, sb.special_requests as service_requests
           FROM bookings b
           LEFT JOIN rooms r ON b.room_id = r.id
           JOIN users u ON b.user_id = u.id
           LEFT JOIN food_orders fo ON b.id = fo.booking_id
+          LEFT JOIN service_bookings sb ON b.id = sb.booking_id
           WHERE b.booking_reference = ? AND b.user_id = ?";
 
 $stmt = $conn->prepare($query);
+if (!$stmt) {
+    // Database error - redirect with error message
+    $_SESSION['error_message'] = 'Database error occurred. Please try again.';
+    header('Location: my-bookings.php');
+    exit();
+}
+
 $stmt->bind_param("si", $booking_ref, $_SESSION['user_id']);
 $stmt->execute();
 $booking = $stmt->get_result()->fetch_assoc();
 
 if (!$booking) {
+    // Booking not found or doesn't belong to user
+    $_SESSION['error_message'] = 'Booking not found or you do not have permission to view it.';
     header('Location: my-bookings.php');
     exit();
 }
@@ -62,48 +77,53 @@ if ($booking['booking_type'] == 'food_order') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Booking Details - Harar Ras Hotel</title>
+    <title>
+        <?php if ($booking['booking_type'] == 'food_order'): ?>
+            Food Order Details - Harar Ras Hotel
+        <?php elseif ($booking['booking_type'] == 'spa_service'): ?>
+            Spa Service Details - Harar Ras Hotel
+        <?php elseif ($booking['booking_type'] == 'laundry_service'): ?>
+            Laundry Service Details - Harar Ras Hotel
+        <?php else: ?>
+            Room Booking Details - Harar Ras Hotel
+        <?php endif; ?>
+    </title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <link rel="stylesheet" href="assets/css/style.css">
-    <style>
-        @media print {
-            .no-print { display: none; }
-            body { background: white; }
-        }
-    </style>
+    <link rel="stylesheet" href="assets/css/print.css?v=<?php echo time(); ?>">
 </head>
 <body>
-    <?php include 'includes/navbar.php'; ?>
+    <!-- Print-only header - completely hidden on screen -->
+    <div class="print-header" style="display: none;">
+        <h1>Harar Ras Hotel</h1>
+        <p>Jugol Street, Harar, Ethiopia | Phone: +251-25-666-2828</p>
+        <p><strong>
+            <?php if ($booking['booking_type'] == 'food_order'): ?>
+                Food Order Information Document
+            <?php elseif ($booking['booking_type'] == 'spa_service'): ?>
+                Spa Service Information Document
+            <?php elseif ($booking['booking_type'] == 'laundry_service'): ?>
+                Laundry Service Information Document
+            <?php else: ?>
+                Room Information Document
+            <?php endif; ?>
+        </strong></p>
+        <p>Printed: <?php echo date('n/j/Y, g:i A'); ?> | Type: <?php echo $booking['booking_type']; ?></p>
+    </div>
     
-    <section class="py-5">
+    <div class="no-print">
+        <!-- Completely minimal header - only for screen, hidden in print -->
+        <div class="d-none">
+            <!-- Hidden header - no visible interface -->
+        </div>
+    </div>
+    
+    <section class="py-4">
         <div class="container">
-            <div class="row mb-4 no-print">
-                <div class="col">
-                    <a href="my-bookings.php" class="btn btn-outline-secondary">
-                        <i class="fas fa-arrow-left"></i> Back to My Bookings
-                    </a>
-                </div>
-                <div class="col text-end">
-                    <?php 
-                    $can_cancel = in_array($booking['status'], ['pending', 'confirmed', 'verified', 'pending_payment', 'pending_verification']) && 
-                                  $booking['booking_type'] != 'food_order' &&
-                                  strtotime($booking['check_in_date']) > time();
-                    
-                    if ($can_cancel): 
-                    ?>
-                    <button class="btn btn-danger me-2" onclick="cancelBooking('<?php echo $booking['booking_reference']; ?>')">
-                        <i class="fas fa-times"></i> Cancel Booking
-                    </button>
-                    <?php endif; ?>
-                    <button onclick="window.print()" class="btn btn-primary">
-                        <i class="fas fa-print"></i> Print
-                    </button>
-                </div>
-            </div>
             
             <div class="card shadow">
-                <div class="card-header bg-gold text-white">
+                <div class="card-header bg-gold text-white d-flex justify-content-between align-items-center">
                     <h3 class="mb-0">
                         <?php if ($booking['booking_type'] == 'food_order'): ?>
                             <i class="fas fa-utensils"></i> Food Order Details
@@ -112,20 +132,42 @@ if ($booking['booking_type'] == 'food_order') {
                         <?php elseif ($booking['booking_type'] == 'laundry_service'): ?>
                             <i class="fas fa-tshirt"></i> Laundry Service Details
                         <?php else: ?>
-                            <i class="fas fa-bed"></i> Booking Details
+                            <i class="fas fa-bed"></i> Room Booking Details
                         <?php endif; ?>
                     </h3>
+                    <!-- Print button in top-right of card header -->
+                    <div class="no-print">
+                        <button onclick="window.print()" class="btn btn-light btn-sm">
+                            <i class="fas fa-print"></i> Print
+                        </button>
+                    </div>
                 </div>
                 <div class="card-body">
-                    <!-- Booking Information -->
+                    <!-- Service/Order Information -->
                     <div class="row mb-4">
                         <div class="col-md-6">
                             <h5 class="text-gold mb-3">
-                                <?php echo $booking['booking_type'] == 'food_order' ? 'Order' : 'Booking'; ?> Information
+                                <?php if ($booking['booking_type'] == 'food_order'): ?>
+                                    Order Information
+                                <?php elseif ($booking['booking_type'] == 'spa_service'): ?>
+                                    Service Information
+                                <?php elseif ($booking['booking_type'] == 'laundry_service'): ?>
+                                    Service Information
+                                <?php else: ?>
+                                    Room Information
+                                <?php endif; ?>
                             </h5>
-                            <table class="table table-sm">
+                            <table class="table table-sm booking-details-table">
                                 <tr>
-                                    <td><strong>Reference:</strong></td>
+                                    <td><strong>
+                                        <?php if ($booking['booking_type'] == 'food_order'): ?>
+                                            Order Reference:
+                                        <?php elseif (in_array($booking['booking_type'], ['spa_service', 'laundry_service'])): ?>
+                                            Service Reference:
+                                        <?php else: ?>
+                                            Room Reference:
+                                        <?php endif; ?>
+                                    </strong></td>
                                     <td><?php echo htmlspecialchars($booking['booking_reference']); ?></td>
                                 </tr>
                                 <tr>
@@ -145,14 +187,22 @@ if ($booking['booking_type'] == 'food_order') {
                                     </td>
                                 </tr>
                                 <tr>
-                                    <td><strong>Booked On:</strong></td>
+                                    <td><strong>
+                                        <?php if ($booking['booking_type'] == 'food_order'): ?>
+                                            Ordered On:
+                                        <?php elseif (in_array($booking['booking_type'], ['spa_service', 'laundry_service'])): ?>
+                                            Booked On:
+                                        <?php else: ?>
+                                            Booked On:
+                                        <?php endif; ?>
+                                    </strong></td>
                                     <td><?php echo date('F j, Y g:i A', strtotime($booking['created_at'])); ?></td>
                                 </tr>
                             </table>
                         </div>
                         <div class="col-md-6">
                             <h5 class="text-gold mb-3">Customer Information</h5>
-                            <table class="table table-sm">
+                            <table class="table table-sm booking-details-table">
                                 <tr>
                                     <td><strong>Name:</strong></td>
                                     <td><?php echo htmlspecialchars($booking['customer_name']); ?></td>
@@ -181,10 +231,10 @@ if ($booking['booking_type'] == 'food_order') {
                                     Room Details
                                 <?php endif; ?>
                             </h5>
-                            <table class="table table-sm">
+                            <table class="table table-sm booking-details-table">
                                 <?php if ($booking['booking_type'] == 'food_order'): ?>
                                     <tr>
-                                        <td width="30%"><strong>Order Type:</strong></td>
+                                        <td><strong>Order Type:</strong></td>
                                         <td><?php echo $booking['table_reservation'] ? 'Dine-in (Table Reserved)' : 'Takeaway'; ?></td>
                                     </tr>
                                     <?php if ($booking['table_reservation']): ?>
@@ -201,18 +251,51 @@ if ($booking['booking_type'] == 'food_order') {
                                         <td><strong>Number of Guests:</strong></td>
                                         <td><?php echo $booking['food_guests']; ?></td>
                                     </tr>
-                                <?php elseif (in_array($booking['booking_type'], ['spa_service', 'laundry_service'])): ?>
+                                <?php elseif ($booking['booking_type'] == 'spa_service'): ?>
                                     <tr>
-                                        <td width="30%"><strong>Service Type:</strong></td>
-                                        <td><?php echo htmlspecialchars($booking['room_name']); ?></td>
+                                        <td><strong>Service Category:</strong></td>
+                                        <td>Spa & Wellness</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Service Name:</strong></td>
+                                        <td><?php echo htmlspecialchars($booking['service_name'] ?? 'Spa Service'); ?></td>
                                     </tr>
                                     <tr>
                                         <td><strong>Service Date:</strong></td>
-                                        <td><?php echo $booking['check_in_date'] ? date('F j, Y', strtotime($booking['check_in_date'])) : 'To be scheduled'; ?></td>
+                                        <td><?php echo !empty($booking['service_date']) ? date('F j, Y', strtotime($booking['service_date'])) : 'To be scheduled'; ?></td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Service Time:</strong></td>
+                                        <td><?php echo !empty($booking['service_time']) ? date('g:i A', strtotime($booking['service_time'])) : 'To be scheduled'; ?></td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Sessions:</strong></td>
+                                        <td><?php echo $booking['service_quantity'] ?? 1; ?> session(s)</td>
+                                    </tr>
+                                <?php elseif ($booking['booking_type'] == 'laundry_service'): ?>
+                                    <tr>
+                                        <td><strong>Service Category:</strong></td>
+                                        <td>Laundry Service</td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Service Name:</strong></td>
+                                        <td><?php echo htmlspecialchars($booking['service_name'] ?? 'Laundry Service'); ?></td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Service Date:</strong></td>
+                                        <td><?php echo !empty($booking['service_date']) ? date('F j, Y', strtotime($booking['service_date'])) : 'To be scheduled'; ?></td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Service Time:</strong></td>
+                                        <td><?php echo !empty($booking['service_time']) ? date('g:i A', strtotime($booking['service_time'])) : 'To be scheduled'; ?></td>
+                                    </tr>
+                                    <tr>
+                                        <td><strong>Items:</strong></td>
+                                        <td><?php echo $booking['service_quantity'] ?? 1; ?> item(s)</td>
                                     </tr>
                                 <?php else: ?>
                                     <tr>
-                                        <td width="30%"><strong>Room Type:</strong></td>
+                                        <td><strong>Room Type:</strong></td>
                                         <td><?php echo htmlspecialchars($booking['room_name']); ?></td>
                                     </tr>
                                     <tr>
@@ -241,11 +324,11 @@ if ($booking['booking_type'] == 'food_order') {
                     <div class="row mb-4">
                         <div class="col-12">
                             <h5 class="text-gold mb-3">Ordered Items</h5>
-                            <table class="table table-bordered">
+                            <table class="table table-bordered food-items-table">
                                 <thead class="table-light">
                                     <tr>
                                         <th>Item</th>
-                                        <th class="text-center">Quantity</th>
+                                        <th class="text-center">Qty</th>
                                         <th class="text-end">Price</th>
                                         <th class="text-end">Total</th>
                                     </tr>
@@ -270,7 +353,7 @@ if ($booking['booking_type'] == 'food_order') {
                     <div class="row mb-4">
                         <div class="col-12">
                             <h5 class="text-gold mb-3">Special Requests</h5>
-                            <div class="alert alert-info">
+                            <div class="alert alert-info" style="margin: 2px 0; padding: 3px;">
                                 <?php echo nl2br(htmlspecialchars($booking['special_requests'])); ?>
                             </div>
                         </div>
@@ -280,7 +363,7 @@ if ($booking['booking_type'] == 'food_order') {
                     <!-- Payment Information -->
                     <div class="row">
                         <div class="col-md-6 offset-md-6">
-                            <table class="table table-sm">
+                            <table class="table table-sm booking-details-table">
                                 <tr>
                                     <td><strong>Total Amount:</strong></td>
                                     <td class="text-end"><h4 class="text-success mb-0"><?php echo format_currency($booking['total_price']); ?></h4></td>
@@ -298,10 +381,24 @@ if ($booking['booking_type'] == 'food_order') {
                     </div>
                 </div>
             </div>
+            
+            <!-- Back button only -->
+            <div class="text-center mt-4 no-print">
+                <a href="my-bookings.php" class="btn btn-outline-secondary">
+                    <i class="fas fa-arrow-left"></i> Back to My Bookings
+                </a>
+            </div>
         </div>
     </section>
     
-    <?php include 'includes/footer.php'; ?>
+    <div class="no-print">
+        <?php include 'includes/footer.php'; ?>
+    </div>
+    
+    <!-- Print-only footer -->
+    <div class="print-footer" style="display: none;">
+        <p>Harar Ras Hotel - For inquiries: support@hararrashotel.com - This is an official document.</p>
+    </div>
     
     <!-- Cancel Booking Modal -->
     <div class="modal fade" id="cancelBookingModal" tabindex="-1">
@@ -328,7 +425,7 @@ if ($booking['booking_type'] == 'food_order') {
                         <h6>Refund Calculation:</h6>
                         <table class="table table-bordered">
                             <tr>
-                                <td><strong>Booking Reference:</strong></td>
+                                <td><strong>Reference:</strong></td>
                                 <td id="cancel_booking_ref"></td>
                             </tr>
                             <tr>

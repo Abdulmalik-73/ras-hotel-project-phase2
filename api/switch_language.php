@@ -10,7 +10,18 @@ require_once '../includes/language.php';
 header('Content-Type: application/json');
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $lang = $_POST['lang'] ?? 'en';
+    // Handle both JSON and form data
+    $lang = '';
+    
+    if (isset($_POST['lang'])) {
+        $lang = $_POST['lang'];
+    } else {
+        // Try to get from JSON body
+        $input = json_decode(file_get_contents('php://input'), true);
+        if (isset($input['lang'])) {
+            $lang = $input['lang'];
+        }
+    }
     
     // Validate language
     if (!in_array($lang, ['en', 'am', 'om'])) {

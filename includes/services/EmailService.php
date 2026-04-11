@@ -155,6 +155,30 @@ class EmailService {
 
     
     /**
+     * Send payment verification email
+     */
+    public function sendPaymentVerificationEmail($booking) {
+        if (!$this->enabled) {
+            return ['success' => false, 'message' => 'Email service is disabled'];
+        }
+        
+        // Prepare email content
+        $subject = "Payment Verified - " . $booking['booking_reference'];
+        $htmlBody = $this->getPaymentVerificationTemplate($booking);
+        
+        return $this->sendEmail(
+            $booking['email'],
+            $booking['first_name'] . ' ' . $booking['last_name'],
+            $subject,
+            $htmlBody,
+            'payment_verification',
+            $booking['id'],
+            $booking['user_id']
+        );
+    }
+
+    
+    /**
      * Send spa/laundry service confirmation email
      */
     public function sendServiceEmail($serviceId, $serviceType = 'spa') {
@@ -268,6 +292,7 @@ class EmailService {
         
         switch ($emailType) {
             case 'room_booking':
+            case 'payment_verification':
                 $table = 'bookings';
                 break;
             case 'food_order':
@@ -307,10 +332,10 @@ class EmailService {
     }
     
     /**
-     * Get service email template
+     * Get payment verification email template
      */
-    private function getServiceTemplate($service, $serviceType) {
+    private function getPaymentVerificationTemplate($booking) {
         require_once __DIR__ . '/EmailTemplates.php';
-        return EmailTemplates::getServiceTemplate($service, $serviceType);
+        return EmailTemplates::getPaymentVerificationTemplate($booking);
     }
 }

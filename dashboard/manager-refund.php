@@ -3,7 +3,7 @@ session_start();
 require_once '../includes/config.php';
 require_once '../includes/functions.php';
 
-require_role('manager');
+require_auth_role('manager', '../login.php');
 
 $action = $_GET['action'] ?? 'search';
 $booking_data = null;
@@ -37,10 +37,14 @@ if ($_POST && $_POST['action'] == 'search_booking') {
     if (empty($where_conditions)) {
         $error = 'Please provide at least one search criteria (booking reference, email, or guest name)';
     } else {
-        $search_query = "SELECT b.*, r.name as room_name, r.room_number,
-                         CONCAT(u.first_name, ' ', u.last_name) as guest_name, u.email, u.phone
+        $search_query = "SELECT b.*, 
+                         COALESCE(r.name, 'N/A') as room_name, 
+                         COALESCE(r.room_number, 'N/A') as room_number,
+                         CONCAT(u.first_name, ' ', u.last_name) as guest_name, 
+                         u.email, 
+                         COALESCE(u.phone, 'N/A') as phone
                          FROM bookings b
-                         JOIN rooms r ON b.room_id = r.id
+                         LEFT JOIN rooms r ON b.room_id = r.id
                          JOIN users u ON b.user_id = u.id
                          WHERE (" . implode(' OR ', $where_conditions) . ")
                          AND b.status IN ('confirmed', 'checked_in', 'checked_out')
@@ -71,10 +75,14 @@ if ($_POST && $_POST['action'] == 'search_booking') {
 if ($_POST && $_POST['action'] == 'select_booking' && !empty($_POST['selected_booking_id'])) {
     $selected_id = (int)$_POST['selected_booking_id'];
     
-    $search_query = "SELECT b.*, r.name as room_name, r.room_number,
-                     CONCAT(u.first_name, ' ', u.last_name) as guest_name, u.email, u.phone
+    $search_query = "SELECT b.*, 
+                     COALESCE(r.name, 'N/A') as room_name, 
+                     COALESCE(r.room_number, 'N/A') as room_number,
+                     CONCAT(u.first_name, ' ', u.last_name) as guest_name, 
+                     u.email, 
+                     COALESCE(u.phone, 'N/A') as phone
                      FROM bookings b
-                     JOIN rooms r ON b.room_id = r.id
+                     LEFT JOIN rooms r ON b.room_id = r.id
                      JOIN users u ON b.user_id = u.id
                      WHERE b.id = $selected_id
                      AND b.status IN ('confirmed', 'checked_in', 'checked_out')";
@@ -94,25 +102,90 @@ if ($_POST && $_POST['action'] == 'select_booking' && !empty($_POST['selected_bo
 if ($_POST && $_POST['action'] == 'process_refund') {
     $booking_id = (int)$_POST['booking_id'];
     $refund_amount = (float)$_POST['refund_amount'];
+    $refund_method = sanitize_input($_POST['refund_method']);
     $refund_reason = sanitize_input($_POST['refund_reason']);
     $admin_notes = sanitize_input($_POST['admin_notes']);
     
-    // Update booking status to cancelled
-    $query = "UPDATE bookings SET status = 'cancelled' WHERE id = ?";
-    $stmt = $conn->prepare($query);
-    $stmt->bind_param("i", $booking_id);
+    // Start transaction
+    $conn->begin_transaction();
     
-    if ($stmt->execute()) {
-        // Here you would typically:
-        // 1. Process the actual refund through payment gateway
-        // 2. Send refund confirmation email to customer
-        // 3. Log the refund transaction
+    try {
+        // Update booking status to cancelled and payment status to refunded
+        $query = "UPDATE bookings 
+                  SET status = 'cancelled', 
+                      payment_status = 'refunded',
+                      checkout_notes = CONCAT(COALESCE(checkout_notes, ''), '\nRefund processed: ', ?)
+                  WHERE id = ?";
+        $stmt = $conn->prepare($query);
+        $refund_note = "Refund: " . format_currency($refund_amount) . " via " . $refund_method . ". Reason: " . $refund_reason;
+        $stmt->bind_param("si", $refund_note, $booking_id);
+        
+        if (!$stmt->execute()) {
+            throw new Exception("Failed to update booking: " . $stmt->error);
+        }
+        
+        // Log the refund in booking activity
+        $activity_query = "INSERT INTO booking_activity_log 
+                          (booking_id, user_id, activity_type, old_status, new_status, description, performed_by) 
+                          VALUES (?, ?, 'cancelled', ?, 'refunded', ?, ?)";
+        $activity_stmt = $conn->prepare($activity_query);
+        
+        // Get booking user_id first
+        $user_query = "SELECT user_id, status FROM bookings WHERE id = ?";
+        $user_stmt = $conn->prepare($user_query);
+        $user_stmt->bind_param("i", $booking_id);
+        $user_stmt->execute();
+        $user_result = $user_stmt->get_result();
+        $user_data = $user_result->fetch_assoc();
+        $booking_user_id = $user_data['user_id'];
+        $old_status = $user_data['status'];
+        
+        $activity_description = "Refund Amount: " . format_currency($refund_amount) . 
+                         "\nMethod: " . $refund_method . 
+                         "\nReason: " . $refund_reason . 
+                         "\nAdmin Notes: " . $admin_notes;
+        
+        $activity_stmt->bind_param("iissi", $booking_id, $booking_user_id, $old_status, $activity_description, $_SESSION['user_id']);
+        
+        if (!$activity_stmt->execute()) {
+            throw new Exception("Failed to log activity: " . $activity_stmt->error);
+        }
+        
+        // Commit transaction
+        $conn->commit();
+        
+        // Fetch updated booking data to show refund confirmation
+        $refetch_query = "SELECT b.*, 
+                         COALESCE(r.name, 'N/A') as room_name, 
+                         COALESCE(r.room_number, 'N/A') as room_number,
+                         CONCAT(u.first_name, ' ', u.last_name) as guest_name, 
+                         u.email, 
+                         COALESCE(u.phone, 'N/A') as phone
+                         FROM bookings b
+                         LEFT JOIN rooms r ON b.room_id = r.id
+                         JOIN users u ON b.user_id = u.id
+                         WHERE b.id = ?";
+        $refetch_stmt = $conn->prepare($refetch_query);
+        $refetch_stmt->bind_param("i", $booking_id);
+        $refetch_stmt->execute();
+        $booking_data = $refetch_stmt->get_result()->fetch_assoc();
+        
+        // Recalculate refund (will show 0% since it's already cancelled)
+        $refund_calculation = calculateRefund($booking_data);
+        
+        // Override refund calculation with actual processed values
+        $refund_calculation['refund_amount'] = $refund_amount;
+        $refund_calculation['refund_method'] = $refund_method;
+        $refund_calculation['refund_reason'] = $refund_reason;
+        $refund_calculation['admin_notes'] = $admin_notes;
         
         $message = "Refund processed successfully. Amount: " . format_currency($refund_amount);
-        $action = 'search'; // Reset to search
-        $booking_data = null;
-    } else {
-        $error = 'Failed to process refund: ' . $stmt->error;
+        $action = 'refund_complete'; // Show refund completion page
+        
+    } catch (Exception $e) {
+        // Rollback on error
+        $conn->rollback();
+        $error = 'Failed to process refund: ' . $e->getMessage();
     }
 }
 
@@ -325,9 +398,6 @@ $recent_refunds = $recent_refunds_result ? $recent_refunds_result : null;
                         <a href="manager-reports.php" class="nav-link">
                             <i class="fas fa-chart-bar me-2"></i> Reports
                         </a>
-                        <a href="../payment-verification.php" class="nav-link">
-                            <i class="fas fa-shield-alt me-2"></i> Payment Verification
-                        </a>
                     </nav>
                     
                     <div class="mt-auto">
@@ -514,13 +584,13 @@ $recent_refunds = $recent_refunds_result ? $recent_refunds_result : null;
                                                         <label class="form-check-label" for="booking_<?php echo $booking['id']; ?>"></label>
                                                     </div>
                                                 </td>
-                                                <td><strong><?php echo htmlspecialchars($booking['booking_reference']); ?></strong></td>
-                                                <td><?php echo htmlspecialchars($booking['guest_name']); ?></td>
-                                                <td><?php echo htmlspecialchars($booking['email']); ?></td>
-                                                <td><?php echo htmlspecialchars($booking['room_name']); ?> (<?php echo $booking['room_number']; ?>)</td>
+                                                <td><strong><?php echo htmlspecialchars($booking['booking_reference'] ?? ''); ?></strong></td>
+                                                <td><?php echo htmlspecialchars($booking['guest_name'] ?? ''); ?></td>
+                                                <td><?php echo htmlspecialchars($booking['email'] ?? ''); ?></td>
+                                                <td><?php echo htmlspecialchars($booking['room_name'] ?? ''); ?> (<?php echo $booking['room_number'] ?? ''; ?>)</td>
                                                 <td><?php echo date('M j, Y', strtotime($booking['check_in_date'])); ?></td>
                                                 <td><?php echo format_currency($booking['total_price']); ?></td>
-                                                <td><span class="badge bg-info"><?php echo ucfirst($booking['status']); ?></span></td>
+                                                <td><span class="badge bg-info"><?php echo ucfirst($booking['status'] ?? ''); ?></span></td>
                                             </tr>
                                             <?php endforeach; ?>
                                         </tbody>
@@ -552,14 +622,14 @@ $recent_refunds = $recent_refunds_result ? $recent_refunds_result : null;
                                     <div class="booking-info">
                                         <div class="row">
                                             <div class="col-md-6">
-                                                <p><strong>Guest:</strong> <?php echo htmlspecialchars($booking_data['guest_name']); ?></p>
-                                                <p><strong>Email:</strong> <?php echo htmlspecialchars($booking_data['email']); ?></p>
-                                                <p><strong>Phone:</strong> <?php echo htmlspecialchars($booking_data['phone']); ?></p>
+                                                <p><strong>Guest:</strong> <?php echo htmlspecialchars($booking_data['guest_name'] ?? ''); ?></p>
+                                                <p><strong>Email:</strong> <?php echo htmlspecialchars($booking_data['email'] ?? ''); ?></p>
+                                                <p><strong>Phone:</strong> <?php echo htmlspecialchars($booking_data['phone'] ?? 'N/A'); ?></p>
                                             </div>
                                             <div class="col-md-6">
-                                                <p><strong>Booking Ref:</strong> <?php echo htmlspecialchars($booking_data['booking_reference']); ?></p>
-                                                <p><strong>Room:</strong> <?php echo htmlspecialchars($booking_data['room_name']); ?> (<?php echo $booking_data['room_number']; ?>)</p>
-                                                <p><strong>Status:</strong> <span class="badge bg-info"><?php echo ucfirst($booking_data['status']); ?></span></p>
+                                                <p><strong>Booking Ref:</strong> <?php echo htmlspecialchars($booking_data['booking_reference'] ?? ''); ?></p>
+                                                <p><strong>Room:</strong> <?php echo htmlspecialchars($booking_data['room_name'] ?? ''); ?> (<?php echo $booking_data['room_number'] ?? ''; ?>)</p>
+                                                <p><strong>Status:</strong> <span class="badge bg-info"><?php echo ucfirst($booking_data['status'] ?? ''); ?></span></p>
                                             </div>
                                         </div>
                                         <div class="row">
@@ -639,7 +709,7 @@ $recent_refunds = $recent_refunds_result ? $recent_refunds_result : null;
                         
                         <div class="col-md-4">
                             <!-- Refund Calculation -->
-                            <div class="refund-calculation">
+                            <div class="refund-calculation" id="refundCalculation">
                                 <h5>Refund Calculation</h5>
                                 <div class="d-flex justify-content-between mb-2">
                                     <span>Original Amount:</span>
@@ -664,6 +734,134 @@ $recent_refunds = $recent_refunds_result ? $recent_refunds_result : null;
                                 </div>
                                 <small class="text-light mt-2 d-block">
                                     Days until check-in: <?php echo $refund_calculation['days_until_checkin']; ?>
+                                </small>
+                                
+                                <!-- Print Button -->
+                                <button type="button" class="btn btn-outline-light btn-sm w-100 mt-3" onclick="printRefundInfo()">
+                                    <i class="fas fa-print me-2"></i> Print Refund Information
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+                    
+                    <?php if ($action == 'refund_complete' && $booking_data): ?>
+                    <!-- Refund Completion Section -->
+                    <div class="row">
+                        <div class="col-12">
+                            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                                <h5 class="alert-heading"><i class="fas fa-check-circle me-2"></i> Refund Processed Successfully!</h5>
+                                <p class="mb-0"><?php echo $message; ?></p>
+                                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-8">
+                            <!-- Booking Information -->
+                            <div class="card mb-4">
+                                <div class="card-header bg-success text-white">
+                                    <h5 class="mb-0"><i class="fas fa-check-circle me-2"></i> Refund Completed</h5>
+                                </div>
+                                <div class="card-body">
+                                    <div class="booking-info">
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <p><strong>Guest:</strong> <?php echo htmlspecialchars($booking_data['guest_name'] ?? ''); ?></p>
+                                                <p><strong>Email:</strong> <?php echo htmlspecialchars($booking_data['email'] ?? ''); ?></p>
+                                                <p><strong>Phone:</strong> <?php echo htmlspecialchars($booking_data['phone'] ?? 'N/A'); ?></p>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <p><strong>Booking Ref:</strong> <?php echo htmlspecialchars($booking_data['booking_reference'] ?? ''); ?></p>
+                                                <p><strong>Room:</strong> <?php echo htmlspecialchars($booking_data['room_name'] ?? ''); ?> (<?php echo $booking_data['room_number'] ?? ''; ?>)</p>
+                                                <p><strong>Status:</strong> <span class="badge bg-danger">Cancelled - Refunded</span></p>
+                                            </div>
+                                        </div>
+                                        <div class="row mt-3">
+                                            <div class="col-md-4">
+                                                <p><strong>Check-in:</strong><br><?php echo $booking_data['check_in_date'] ? date('M j, Y', strtotime($booking_data['check_in_date'])) : 'N/A'; ?></p>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <p><strong>Check-out:</strong><br><?php echo $booking_data['check_out_date'] ? date('M j, Y', strtotime($booking_data['check_out_date'])) : 'N/A'; ?></p>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <p><strong>Original Amount:</strong><br><?php echo format_currency($booking_data['total_price']); ?></p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Refund Details -->
+                            <div class="card">
+                                <div class="card-header">
+                                    <h5 class="mb-0"><i class="fas fa-receipt me-2"></i> Refund Details</h5>
+                                </div>
+                                <div class="card-body">
+                                    <div class="row">
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label text-muted">Refund Amount</label>
+                                            <div class="h4 text-success"><?php echo format_currency($refund_calculation['refund_amount']); ?></div>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label text-muted">Refund Method</label>
+                                            <div class="h6"><?php echo ucfirst(str_replace('_', ' ', $refund_calculation['refund_method'] ?? 'N/A')); ?></div>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label text-muted">Refund Reason</label>
+                                            <div><?php echo ucfirst(str_replace('_', ' ', $refund_calculation['refund_reason'] ?? 'N/A')); ?></div>
+                                        </div>
+                                        <div class="col-md-6 mb-3">
+                                            <label class="form-label text-muted">Processed By</label>
+                                            <div><?php echo $_SESSION['first_name'] . ' ' . $_SESSION['last_name']; ?></div>
+                                        </div>
+                                        <?php if (!empty($refund_calculation['admin_notes'])): ?>
+                                        <div class="col-12 mb-3">
+                                            <label class="form-label text-muted">Admin Notes</label>
+                                            <div class="p-3 bg-light rounded"><?php echo nl2br(htmlspecialchars($refund_calculation['admin_notes'])); ?></div>
+                                        </div>
+                                        <?php endif; ?>
+                                    </div>
+                                    
+                                    <div class="d-flex gap-2 mt-4">
+                                        <button type="button" class="btn btn-success" onclick="printRefundReceipt()">
+                                            <i class="fas fa-print me-2"></i> Print Refund Receipt
+                                        </button>
+                                        <a href="manager-refund.php" class="btn btn-secondary">
+                                            <i class="fas fa-search me-2"></i> Process Another Refund
+                                        </a>
+                                        <a href="manager.php" class="btn btn-outline-secondary">
+                                            <i class="fas fa-arrow-left me-2"></i> Back to Dashboard
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="col-md-4">
+                            <!-- Refund Summary -->
+                            <div class="refund-calculation">
+                                <h5>Refund Summary</h5>
+                                <div class="d-flex justify-content-between mb-2">
+                                    <span>Original Amount:</span>
+                                    <span><?php echo format_currency($booking_data['total_price']); ?></span>
+                                </div>
+                                <div class="d-flex justify-content-between mb-2">
+                                    <span>Refund Amount:</span>
+                                    <span class="text-success"><?php echo format_currency($refund_calculation['refund_amount']); ?></span>
+                                </div>
+                                <div class="d-flex justify-content-between mb-2">
+                                    <span>Refund Method:</span>
+                                    <span><?php echo ucfirst(str_replace('_', ' ', $refund_calculation['refund_method'] ?? 'N/A')); ?></span>
+                                </div>
+                                <hr>
+                                <div class="d-flex justify-content-between">
+                                    <strong>Status:</strong>
+                                    <strong class="text-success">Completed</strong>
+                                </div>
+                                <small class="text-light mt-2 d-block">
+                                    Processed on: <?php echo date('M j, Y g:i A'); ?>
                                 </small>
                             </div>
                         </div>
@@ -690,8 +888,8 @@ $recent_refunds = $recent_refunds_result ? $recent_refunds_result : null;
                                         <tbody>
                                             <?php while ($refund = $recent_refunds->fetch_assoc()): ?>
                                                 <tr>
-                                                    <td><?php echo htmlspecialchars($refund['booking_reference']); ?></td>
-                                                    <td><?php echo htmlspecialchars($refund['guest_name']); ?></td>
+                                                    <td><?php echo htmlspecialchars($refund['booking_reference'] ?? ''); ?></td>
+                                                    <td><?php echo htmlspecialchars($refund['guest_name'] ?? ''); ?></td>
                                                     <td><?php echo format_currency($refund['total_price']); ?></td>
                                                     <td><?php echo date('M j, Y', strtotime($refund['refund_date'])); ?></td>
                                                 </tr>
@@ -731,6 +929,190 @@ $recent_refunds = $recent_refunds_result ? $recent_refunds_result : null;
                 });
             });
         });
+        
+        // Print refund information
+        function printRefundInfo() {
+            const printWindow = window.open('', '_blank', 'width=800,height=600');
+            const bookingInfo = `
+                <html>
+                <head>
+                    <title>Refund Receipt - <?php echo $booking_data['booking_reference'] ?? ''; ?></title>
+                    <style>
+                        * {
+                            margin: 0;
+                            padding: 0;
+                            box-sizing: border-box;
+                        }
+                        body {
+                            font-family: Arial, sans-serif;
+                            padding: 30px;
+                            max-width: 100%;
+                            margin: 0 auto;
+                            font-size: 14px;
+                            line-height: 1.6;
+                        }
+                        .header {
+                            text-align: center;
+                            border-bottom: 3px solid #333;
+                            padding-bottom: 20px;
+                            margin-bottom: 30px;
+                        }
+                        .header h1 {
+                            margin: 0 0 10px 0;
+                            color: #333;
+                            font-size: 28px;
+                        }
+                        .header p {
+                            margin: 5px 0;
+                            color: #666;
+                        }
+                        .section {
+                            margin-bottom: 25px;
+                        }
+                        .section h2 {
+                            background: #f8f9fa;
+                            padding: 12px 15px;
+                            border-left: 4px solid #28a745;
+                            margin-bottom: 15px;
+                            font-size: 18px;
+                        }
+                        .info-row {
+                            display: flex;
+                            justify-content: space-between;
+                            padding: 10px 5px;
+                            border-bottom: 1px solid #eee;
+                        }
+                        .info-label {
+                            font-weight: bold;
+                            color: #555;
+                            flex: 0 0 40%;
+                        }
+                        .info-value {
+                            flex: 0 0 60%;
+                            text-align: right;
+                        }
+                        .refund-box {
+                            background: #28a745;
+                            color: white;
+                            padding: 20px;
+                            border-radius: 5px;
+                            text-align: center;
+                            margin: 20px 0;
+                        }
+                        .refund-box .amount {
+                            font-size: 32px;
+                            font-weight: bold;
+                        }
+                        .footer {
+                            margin-top: 40px;
+                            padding-top: 20px;
+                            border-top: 2px solid #eee;
+                            text-align: center;
+                            color: #666;
+                            font-size: 12px;
+                        }
+                        @media print {
+                            body { padding: 20px; }
+                            @page { margin: 1cm; size: A4; }
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div class="header">
+                        <h1>Harar Ras Hotel</h1>
+                        <p><strong>Refund Receipt</strong></p>
+                        <p>Generated: ${new Date().toLocaleString()}</p>
+                    </div>
+                    
+                    <div class="section">
+                        <h2>Booking Information</h2>
+                        <div class="info-row">
+                            <span class="info-label">Booking Reference:</span>
+                            <span class="info-value"><?php echo $booking_data['booking_reference'] ?? ''; ?></span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Guest Name:</span>
+                            <span class="info-value"><?php echo htmlspecialchars($booking_data['guest_name'] ?? ''); ?></span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Email:</span>
+                            <span class="info-value"><?php echo htmlspecialchars($booking_data['email'] ?? ''); ?></span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Phone:</span>
+                            <span class="info-value"><?php echo htmlspecialchars($booking_data['phone'] ?? 'N/A'); ?></span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Room:</span>
+                            <span class="info-value"><?php echo htmlspecialchars($booking_data['room_name'] ?? ''); ?> (<?php echo $booking_data['room_number'] ?? ''; ?>)</span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Check-in Date:</span>
+                            <span class="info-value"><?php echo $booking_data['check_in_date'] ? date('F j, Y', strtotime($booking_data['check_in_date'])) : 'N/A'; ?></span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Check-out Date:</span>
+                            <span class="info-value"><?php echo $booking_data['check_out_date'] ? date('F j, Y', strtotime($booking_data['check_out_date'])) : 'N/A'; ?></span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Original Amount:</span>
+                            <span class="info-value"><?php echo format_currency($booking_data['total_price']); ?></span>
+                        </div>
+                    </div>
+                    
+                    <div class="refund-box">
+                        <div style="font-size: 16px; margin-bottom: 10px;">REFUND AMOUNT</div>
+                        <div class="amount"><?php echo format_currency($refund_calculation['refund_amount']); ?></div>
+                    </div>
+                    
+                    <div class="section">
+                        <h2>Refund Details</h2>
+                        <div class="info-row">
+                            <span class="info-label">Refund Method:</span>
+                            <span class="info-value"><?php echo ucfirst(str_replace('_', ' ', $refund_calculation['refund_method'] ?? 'N/A')); ?></span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Refund Reason:</span>
+                            <span class="info-value"><?php echo ucfirst(str_replace('_', ' ', $refund_calculation['refund_reason'] ?? 'N/A')); ?></span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Processed By:</span>
+                            <span class="info-value"><?php echo $_SESSION['first_name'] . ' ' . $_SESSION['last_name']; ?></span>
+                        </div>
+                        <div class="info-row">
+                            <span class="info-label">Processed On:</span>
+                            <span class="info-value"><?php echo date('F j, Y g:i A'); ?></span>
+                        </div>
+                        <?php if (!empty($refund_calculation['admin_notes'])): ?>
+                        <div style="margin-top: 15px; padding: 15px; background: #f8f9fa; border-radius: 5px;">
+                            <strong>Admin Notes:</strong><br>
+                            <?php echo nl2br(htmlspecialchars($refund_calculation['admin_notes'])); ?>
+                        </div>
+                        <?php endif; ?>
+                    </div>
+                    
+                    <div class="footer">
+                        <p><strong>Harar Ras Hotel</strong></p>
+                        <p>This is an official refund receipt</p>
+                        <p>For inquiries: support@hararrashotel.com</p>
+                    </div>
+                </body>
+                </html>
+            `;
+            
+            printWindow.document.write(bookingInfo);
+            printWindow.document.close();
+            printWindow.focus();
+            
+            setTimeout(function() {
+                printWindow.print();
+            }, 250);
+        }
+        
+        // Print refund receipt (after refund is processed)
+        function printRefundReceipt() {
+            printRefundInfo();
+        }
     </script>
 </body>
 </html>

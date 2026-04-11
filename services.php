@@ -197,8 +197,9 @@ while ($row = $services_result->fetch_assoc()) {
                     <div class="row g-3">
                         <div class="col-12">
                             <div class="card shadow-sm">
-                                <img src="assets/images/food/ethiopian/food14.jpg" 
-                                     class="card-img-top" alt="Spa Massage" style="height: 180px; object-fit: cover;" loading="lazy">
+                                <div class="card-img-top d-flex align-items-center justify-content-center" style="height: 180px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                                    <i class="fas fa-spa fa-5x text-white"></i>
+                                </div>
                                 <div class="card-body">
                                     <h6 class="card-title">Spa Massage</h6>
                                     <p class="card-text text-muted small">Relaxing full body massage (60 minutes)</p>
@@ -209,7 +210,7 @@ while ($row = $services_result->fetch_assoc()) {
                                             <i class="fas fa-lock"></i> Login
                                         </button>
                                         <?php else: ?>
-                                        <a href="spa-booking.php" class="btn btn-sm btn-gold">Book</a>
+                                        <a href="laundry-booking.php" class="btn btn-sm btn-gold">Schedule</a>
                                         <?php endif; ?>
                                     </div>
                                 </div>
@@ -218,8 +219,9 @@ while ($row = $services_result->fetch_assoc()) {
                         
                         <div class="col-12">
                             <div class="card shadow-sm">
-                                <img src="assets/images/food/ethiopian/food16.jpg" 
-                                     class="card-img-top" alt="Facial Treatment" style="height: 180px; object-fit: cover;" loading="lazy">
+                                <div class="card-img-top d-flex align-items-center justify-content-center" style="height: 180px; background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);">
+                                    <i class="fas fa-hand-sparkles fa-5x text-white"></i>
+                                </div>
                                 <div class="card-body">
                                     <h6 class="card-title">Facial Treatment</h6>
                                     <p class="card-text text-muted small">Rejuvenating facial with natural products</p>
@@ -230,7 +232,7 @@ while ($row = $services_result->fetch_assoc()) {
                                             <i class="fas fa-lock"></i> Login
                                         </button>
                                         <?php else: ?>
-                                        <a href="spa-booking.php" class="btn btn-sm btn-gold">Book</a>
+                                        <a href="laundry-booking.php" class="btn btn-sm btn-gold">Schedule</a>
                                         <?php endif; ?>
                                     </div>
                                 </div>
@@ -239,8 +241,9 @@ while ($row = $services_result->fetch_assoc()) {
                         
                         <div class="col-12">
                             <div class="card shadow-sm">
-                                <img src="assets/images/food/ethiopian/food17.jpg" 
-                                     class="card-img-top" alt="Sauna" style="height: 180px; object-fit: cover;" loading="lazy">
+                                <div class="card-img-top d-flex align-items-center justify-content-center" style="height: 180px; background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);">
+                                    <i class="fas fa-hot-tub fa-5x text-white"></i>
+                                </div>
                                 <div class="card-body">
                                     <h6 class="card-title">Sauna & Steam Room</h6>
                                     <p class="card-text text-muted small">Detoxify and relax in our premium facilities</p>
@@ -251,7 +254,7 @@ while ($row = $services_result->fetch_assoc()) {
                                             <i class="fas fa-lock"></i> Login
                                         </button>
                                         <?php else: ?>
-                                        <a href="spa-booking.php" class="btn btn-sm btn-gold">Book</a>
+                                        <a href="laundry-booking.php" class="btn btn-sm btn-gold">Schedule</a>
                                         <?php endif; ?>
                                     </div>
                                 </div>
@@ -273,8 +276,9 @@ while ($row = $services_result->fetch_assoc()) {
                     <div class="row g-3">
                         <div class="col-12">
                             <div class="card shadow-sm">
-                                <img src="assets/images/food/beverages/b4.jpg" 
-                                     class="card-img-top" alt="Laundry Service" style="height: 180px; object-fit: cover;" loading="lazy">
+                                <div class="card-img-top d-flex align-items-center justify-content-center" style="height: 180px; background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);">
+                                    <i class="fas fa-tshirt fa-5x text-white"></i>
+                                </div>
                                 <div class="card-body">
                                     <h6 class="card-title">Wash & Iron</h6>
                                     <p class="card-text text-muted small">Professional washing and ironing service</p>
@@ -285,7 +289,7 @@ while ($row = $services_result->fetch_assoc()) {
                                             <i class="fas fa-lock"></i> Login
                                         </button>
                                         <?php else: ?>
-                                        <a href="laundry-booking.php" class="btn btn-sm btn-gold">Book</a>
+                                        <a href="laundry-booking.php" class="btn btn-sm btn-gold">Request</a>
                                         <?php endif; ?>
                                     </div>
                                 </div>
@@ -294,8 +298,10 @@ while ($row = $services_result->fetch_assoc()) {
                         
                         <div class="col-12">
                             <div class="card shadow-sm">
-                                <div class="card-body text-center">
-                                    <i class="fas fa-spray-can fa-3x text-gold mb-2"></i>
+                                <div class="card-img-top d-flex align-items-center justify-content-center" style="height: 180px; background: linear-gradient(135deg, #fa709a 0%, #fee140 100%);">
+                                    <i class="fas fa-spray-can fa-5x text-white"></i>
+                                </div>
+                                <div class="card-body">
                                     <h6 class="card-title">Dry Cleaning</h6>
                                     <p class="card-text text-muted small">Premium dry cleaning for delicate garments</p>
                                     <div class="d-flex justify-content-between align-items-center mt-2">
@@ -305,7 +311,7 @@ while ($row = $services_result->fetch_assoc()) {
                                             <i class="fas fa-lock"></i> Login
                                         </button>
                                         <?php else: ?>
-                                        <a href="laundry-booking.php" class="btn btn-sm btn-gold">Book</a>
+                                        <a href="laundry-booking.php" class="btn btn-sm btn-gold">Request</a>
                                         <?php endif; ?>
                                     </div>
                                 </div>
@@ -314,8 +320,10 @@ while ($row = $services_result->fetch_assoc()) {
                         
                         <div class="col-12">
                             <div class="card shadow-sm">
-                                <div class="card-body text-center">
-                                    <i class="fas fa-clock fa-3x text-gold mb-2"></i>
+                                <div class="card-img-top d-flex align-items-center justify-content-center" style="height: 180px; background: linear-gradient(135deg, #30cfd0 0%, #330867 100%);">
+                                    <i class="fas fa-clock fa-5x text-white"></i>
+                                </div>
+                                <div class="card-body">
                                     <h6 class="card-title">Express Service</h6>
                                     <p class="card-text text-muted small">Same-day laundry service available</p>
                                     <div class="d-flex justify-content-between align-items-center mt-2">
@@ -325,7 +333,7 @@ while ($row = $services_result->fetch_assoc()) {
                                             <i class="fas fa-lock"></i> Login
                                         </button>
                                         <?php else: ?>
-                                        <a href="laundry-booking.php" class="btn btn-sm btn-gold">Book</a>
+                                        <a href="laundry-booking.php" class="btn btn-sm btn-gold">Request</a>
                                         <?php endif; ?>
                                     </div>
                                 </div>
@@ -339,265 +347,6 @@ while ($row = $services_result->fetch_assoc()) {
                             <i class="fas fa-check-circle text-success"></i> 24-hour turnaround<br>
                             <i class="fas fa-check-circle text-success"></i> Eco-friendly products
                         </p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </section>
-    
-    <!-- Room Categories Section -->
-    <section class="py-4" id="rooms">
-        <div class="container">
-            <div class="text-center mb-4">
-                <h2 class="fw-bold" style="font-size: 1.5rem;">
-                    <i class="fas fa-bed text-gold"></i>
-                    Our Rooms
-                </h2>
-                <p class="text-muted" style="font-size: 0.9rem;">Choose from our range of comfortable accommodations</p>
-            </div>
-            
-            <?php
-            // Room categories data structure
-            $room_categories = [
-                [
-                    'name' => 'Standard Single Room',
-                    'roomRange' => '1–4',
-                    'location' => 'G+3',
-                    'capacity' => '1 guest',
-                    'price' => 800,
-                    'image' => 'assets/images/rooms/standard/room12.jpg',
-                    'services' => ['Basic bed', 'Shared bathroom', 'WiFi'],
-                    'description' => 'Affordable basic room with minimal services.',
-                    'badge' => 'Basic',
-                    'badge_color' => 'secondary'
-                ],
-                [
-                    'name' => 'Standard Double Room',
-                    'roomRange' => '5–9',
-                    'location' => 'G+3',
-                    'capacity' => '2 guests',
-                    'price' => 1200,
-                    'image' => 'assets/images/rooms/standard/room13.jpg',
-                    'services' => ['Double bed', 'WiFi', 'Basic bathroom'],
-                    'description' => 'Comfortable double room with essential amenities.',
-                    'badge' => 'Basic',
-                    'badge_color' => 'secondary'
-                ],
-                [
-                    'name' => 'Deluxe Single Room',
-                    'roomRange' => '10–13',
-                    'location' => 'G+2',
-                    'capacity' => '1 guest',
-                    'price' => 1500,
-                    'image' => 'assets/images/rooms/deluxe/room.jpg',
-                    'services' => ['Larger bed', 'Private bathroom', 'TV', 'WiFi'],
-                    'description' => 'More comfort with private facilities and entertainment.',
-                    'badge' => 'Popular',
-                    'badge_color' => 'info'
-                ],
-                [
-                    'name' => 'Deluxe Double Room',
-                    'roomRange' => '14–19',
-                    'location' => 'G+2',
-                    'capacity' => '2 guests',
-                    'price' => 2000,
-                    'image' => 'assets/images/rooms/deluxe/room2.jpg',
-                    'services' => ['Double bed', 'Modern bathroom', 'TV', 'WiFi'],
-                    'description' => 'Enhanced comfort with modern facilities and entertainment.',
-                    'badge' => 'Popular',
-                    'badge_color' => 'info'
-                ],
-                [
-                    'name' => 'Double / King Room',
-                    'roomRange' => '20–24',
-                    'location' => 'G+1',
-                    'capacity' => '2 guests',
-                    'price' => 2500,
-                    'image' => 'assets/images/rooms/deluxe/room3.jpg',
-                    'services' => ['King-size bed', 'Spacious room', 'TV', 'WiFi'],
-                    'description' => 'Spacious rooms with premium bedding and modern amenities.',
-                    'badge' => 'Spacious',
-                    'badge_color' => 'success'
-                ],
-                [
-                    'name' => 'Suite Room',
-                    'roomRange' => '25–29',
-                    'location' => 'G+1',
-                    'capacity' => '2 guests',
-                    'price' => 3500,
-                    'image' => 'assets/images/rooms/deluxe/room4.jpg',
-                    'services' => ['Separate living area', 'Premium furniture', 'WiFi', 'TV'],
-                    'description' => 'Premium suite with separate living area and luxury furniture.',
-                    'badge' => 'Premium',
-                    'badge_color' => 'warning'
-                ],
-                [
-                    'name' => 'Family / Team Room',
-                    'roomRange' => '30–33',
-                    'location' => 'G+1',
-                    'capacity' => '4 guests',
-                    'price' => 4000,
-                    'image' => 'assets/images/rooms/family/room27.jpg',
-                    'services' => ['Multiple beds', 'Large space', 'Family setup', 'WiFi'],
-                    'description' => 'Large family room with multiple beds and extra space.',
-                    'badge' => 'Family',
-                    'badge_color' => 'primary'
-                ],
-                [
-                    'name' => 'Executive Room',
-                    'roomRange' => '34–37',
-                    'location' => 'G+2',
-                    'capacity' => '2 guests',
-                    'price' => 4500,
-                    'image' => 'assets/images/rooms/deluxe/room5.jpg',
-                    'services' => ['Premium interior', 'Work desk', 'Fast WiFi', 'TV'],
-                    'description' => 'Premium experience with extra space and business facilities.',
-                    'badge' => 'Business',
-                    'badge_color' => 'dark'
-                ],
-                [
-                    'name' => 'Presidential Suite',
-                    'roomRange' => '38–39',
-                    'location' => 'G+3',
-                    'capacity' => '4 guests',
-                    'price' => 8000,
-                    'image' => 'assets/images/rooms/presidential/room35.jpg',
-                    'services' => ['Luxury furniture', 'King beds', 'Multiple bathrooms', 'Minibar', 'WiFi', 'TV', 'Breakfast', 'Dinner'],
-                    'description' => 'Top-tier luxury with premium services and full experience.',
-                    'badge' => 'Luxury',
-                    'badge_color' => 'danger'
-                ]
-            ];
-            ?>
-            
-            <div class="row g-3 justify-content-center">
-                <?php foreach ($room_categories as $room): ?>
-                <div class="col-12 col-sm-6 col-md-4 col-lg-4">
-                    <div class="card h-100 shadow-sm border" style="max-width: 380px; margin: 0 auto;">
-                        <!-- Room Image -->
-                        <div class="position-relative">
-                            <img src="<?php echo $room['image']; ?>" 
-                                 class="card-img-top" 
-                                 alt="<?php echo htmlspecialchars($room['name']); ?>" 
-                                 style="height: 180px; object-fit: cover;"
-                                 loading="lazy">
-                            <div class="position-absolute top-0 end-0 m-2">
-                                <span class="badge bg-<?php echo $room['badge_color']; ?>" style="font-size: 0.7rem;">
-                                    <?php echo $room['badge']; ?>
-                                </span>
-                            </div>
-                        </div>
-                        
-                        <!-- Room Details -->
-                        <div class="card-body p-3">
-                            <!-- Room Name -->
-                            <h5 class="card-title mb-2" style="font-size: 1.1rem; font-weight: 600;">
-                                <?php echo htmlspecialchars($room['name']); ?>
-                            </h5>
-                            
-                            <!-- Room Info -->
-                            <div class="mb-2" style="font-size: 0.85rem;">
-                                <div class="row g-2">
-                                    <div class="col-6">
-                                        <strong style="font-size: 0.8rem;">Room:</strong> 
-                                        <span class="text-muted" style="font-size: 0.8rem;"><?php echo $room['roomRange']; ?></span>
-                                    </div>
-                                    <div class="col-6">
-                                        <strong style="font-size: 0.8rem;">Type:</strong> 
-                                        <span class="text-muted" style="font-size: 0.8rem;"><?php echo $room['badge']; ?></span>
-                                    </div>
-                                    <div class="col-6">
-                                        <strong style="font-size: 0.8rem;">Capacity:</strong> 
-                                        <span class="text-muted" style="font-size: 0.8rem;"><?php echo $room['capacity']; ?></span>
-                                    </div>
-                                    <div class="col-6">
-                                        <strong style="font-size: 0.8rem;">Location:</strong> 
-                                        <span class="text-muted" style="font-size: 0.8rem;"><?php echo $room['location']; ?></span>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <!-- Price -->
-                            <div class="mb-2">
-                                <strong style="font-size: 0.8rem;">Price:</strong> 
-                                <span class="text-gold fw-bold" style="font-size: 0.95rem;">ETB <?php echo number_format($room['price'], 2); ?></span>
-                            </div>
-                            
-                            <!-- Services -->
-                            <div class="mb-2">
-                                <p class="mb-1 text-muted" style="font-size: 0.8rem;"><?php echo implode(', ', $room['services']); ?></p>
-                            </div>
-                            
-                            <!-- Why This Price -->
-                            <div class="mb-3 p-2 bg-light rounded" style="font-size: 0.75rem;">
-                                <strong class="text-dark" style="font-size: 0.75rem;">
-                                    <i class="fas fa-info-circle text-gold"></i> Why this price?
-                                </strong>
-                                <p class="mb-0 text-muted mt-1" style="font-size: 0.72rem; line-height: 1.3;">
-                                    <?php echo $room['description']; ?>
-                                </p>
-                            </div>
-                            
-                            <!-- Action Buttons -->
-                            <?php if (!is_logged_in()): ?>
-                            <button class="btn btn-sm btn-outline-gold w-100" onclick="showLoginPrompt('room')" style="font-size: 0.7rem; padding: 0.3rem;">
-                                <i class="fas fa-lock" style="font-size: 0.65rem;"></i> Login to Book
-                            </button>
-                            <?php else: ?>
-                            <div class="d-flex gap-1">
-                                <button class="btn btn-sm btn-outline-gold flex-fill" onclick="addToCart('<?php echo $room['name']; ?>', <?php echo $room['price']; ?>, 'room')" style="font-size: 0.7rem; padding: 0.3rem;">
-                                    <i class="fas fa-cart-plus" style="font-size: 0.65rem;"></i> Add to Cart
-                                </button>
-                                <a href="booking.php" class="btn btn-sm btn-gold flex-fill" style="font-size: 0.7rem; padding: 0.3rem;">
-                                    <i class="fas fa-calendar-check" style="font-size: 0.65rem;"></i> Book Now
-                                </a>
-                            </div>
-                            <?php endif; ?>
-                        </div>
-                    </div>
-                </div>
-                <?php endforeach; ?>
-            </div>
-            
-            <!-- Value Progression Info -->
-            <div class="row mt-4">
-                <div class="col-12">
-                    <div class="card border-gold">
-                        <div class="card-body p-3">
-                            <h6 class="mb-2" style="font-size: 0.9rem;">
-                                <i class="fas fa-chart-line text-gold"></i> Understanding Our Room Pricing
-                            </h6>
-                            <div class="row g-2" style="font-size: 0.75rem;">
-                                <div class="col-12 col-md-3">
-                                    <div class="text-center p-2 bg-light rounded">
-                                        <i class="fas fa-arrow-up text-secondary mb-1"></i>
-                                        <p class="mb-0 fw-bold">Basic → Standard</p>
-                                        <p class="text-muted mb-0" style="font-size: 0.7rem;">Essential comfort</p>
-                                    </div>
-                                </div>
-                                <div class="col-12 col-md-3">
-                                    <div class="text-center p-2 bg-light rounded">
-                                        <i class="fas fa-arrow-up text-info mb-1"></i>
-                                        <p class="mb-0 fw-bold">Deluxe</p>
-                                        <p class="text-muted mb-0" style="font-size: 0.7rem;">Private facilities + TV</p>
-                                    </div>
-                                </div>
-                                <div class="col-12 col-md-3">
-                                    <div class="text-center p-2 bg-light rounded">
-                                        <i class="fas fa-arrow-up text-warning mb-1"></i>
-                                        <p class="mb-0 fw-bold">Suite + Executive</p>
-                                        <p class="text-muted mb-0" style="font-size: 0.7rem;">Extra space + premium</p>
-                                    </div>
-                                </div>
-                                <div class="col-12 col-md-3">
-                                    <div class="text-center p-2 bg-light rounded">
-                                        <i class="fas fa-arrow-up text-danger mb-1"></i>
-                                        <p class="mb-0 fw-bold">Presidential</p>
-                                        <p class="text-muted mb-0" style="font-size: 0.7rem;">Full luxury + meals</p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
                     </div>
                 </div>
             </div>

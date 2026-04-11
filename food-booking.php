@@ -419,8 +419,8 @@ $food_items = array_filter($food_items, function($category) {
                                                 </select>
                                             </div>
                                             <div class="col-md-4 mb-3">
-                                                <label class="form-label"><?php echo __('food.number_of_guests'); ?></label>
-                                                <input type="number" name="guests" class="form-control" 
+                                                <label class="form-label"><?php echo __('food.number_of_customers'); ?></label>
+                                                <input type="number" name="customers" class="form-control" 
                                                        min="1" max="12" value="1">
                                             </div>
                                         </div>

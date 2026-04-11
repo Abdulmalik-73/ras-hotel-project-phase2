@@ -65,13 +65,8 @@ if ($checkin_id) {
     <title>Receipt - Harar Ras Hotel</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="assets/css/print.css">
     <style>
-        @media print {
-            .no-print { display: none !important; }
-            body { margin: 0; }
-            .receipt-container { box-shadow: none; margin: 0; }
-        }
-        
         .receipt-container {
             max-width: 800px;
             margin: 20px auto;
@@ -277,7 +272,7 @@ if ($checkin_id) {
             <!-- Receipt Body -->
             <div class="receipt-body">
                 <div class="receipt-title">
-                    GUEST RECEIPT
+                    CUSTOMER RECEIPT
                 </div>
                 
                 <!-- Receipt Information -->
@@ -303,10 +298,10 @@ if ($checkin_id) {
                     </div>
                     
                     <div class="info-section">
-                        <h6><i class="fas fa-user"></i> Guest Information</h6>
+                        <h6><i class="fas fa-user"></i> Customer Information</h6>
                         <div class="info-row">
                             <span class="info-label">Name:</span>
-                            <span class="info-value"><?php echo htmlspecialchars($receipt_data['guest_name']); ?></span>
+                            <span class="info-value"><?php echo htmlspecialchars($receipt_data['customer_name']); ?></span>
                         </div>
                         <div class="info-row">
                             <span class="info-label">Email:</span>
@@ -408,7 +403,7 @@ if ($checkin_id) {
                 <!-- Signature Section -->
                 <div class="signature-section">
                     <div>
-                        <div class="signature-line">Guest Signature</div>
+                        <div class="signature-line">Customer Signature</div>
                     </div>
                     <div>
                         <div class="signature-line">Hotel Representative</div>

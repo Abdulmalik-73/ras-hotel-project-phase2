@@ -1,13 +1,22 @@
 <?php
-// Suppress PHP warnings and notices for production
-error_reporting(E_ERROR | E_PARSE);
-ini_set('display_errors', 0);
+/**
+ * Admin Dashboard - Protected Page
+ * Requires: Admin role authentication
+ */
 
+// Start session and load configuration
 session_start();
 require_once '../includes/config.php';
 require_once '../includes/functions.php';
 
-require_role('admin');
+// Require authentication with admin or super_admin role and prevent caching
+require_auth_roles(['admin', 'super_admin'], '../login.php');
+
+// Detect user role for proper navigation
+$user_role = $_SESSION['user_role'] ?? $_SESSION['role'] ?? '';
+$is_super_admin = ($user_role === 'super_admin');
+$back_link = $is_super_admin ? 'super-admin.php' : 'admin.php';
+$back_title = $is_super_admin ? 'Super Admin Dashboard' : 'Admin Dashboard';
 
 // Get statistics
 $stats_query = "SELECT 
@@ -258,9 +267,6 @@ $recent_bookings = $conn->query($recent_bookings_query)->fetch_all(MYSQLI_ASSOC)
                     </a>
                     <a href="view-data.php" class="list-group-item list-group-item-action">
                         <i class="fas fa-database"></i> View All Data
-                    </a>
-                    <a href="../payment-verification.php" class="list-group-item list-group-item-action">
-                        <i class="fas fa-shield-alt"></i> Payment Verification
                     </a>
                     <a href="settings.php" class="list-group-item list-group-item-action">
                         <i class="fas fa-cog"></i> Settings

@@ -3,7 +3,7 @@ session_start();
 require_once '../includes/config.php';
 require_once '../includes/functions.php';
 
-require_role('manager');
+require_auth_role('manager', '../login.php');
 
 // Get date filters
 $start_date = $_GET['start_date'] ?? date('Y-m-01'); // First day of current month
@@ -138,6 +138,7 @@ while ($row = $daily_revenue_result->fetch_assoc()) {
     <title>Reports - Manager Dashboard</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="../assets/css/print.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
     <style>
         .navbar-manager {
@@ -254,9 +255,6 @@ while ($row = $daily_revenue_result->fetch_assoc()) {
                         <a href="manager-reports.php" class="nav-link active">
                             <i class="fas fa-chart-bar me-2"></i> Reports
                         </a>
-                        <a href="../payment-verification.php" class="nav-link">
-                            <i class="fas fa-shield-alt me-2"></i> Payment Verification
-                        </a>
                     </nav>
                     
                     <div class="mt-auto">
@@ -269,7 +267,7 @@ while ($row = $daily_revenue_result->fetch_assoc()) {
             
             <!-- Main Content -->
             <div class="col-md-9 col-lg-10">
-                <div class="main-content p-4">
+                <div class="main-content p-4 single-page-print">
                     <div class="d-flex justify-content-between align-items-center mb-4">
                         <div>
                             <a href="manager.php" class="btn btn-outline-secondary me-3">

@@ -3,7 +3,7 @@ session_start();
 require_once '../includes/config.php';
 require_once '../includes/functions.php';
 
-require_role('receptionist');
+require_auth_role('receptionist', '../login.php');
 
 $message = '';
 $error = '';
@@ -158,9 +158,6 @@ $services = $conn->query("SELECT * FROM services WHERE status = 'active' ORDER B
                         </a>
                         <a href="receptionist-checkout.php" class="nav-link">
                             <i class="fas fa-minus-circle me-2"></i> Process Check-out
-                        </a>
-                        <a href="verify-payments.php" class="nav-link">
-                            <i class="fas fa-check-circle me-2"></i> Verify Payments
                         </a>
                         <a href="receptionist-pending.php" class="nav-link">
                             <i class="fas fa-calendar-check me-2"></i> Pending Bookings

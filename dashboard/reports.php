@@ -3,7 +3,7 @@ session_start();
 require_once '../includes/config.php';
 require_once '../includes/functions.php';
 
-require_role('manager'); // Managers and admins can view reports
+require_auth_role('manager', '../login.php'); // Managers and admins can view reports
 
 // Get date filters
 $start_date = $_GET['start_date'] ?? date('Y-m-01'); // First day of current month
@@ -24,7 +24,7 @@ $summary_query = "
         COUNT(CASE WHEN status = 'cancelled' THEN 1 END) as cancelled_bookings,
         SUM(CASE WHEN status IN ('confirmed', 'checked_in', 'checked_out') THEN total_price ELSE 0 END) as total_revenue,
         AVG(CASE WHEN status IN ('confirmed', 'checked_in', 'checked_out') THEN total_price ELSE NULL END) as avg_booking_value,
-        SUM(CASE WHEN status IN ('confirmed', 'checked_in', 'checked_out') THEN customers ELSE 0 END) as total_guests
+        SUM(CASE WHEN status IN ('confirmed', 'checked_in', 'checked_out') THEN customers ELSE 0 END) as total_customers
     FROM bookings 
     WHERE DATE(created_at) BETWEEN '$start_date' AND '$end_date'
 ";
@@ -106,6 +106,7 @@ $payment_methods = $conn->query($payment_methods_query);
     <title>Reports - <?php echo SITE_NAME; ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="../assets/css/print.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         .sidebar {
@@ -151,7 +152,7 @@ $payment_methods = $conn->query($payment_methods_query);
     </style>
 </head>
 <body>
-    <div class="container-fluid">
+    <div class="container-fluid single-page-print">
         <div class="row">
             <!-- Sidebar -->
             <div class="col-md-3 col-lg-2 px-0">
@@ -273,8 +274,8 @@ $payment_methods = $conn->query($payment_methods_query);
                             <div class="card stat-card">
                                 <div class="card-body text-center">
                                     <i class="fas fa-users stat-icon"></i>
-                                    <h3 class="mt-2 mb-1"><?php echo number_format($summary['total_guests'] ?? 0); ?></h3>
-                                    <p class="mb-0">Total Guests</p>
+                                    <h3 class="mt-2 mb-1"><?php echo number_format($summary['total_customers'] ?? 0); ?></h3>
+                                    <p class="mb-0">Total Customers</p>
                                 </div>
                             </div>
                         </div>
@@ -564,7 +565,7 @@ $payment_methods = $conn->query($payment_methods_query);
             csvContent += "Total Bookings,<?php echo $summary['total_bookings'] ?? 0; ?>\\n";
             csvContent += "Total Revenue,<?php echo $summary['total_revenue'] ?? 0; ?>\\n";
             csvContent += "Average Booking Value,<?php echo $summary['avg_booking_value'] ?? 0; ?>\\n";
-            csvContent += "Total Guests,<?php echo $summary['total_guests'] ?? 0; ?>\\n\\n";
+            csvContent += "Total Customers,<?php echo $summary['total_customers'] ?? 0; ?>\\n\\n";
             
             const encodedUri = encodeURI(csvContent);
             const link = document.createElement("a");

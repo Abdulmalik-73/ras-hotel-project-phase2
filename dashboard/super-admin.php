@@ -3,11 +3,7 @@ session_start();
 require_once '../includes/config.php';
 require_once '../includes/functions.php';
 
-// Check if user is logged in and is Super Admin
-if (!is_logged_in() || $_SESSION['user_role'] !== 'super_admin') {
-    header('Location: ../login.php');
-    exit();
-}
+require_auth_role('super_admin', '../login.php');
 
 $user_id = $_SESSION['user_id'];
 $user_name = $_SESSION['user_name'];
@@ -420,7 +416,7 @@ $stats['total_revenue'] = $revenue_row['total'] ?? 0;
         <ul class="nav-menu">
             <li><a href="super-admin.php" class="active"><i class="fas fa-chart-line"></i> Dashboard</a></li>
             <li><a href="super-admin-users.php"><i class="fas fa-users"></i> User Management</a></li>
-            <li><a href="settings.php"><i class="fas fa-cog"></i> System Settings</a></li>
+            <li><a href="super-admin-settings.php"><i class="fas fa-cog"></i> System Settings</a></li>
             <li><a href="../logout.php"><i class="fas fa-sign-out-alt"></i> Logout</a></li>
         </ul>
     </div>

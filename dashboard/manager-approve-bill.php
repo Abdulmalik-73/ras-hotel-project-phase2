@@ -7,7 +7,7 @@ session_start();
 require_once '../includes/config.php';
 require_once '../includes/functions.php';
 
-require_role('manager');
+require_auth_role('manager', '../login.php');
 
 $message = '';
 $error = '';
@@ -249,9 +249,6 @@ if ($bills_result) {
             </a>
             <a href="manager-reports.php" class="nav-link">
                 <i class="fas fa-chart-bar me-2"></i> Reports
-            </a>
-            <a href="../payment-verification.php" class="nav-link">
-                <i class="fas fa-shield-alt me-2"></i> Payment Verification
             </a>
             <a href="../logout.php" class="nav-link mt-3">
                 <i class="fas fa-sign-out-alt me-2"></i> Logout

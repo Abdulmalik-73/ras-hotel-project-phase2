@@ -41,7 +41,8 @@ function check_role($required_role) {
         return false;
     }
     
-    $user_role = $_SESSION['user_role'];
+    // Check both possible session variables for role
+    $user_role = $_SESSION['user_role'] ?? $_SESSION['role'] ?? '';
     
     // Super admin has access to everything
     if ($user_role === 'super_admin') {
@@ -226,4 +227,83 @@ function verify_user_password($input_password, $stored_password) {
  */
 function hash_user_password($password) {
     return password_hash($password, PASSWORD_DEFAULT);
+}
+
+/**
+ * Prevent browser caching for secure pages
+ */
+function prevent_cache() {
+    header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
+    header("Cache-Control: post-check=0, pre-check=0", false);
+    header("Pragma: no-cache");
+    header("Expires: Sat, 26 Jul 1997 05:00:00 GMT");
+}
+
+/**
+ * Secure logout function
+ */
+function secure_logout($redirect_to = 'login.php') {
+    // Prevent caching
+    prevent_cache();
+    
+    // Unset all session variables
+    $_SESSION = array();
+    
+    // Delete session cookie
+    if (isset($_COOKIE[session_name()])) {
+        setcookie(session_name(), '', time() - 3600, '/');
+    }
+    
+    // Destroy session
+    session_destroy();
+    
+    // Redirect to login
+    header("Location: $redirect_to");
+    exit();
+}
+
+/**
+ * Require authentication and prevent caching
+ * Use this at the top of all protected pages
+ */
+function require_auth($redirect_url = 'login.php') {
+    // Start session if not started
+    if (session_status() == PHP_SESSION_NONE) {
+        session_start();
+    }
+    
+    // Prevent caching
+    prevent_cache();
+    
+    // Check if logged in
+    if (!is_logged_in()) {
+        header("Location: $redirect_url");
+        exit();
+    }
+}
+
+/**
+ * Require authentication with role check
+ */
+function require_auth_role($required_role, $redirect_url = '../login.php') {
+    require_auth($redirect_url);
+    require_role($required_role, $redirect_url);
+}
+
+/**
+ * Require authentication with multiple role check
+ */
+function require_auth_roles($allowed_roles, $redirect_url = '../login.php') {
+    require_auth($redirect_url);
+    
+    if (!is_logged_in()) {
+        header("Location: $redirect_url");
+        exit();
+    }
+    
+    $user_role = $_SESSION['user_role'] ?? $_SESSION['role'] ?? '';
+    if (!in_array($user_role, $allowed_roles)) {
+        header("Location: $redirect_url");
+        exit();
+    }
 }

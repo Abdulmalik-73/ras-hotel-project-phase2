@@ -78,6 +78,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         </div>
     </section>
     
+
+    
     <!-- Contact Section -->
     <section class="py-5">
         <div class="container">
@@ -132,6 +134,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     </div>
                 </div>
                 
+
+
                 <!-- Contact Information -->
                 <div class="col-lg-5">
                     <div class="card shadow-sm mb-4">
@@ -182,6 +186,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             
                             <hr>
                             
+
+
                             <h6 class="mb-3">Follow Us</h6>
                             <div class="social-links">
                                 <a href="#" class="me-2"><i class="fab fa-facebook-f"></i></a>
@@ -221,6 +227,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         </div>
     </section>
     
+
+
     <?php include 'includes/footer.php'; ?>
     
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>

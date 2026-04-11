@@ -99,7 +99,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && empty($error)) {
                 if ($verified) {
                     $success = 'Payment verified successfully! Your booking is now confirmed.';
                 } else {
-                    $success = 'Transaction ID received successfully! Your payment will be verified manually within 24 hours.';
+                    $success = 'Transaction ID received successfully! Your payment will be verified manually within 30 minutes.';
                 }
                 
                 // Refresh booking data
@@ -349,7 +349,7 @@ $gateways = $conn->query($gateways_query)->fetch_all(MYSQLI_ASSOC);
                     <?php elseif ($booking['verification_status'] == 'pending_verification' && $booking['transaction_id']): ?>
                     <div class="status-pending">
                         <h4><i class="fas fa-clock"></i> Verification Pending</h4>
-                        <p class="mb-2">Your transaction is being verified. This usually takes up to 24 hours.</p>
+                        <p class="mb-2">Your transaction is being verified. This usually takes up to 30 minutes.</p>
                         <p class="mb-0"><strong>Transaction ID:</strong> <code><?php echo $booking['transaction_id']; ?></code></p>
                         <p class="mb-0">You will receive an email notification once verification is complete.</p>
                     </div>

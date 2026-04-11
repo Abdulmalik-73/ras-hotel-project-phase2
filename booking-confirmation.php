@@ -15,13 +15,24 @@ if (empty($booking_ref)) {
 }
 
 // Get booking details
-$booking_query = "SELECT b.*, r.name as room_name, r.room_number, 
+$booking_query = "SELECT b.*, 
+                  CASE 
+                      WHEN b.booking_type = 'spa_service' THEN 'Spa & Wellness'
+                      WHEN b.booking_type = 'laundry_service' THEN 'Laundry Service'
+                      WHEN b.booking_type = 'food_order' THEN 'Food Order'
+                      ELSE COALESCE(r.name, 'Room Booking')
+                  END as room_name,
+                  COALESCE(r.room_number, 'N/A') as room_number, 
                   CONCAT(u.first_name, ' ', u.last_name) as customer_name, u.email,
-                  cf.id as feedback_id
+                  cf.id as feedback_id,
+                  sb.service_name, sb.service_date, sb.service_time, sb.quantity as service_quantity,
+                  fo.table_reservation, fo.reservation_date, fo.reservation_time, fo.guests as food_guests
                   FROM bookings b 
-                  JOIN rooms r ON b.room_id = r.id 
+                  LEFT JOIN rooms r ON b.room_id = r.id 
                   LEFT JOIN users u ON b.user_id = u.id 
                   LEFT JOIN customer_feedback cf ON b.id = cf.booking_id
+                  LEFT JOIN service_bookings sb ON b.id = sb.booking_id
+                  LEFT JOIN food_orders fo ON b.id = fo.booking_id
                   WHERE b.booking_reference = ?";
 $stmt = $conn->prepare($booking_query);
 $stmt->bind_param("s", $booking_ref);
@@ -29,8 +40,17 @@ $stmt->execute();
 $result = $stmt->get_result();
 
 if ($result->num_rows == 0) {
-    header('Location: index.php');
-    exit();
+    // Try with different parameter name
+    $booking_ref = isset($_GET['booking_ref']) ? sanitize_input($_GET['booking_ref']) : $booking_ref;
+    $stmt = $conn->prepare($booking_query);
+    $stmt->bind_param("s", $booking_ref);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    
+    if ($result->num_rows == 0) {
+        header('Location: my-bookings.php?error=booking_not_found');
+        exit();
+    }
 }
 
 $booking_data = $result->fetch_assoc();
@@ -244,6 +264,25 @@ $booking_data = $result->fetch_assoc();
                     </div>
                     
                     <div class="detail-row">
+                        <?php if ($booking_data['booking_type'] == 'food_order'): ?>
+                        <div class="detail-item">
+                            <div class="detail-label">Order Type</div>
+                            <div class="detail-value"><?php echo $booking_data['table_reservation'] ? 'Dine-in' : 'Takeaway'; ?></div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">Table Reserved</div>
+                            <div class="detail-value"><?php echo $booking_data['table_reservation'] ? 'Yes' : 'No'; ?></div>
+                        </div>
+                        <?php elseif (in_array($booking_data['booking_type'], ['spa_service', 'laundry_service'])): ?>
+                        <div class="detail-item">
+                            <div class="detail-label">Service Type</div>
+                            <div class="detail-value"><?php echo htmlspecialchars($booking_data['room_name']); ?></div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">Service Name</div>
+                            <div class="detail-value"><?php echo htmlspecialchars($booking_data['service_name'] ?? 'N/A'); ?></div>
+                        </div>
+                        <?php else: ?>
                         <div class="detail-item">
                             <div class="detail-label">Room</div>
                             <div class="detail-value"><?php echo htmlspecialchars($booking_data['room_name']); ?></div>
@@ -252,17 +291,38 @@ $booking_data = $result->fetch_assoc();
                             <div class="detail-label">Room Number</div>
                             <div class="detail-value"><?php echo htmlspecialchars($booking_data['room_number']); ?></div>
                         </div>
+                        <?php endif; ?>
                     </div>
                     
                     <div class="detail-row">
+                        <?php if ($booking_data['booking_type'] == 'food_order'): ?>
+                        <div class="detail-item">
+                            <div class="detail-label">Reservation Date</div>
+                            <div class="detail-value"><?php echo !empty($booking_data['reservation_date']) ? date('M j, Y', strtotime($booking_data['reservation_date'])) : 'N/A'; ?></div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">Reservation Time</div>
+                            <div class="detail-value"><?php echo !empty($booking_data['reservation_time']) ? date('g:i A', strtotime($booking_data['reservation_time'])) : 'N/A'; ?></div>
+                        </div>
+                        <?php elseif (in_array($booking_data['booking_type'], ['spa_service', 'laundry_service'])): ?>
+                        <div class="detail-item">
+                            <div class="detail-label">Service Date</div>
+                            <div class="detail-value"><?php echo !empty($booking_data['service_date']) ? date('M j, Y', strtotime($booking_data['service_date'])) : 'To be scheduled'; ?></div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">Service Time</div>
+                            <div class="detail-value"><?php echo !empty($booking_data['service_time']) ? date('g:i A', strtotime($booking_data['service_time'])) : 'To be scheduled'; ?></div>
+                        </div>
+                        <?php else: ?>
                         <div class="detail-item">
                             <div class="detail-label">Check-in Date</div>
-                            <div class="detail-value"><?php echo date('M j, Y', strtotime($booking_data['check_in_date'])); ?></div>
+                            <div class="detail-value"><?php echo !empty($booking_data['check_in_date']) ? date('M j, Y', strtotime($booking_data['check_in_date'])) : 'N/A'; ?></div>
                         </div>
                         <div class="detail-item">
                             <div class="detail-label">Check-out Date</div>
-                            <div class="detail-value"><?php echo date('M j, Y', strtotime($booking_data['check_out_date'])); ?></div>
+                            <div class="detail-value"><?php echo !empty($booking_data['check_out_date']) ? date('M j, Y', strtotime($booking_data['check_out_date'])) : 'N/A'; ?></div>
                         </div>
+                        <?php endif; ?>
                     </div>
                     
                     <div class="detail-row">

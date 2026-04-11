@@ -144,6 +144,20 @@ try {
     // Silently ignore errors to prevent breaking the site
 }
 
+// AUTO-FIX DATABASE: Add preferred_language column to users table if it doesn't exist
+try {
+    // Check if preferred_language column exists
+    $check_column = $conn->query("SHOW COLUMNS FROM users LIKE 'preferred_language'");
+    
+    if ($check_column && $check_column->num_rows == 0) {
+        // Add preferred_language column
+        $add_column_sql = "ALTER TABLE users ADD COLUMN preferred_language VARCHAR(5) DEFAULT 'en' AFTER email";
+        $conn->query($add_column_sql);
+    }
+} catch (Exception $e) {
+    // Silently ignore errors to prevent breaking the site
+}
+
 // SAFE: Only create superadmin if it doesn't exist
 // This prevents duplicate insertion errors
 ensure_superadmin_exists();

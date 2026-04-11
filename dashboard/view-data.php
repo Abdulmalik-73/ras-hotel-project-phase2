@@ -3,7 +3,7 @@ session_start();
 require_once '../includes/config.php';
 require_once '../includes/functions.php';
 
-require_role('admin');
+require_auth_role('admin', '../login.php');
 
 // Handle delete actions
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -109,6 +109,60 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             $error_message = 'Failed to delete inactive users: ' . $conn->error;
         }
+    } elseif (isset($_POST['delete_booking'])) {
+        // Delete a single booking
+        $booking_id = (int)($_POST['booking_id'] ?? 0);
+        if ($booking_id > 0) {
+            // Start transaction
+            $conn->begin_transaction();
+            try {
+                // Delete related records first
+                $conn->query("DELETE FROM booking_activity_log WHERE booking_id = $booking_id");
+                $conn->query("DELETE FROM checkins WHERE booking_id = $booking_id");
+                $conn->query("DELETE FROM food_orders WHERE booking_id = $booking_id");
+                $conn->query("DELETE FROM service_bookings WHERE booking_id = $booking_id");
+                
+                // Delete the booking
+                $delete_query = "DELETE FROM bookings WHERE id = $booking_id";
+                if ($conn->query($delete_query)) {
+                    $conn->commit();
+                    $success_message = 'Booking deleted successfully!';
+                } else {
+                    throw new Exception($conn->error);
+                }
+            } catch (Exception $e) {
+                $conn->rollback();
+                $error_message = 'Failed to delete booking: ' . $e->getMessage();
+            }
+        }
+    } elseif (isset($_POST['delete_bookings'])) {
+        // Delete multiple bookings
+        $ids = $_POST['booking_ids'] ?? [];
+        if (!empty($ids)) {
+            $ids_str = implode(',', array_map('intval', $ids));
+            
+            // Start transaction
+            $conn->begin_transaction();
+            try {
+                // Delete related records first
+                $conn->query("DELETE FROM booking_activity_log WHERE booking_id IN ($ids_str)");
+                $conn->query("DELETE FROM checkins WHERE booking_id IN ($ids_str)");
+                $conn->query("DELETE FROM food_orders WHERE booking_id IN ($ids_str)");
+                $conn->query("DELETE FROM service_bookings WHERE booking_id IN ($ids_str)");
+                
+                // Delete bookings
+                $delete_query = "DELETE FROM bookings WHERE id IN ($ids_str)";
+                if ($conn->query($delete_query)) {
+                    $conn->commit();
+                    $success_message = count($ids) . ' booking(s) deleted successfully!';
+                } else {
+                    throw new Exception($conn->error);
+                }
+            } catch (Exception $e) {
+                $conn->rollback();
+                $error_message = 'Failed to delete bookings: ' . $e->getMessage();
+            }
+        }
     }
 }
 
@@ -127,7 +181,7 @@ $title = '';
 switch ($data_type) {
     case 'bookings':
         $title = 'All Bookings Data';
-        $query = "SELECT b.*, r.name as room_name, r.room_number, CONCAT(u.first_name, ' ', u.last_name) as guest_name, u.email, u.phone 
+        $query = "SELECT b.*, r.name as room_name, r.room_number, CONCAT(u.first_name, ' ', u.last_name) as customer_name, u.email, u.phone 
                   FROM bookings b 
                   JOIN rooms r ON b.room_id = r.id 
                   JOIN users u ON b.user_id = u.id 
@@ -325,15 +379,16 @@ $total_pages = ceil($total_records / $limit);
                                         <?php if ($data_type == 'bookings'): ?>
                                         <th>ID</th>
                                         <th>Reference</th>
-                                        <th>Guest</th>
+                                        <th>Customer</th>
                                         <th>Room</th>
                                         <th>Check-in</th>
                                         <th>Check-out</th>
-                                        <th>Guests</th>
+                                        <th>Customers</th>
                                         <th>Total Price</th>
                                         <th>Special Requests</th>
                                         <th>Status</th>
                                         <th>Created</th>
+                                        <th>Actions</th>
                                         <?php elseif ($data_type == 'contacts'): ?>
                                         <th>ID</th>
                                         <th>Name</th>
@@ -385,7 +440,7 @@ $total_pages = ceil($total_records / $limit);
                                         <td><?php echo $row['id']; ?></td>
                                         <td><strong><?php echo $row['booking_reference']; ?></strong></td>
                                         <td>
-                                            <?php echo htmlspecialchars($row['guest_name'] ?? ''); ?><br>
+                                            <?php echo htmlspecialchars($row['customer_name'] ?? ''); ?><br>
                                             <small class="text-muted"><?php echo $row['email'] ?? ''; ?></small>
                                         </td>
                                         <td>
@@ -415,6 +470,15 @@ $total_pages = ceil($total_records / $limit);
                                             </span>
                                         </td>
                                         <td><?php echo date('M j, Y H:i', strtotime($row['created_at'])); ?></td>
+                                        <td>
+                                            <form method="POST" style="display: inline;" onsubmit="return confirm('Are you sure you want to delete this booking? This action cannot be undone.');">
+                                                <input type="hidden" name="delete_booking" value="1">
+                                                <input type="hidden" name="booking_id" value="<?php echo $row['id']; ?>">
+                                                <button type="submit" class="btn btn-danger btn-sm" title="Delete Booking">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            </form>
+                                        </td>
                                         
                                         <?php elseif ($data_type == 'contacts'): ?>
                                         <td><?php echo $row['id']; ?></td>
@@ -444,7 +508,7 @@ $total_pages = ceil($total_records / $limit);
                                         <td><?php echo htmlspecialchars($row['phone'] ?? ''); ?></td>
                                         <td>
                                             <span class="badge bg-<?php echo $row['role'] == 'admin' ? 'danger' : 'primary'; ?>">
-                                                <?php echo ucfirst($row['role'] ?? 'guest'); ?>
+                                                <?php echo ucfirst($row['role'] ?? 'customer'); ?>
                                             </span>
                                         </td>
                                         <td>

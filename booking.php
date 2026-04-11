@@ -3,6 +3,11 @@ require_once 'includes/config.php';
 require_once 'includes/functions.php';
 require_once 'includes/RoomLockManager.php';
 
+// Add cache-busting headers to prevent browser caching
+header("Cache-Control: no-cache, no-store, must-revalidate");
+header("Pragma: no-cache");
+header("Expires: 0");
+
 // Initialize Room Lock Manager
 $lockManager = new RoomLockManager($conn);
 
@@ -16,7 +21,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' && !isset($_GET['error'])) {
     }
 }
 
-$selected_room_id = isset($_GET['room']) ? (int)$_GET['room'] : null;
+$selected_room_id = isset($_GET['room']) ? (int)$_GET['room'] : (isset($_GET['room_id']) ? (int)$_GET['room_id'] : null);
 $selected_room = null;
 
 if ($selected_room_id) {
@@ -142,6 +147,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 }
 
 $rooms = get_all_rooms();
+
+// Add timestamp for debugging
+$page_load_time = date('Y-m-d H:i:s');
+error_log("Booking page loaded at $page_load_time with " . count($rooms) . " rooms");
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -514,75 +523,56 @@ $rooms = get_all_rooms();
                             <form method="POST" action="" id="bookingForm" <?php echo !is_logged_in() ? 'style="pointer-events: none;"' : ''; ?>>
                                 <div class="mb-4">
                                     <label class="form-label fw-bold"><?php echo __('booking.select_room'); ?> *</label>
-                                    <select name="room_id" id="roomSelect" class="form-select" required style="font-size: 14px;">
+                                    <select name="room_id" id="roomSelect" class="form-select" required style="font-size: 14px;" data-timestamp="<?php echo time(); ?>">
                                         <option value=""><?php echo __('booking.select_room'); ?>...</option>
                                         
-                                        <optgroup label="Standard Single Room - ETB 2,000.00/night">
-                                            <option value="1" data-price="2000" data-capacity="1">Standard Single Room Number 1 - ETB 2,000.00/night</option>
-                                            <option value="2" data-price="2000" data-capacity="1">Standard Single Room Number 2 - ETB 2,000.00/night</option>
-                                            <option value="3" data-price="2000" data-capacity="1">Standard Single Room Number 3 - ETB 2,000.00/night</option>
-                                            <option value="4" data-price="2000" data-capacity="1">Standard Single Room Number 4 - ETB 2,000.00/night</option>
-                                        </optgroup>
+                                        <?php
+                                        // Get all rooms from database and group by type
+                                        // Force fresh data by clearing any potential caching
+                                        $all_rooms = get_all_rooms();
                                         
-                                        <optgroup label="Standard Double Room - ETB 2,500.00/night">
-                                            <option value="5" data-price="2500" data-capacity="2">Standard Double Room Number 5 - ETB 2,500.00/night</option>
-                                            <option value="6" data-price="2500" data-capacity="2">Standard Double Room Number 6 - ETB 2,500.00/night</option>
-                                            <option value="7" data-price="2500" data-capacity="2">Standard Double Room Number 7 - ETB 2,500.00/night</option>
-                                            <option value="8" data-price="2500" data-capacity="2">Standard Double Room Number 8 - ETB 2,500.00/night</option>
-                                        </optgroup>
-                                        
-                                        <optgroup label="Deluxe Single Room - ETB 3,000.00/night">
-                                            <option value="9" data-price="3000" data-capacity="1">Deluxe Single Room Number 9 - ETB 3,000.00/night</option>
-                                            <option value="10" data-price="3000" data-capacity="1">Deluxe Single Room Number 10 - ETB 3,000.00/night</option>
-                                            <option value="11" data-price="3000" data-capacity="1">Deluxe Single Room Number 11 - ETB 3,000.00/night</option>
-                                            <option value="12" data-price="3000" data-capacity="1">Deluxe Single Room Number 12 - ETB 3,000.00/night</option>
-                                        </optgroup>
-                                        
-                                        <optgroup label="Deluxe Double Room - ETB 3,500.00/night">
-                                            <option value="13" data-price="3500" data-capacity="2">Deluxe Double Room Number 13 - ETB 3,500.00/night</option>
-                                            <option value="14" data-price="3500" data-capacity="2">Deluxe Double Room Number 14 - ETB 3,500.00/night</option>
-                                            <option value="15" data-price="3500" data-capacity="2">Deluxe Double Room Number 15 - ETB 3,500.00/night</option>
-                                            <option value="16" data-price="3500" data-capacity="2">Deluxe Double Room Number 16 - ETB 3,500.00/night</option>
-                                        </optgroup>
-                                        
-                                        <optgroup label="Double (King Size) - ETB 3,000.00/night">
-                                            <option value="17" data-price="3000" data-capacity="2">Double (King Size) Room Number 17 - ETB 3,000.00/night</option>
-                                            <option value="18" data-price="3000" data-capacity="2">Double (King Size) Room Number 18 - ETB 3,000.00/night</option>
-                                            <option value="19" data-price="3000" data-capacity="2">Double (King Size) Room Number 19 - ETB 3,000.00/night</option>
-                                            <option value="20" data-price="3000" data-capacity="2">Double (King Size) Room Number 20 - ETB 3,000.00/night</option>
-                                        </optgroup>
-                                        
-                                        <optgroup label="Suite Room - ETB 4,000.00/night">
-                                            <option value="21" data-price="4000" data-capacity="3">Suite Room Number 21 - ETB 4,000.00/night</option>
-                                            <option value="22" data-price="4000" data-capacity="3">Suite Room Number 22 - ETB 4,000.00/night</option>
-                                            <option value="23" data-price="4000" data-capacity="3">Suite Room Number 23 - ETB 4,000.00/night</option>
-                                            <option value="24" data-price="4000" data-capacity="3">Suite Room Number 24 - ETB 4,000.00/night</option>
-                                            <option value="25" data-price="4000" data-capacity="3">Suite Room Number 25 - ETB 4,000.00/night</option>
-                                            <option value="26" data-price="4000" data-capacity="3">Suite Room Number 26 - ETB 4,000.00/night</option>
-                                            <option value="27" data-price="4000" data-capacity="3">Suite Room Number 27 - ETB 4,000.00/night</option>
-                                            <option value="28" data-price="4000" data-capacity="3">Suite Room Number 28 - ETB 4,000.00/night</option>
-                                        </optgroup>
-                                        
-                                        <optgroup label="Family (Team Bed) - ETB 4,000.00/night">
-                                            <option value="29" data-price="4000" data-capacity="4">Family (Team Bed) Room Number 29 - ETB 4,000.00/night</option>
-                                            <option value="30" data-price="4000" data-capacity="4">Family (Team Bed) Room Number 30 - ETB 4,000.00/night</option>
-                                            <option value="31" data-price="4000" data-capacity="4">Family (Team Bed) Room Number 31 - ETB 4,000.00/night</option>
-                                            <option value="32" data-price="4000" data-capacity="4">Family (Team Bed) Room Number 32 - ETB 4,000.00/night</option>
-                                        </optgroup>
-                                        
-                                        <optgroup label="Executive Suite - ETB 6,000.00/night">
-                                            <option value="33" data-price="6000" data-capacity="3">Executive Suite Room Number 33 - ETB 6,000.00/night</option>
-                                            <option value="34" data-price="6000" data-capacity="3">Executive Suite Room Number 34 - ETB 6,000.00/night</option>
-                                            <option value="35" data-price="6000" data-capacity="3">Executive Suite Room Number 35 - ETB 6,000.00/night</option>
-                                            <option value="36" data-price="6000" data-capacity="3">Executive Suite Room Number 36 - ETB 6,000.00/night</option>
-                                            <option value="37" data-price="6000" data-capacity="3">Executive Suite Room Number 37 - ETB 6,000.00/night</option>
-                                        </optgroup>
-                                        
-                                        <optgroup label="Presidential Suite - ETB 8,000.00/night">
-                                            <option value="38" data-price="8000" data-capacity="4">Presidential Suite Room Number 38 - ETB 8,000.00/night</option>
-                                            <option value="39" data-price="8000" data-capacity="4">Presidential Suite Room Number 39 - ETB 8,000.00/night</option>
-                                        </optgroup>
+                                        // Debug: Show total rooms found
+                                        if (empty($all_rooms)) {
+                                            echo '<option disabled>No active rooms found in database</option>';
+                                        } else {
+                                            $rooms_by_type = [];
+                                            
+                                            foreach ($all_rooms as $room) {
+                                                $rooms_by_type[$room['name']][] = $room;
+                                            }
+                                            
+                                            // Display rooms grouped by type
+                                            foreach ($rooms_by_type as $room_type_name => $rooms_in_type):
+                                                $first_room = $rooms_in_type[0];
+                                                $price_formatted = number_format($first_room['price'], 2);
+                                            ?>
+                                            <optgroup label="<?php echo htmlspecialchars($room_type_name); ?> - ETB <?php echo $price_formatted; ?>/night">
+                                                <?php foreach ($rooms_in_type as $room): ?>
+                                                <option value="<?php echo $room['id']; ?>" 
+                                                        data-price="<?php echo $room['price']; ?>" 
+                                                        data-capacity="<?php echo $room['capacity']; ?>">
+                                                    <?php echo htmlspecialchars($room['name']); ?> Number <?php echo $room['room_number']; ?> - ETB <?php echo number_format($room['price'], 2); ?>/night
+                                                </option>
+                                                <?php endforeach; ?>
+                                            </optgroup>
+                                            <?php 
+                                            endforeach;
+                                        }
+                                        ?>
                                     </select>
+                                    <!-- Debug info for admin users -->
+                                    <?php if (isset($_SESSION['user_role']) && $_SESSION['user_role'] === 'admin'): ?>
+                                    <small class="text-muted">
+                                        Found <?php echo count($all_rooms); ?> active rooms in database. 
+                                        Page loaded: <?php echo $page_load_time; ?>
+                                        <?php 
+                                        if (!empty($all_rooms)) {
+                                            $latest_room = end($all_rooms);
+                                            echo " | Latest room: " . $latest_room['name'] . " (#" . $latest_room['room_number'] . ")";
+                                        }
+                                        ?>
+                                    </small>
+                                    <?php endif; ?>
                                 </div>
                                 
                                 <div class="row">
@@ -669,6 +659,14 @@ $rooms = get_all_rooms();
         function formatCurrency(amount) {
             return 'ETB ' + parseFloat(amount).toFixed(2);
         }
+        
+        // Add cache-busting for room data
+        $(document).ready(function() {
+            // Force refresh of room dropdown if needed
+            if (window.location.search.includes('refresh_rooms=1')) {
+                location.reload(true);
+            }
+        });
     </script>
     <script>
         $(document).ready(function() {
@@ -744,6 +742,8 @@ $rooms = get_all_rooms();
             
             // Initial update if room is pre-selected
             <?php if ($selected_room): ?>
+            // Auto-select the room in dropdown
+            $('#roomSelect').val(<?php echo $selected_room_id; ?>);
             updateSummary();
             <?php endif; ?>
             

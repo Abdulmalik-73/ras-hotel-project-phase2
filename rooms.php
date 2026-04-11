@@ -3,6 +3,11 @@ session_start();
 require_once 'includes/config.php';
 require_once 'includes/functions.php';
 
+// Add cache-busting headers to ensure fresh data
+header("Cache-Control: no-cache, no-store, must-revalidate");
+header("Pragma: no-cache");
+header("Expires: 0");
+
 $rooms = get_all_rooms();
 ?>
 <!DOCTYPE html>
@@ -78,13 +83,22 @@ $rooms = get_all_rooms();
                 'inactive' => ['text' => __('rooms.not_available'), 'icon' => '⚫', 'class' => 'text-secondary', 'bookable' => false]
             ];
             
-            // Define room types with their ranges and details
-            $room_types = [
+            // Define room types with their ranges and details - DYNAMIC PRICES FROM DATABASE
+            $room_types = [];
+            
+            // Get actual room data from database
+            $rooms_data = get_all_rooms();
+            $rooms_by_number = [];
+            foreach ($rooms_data as $room) {
+                $rooms_by_number[$room['room_number']] = $room;
+            }
+            
+            // Define room type configurations (structure only - prices come from DB)
+            $room_type_configs = [
                 [
                     'name' => 'Standard Single Room',
                     'start' => 1,
                     'end' => 4,
-                    'price' => 2000,
                     'capacity' => 1,
                     'location' => 'G+3',
                     'description' => 'Cozy single room with modern amenities, perfect for solo travelers',
@@ -102,7 +116,6 @@ $rooms = get_all_rooms();
                     'name' => 'Standard Double Room',
                     'start' => 5,
                     'end' => 8,
-                    'price' => 2500,
                     'capacity' => 2,
                     'location' => 'G+3',
                     'description' => 'Comfortable double room with basic amenities for couples or friends',
@@ -120,7 +133,6 @@ $rooms = get_all_rooms();
                     'name' => 'Deluxe Single Room',
                     'start' => 9,
                     'end' => 12,
-                    'price' => 3000,
                     'capacity' => 1,
                     'location' => 'G+2',
                     'description' => 'Spacious single room with premium amenities and city views',
@@ -138,7 +150,6 @@ $rooms = get_all_rooms();
                     'name' => 'Deluxe Double Room',
                     'start' => 13,
                     'end' => 16,
-                    'price' => 3500,
                     'capacity' => 2,
                     'location' => 'G+2',
                     'description' => 'Premium double room with elegant furnishings and city views',
@@ -156,7 +167,6 @@ $rooms = get_all_rooms();
                     'name' => 'Double (King Size)',
                     'start' => 17,
                     'end' => 20,
-                    'price' => 3000,
                     'capacity' => 2,
                     'location' => 'G+1',
                     'description' => 'Luxurious room with king-size bed and modern amenities',
@@ -174,7 +184,6 @@ $rooms = get_all_rooms();
                     'name' => 'Suite Room',
                     'start' => 21,
                     'end' => 28,
-                    'price' => 4000,
                     'capacity' => 2,
                     'location' => 'G+1',
                     'description' => 'Spacious suite with separate living area and premium amenities',
@@ -196,7 +205,6 @@ $rooms = get_all_rooms();
                     'name' => 'Family (Team Bed)',
                     'start' => 29,
                     'end' => 32,
-                    'price' => 4000,
                     'capacity' => 4,
                     'location' => 'G+1',
                     'description' => 'Perfect for families with multiple beds and spacious layout',
@@ -214,7 +222,6 @@ $rooms = get_all_rooms();
                     'name' => 'Executive Suite',
                     'start' => 33,
                     'end' => 37,
-                    'price' => 6000,
                     'capacity' => 2,
                     'location' => 'G+2',
                     'description' => 'Luxurious suite with separate bedroom, living room, and executive amenities',
@@ -233,11 +240,10 @@ $rooms = get_all_rooms();
                     'name' => 'Presidential Suite',
                     'start' => 38,
                     'end' => 39,
-                    'price' => 8000,
                     'capacity' => 4,
                     'location' => 'G+3',
                     'description' => 'The ultimate luxury experience with panoramic views and exclusive services',
-                    'amenities' => ['Master Bedroom + Guest Room', 'Private Dining Area', 'Butler Service', 'Panoramic City Views'],
+                    'amenities' => ['Master Bedroom + Customer Room', 'Private Dining Area', 'Butler Service', 'Panoramic City Views'],
                     'images' => [
                         'assets/images/rooms/suite/room21.jpg',
                         'assets/images/rooms/deluxe/room.jpg'
@@ -246,6 +252,22 @@ $rooms = get_all_rooms();
                     'badge_class' => 'bg-danger'
                 ]
             ];
+            
+            // Merge database prices with room type configurations
+            foreach ($room_type_configs as &$room_type) {
+                // Get price from first room in the range (assuming same type rooms have same price)
+                $first_room_num = $room_type['start'];
+                if (isset($rooms_by_number[$first_room_num])) {
+                    $room_type['price'] = $rooms_by_number[$first_room_num]['price'];
+                } else {
+                    // Fallback to default price if room not found in database
+                    $room_type['price'] = 2000; // Default price
+                }
+            }
+            unset($room_type); // Break reference
+            
+            // Use the merged configurations
+            $room_types = $room_type_configs;
             
             // Generate all 39 rooms
             echo '<div class="row">';
@@ -286,7 +308,7 @@ $rooms = get_all_rooms();
                                 <!-- Capacity and Location -->
                                 <div class="mb-2 d-flex justify-content-between">
                                     <p class="mb-0">
-                                        <strong>Capacity:</strong> <?php echo $room_type['capacity']; ?> guest<?php echo $room_type['capacity'] > 1 ? 's' : ''; ?>
+                                        <strong>Capacity:</strong> <?php echo $room_type['capacity']; ?> customer<?php echo $room_type['capacity'] > 1 ? 's' : ''; ?>
                                     </p>
                                     <p class="mb-0">
                                         <strong>Location:</strong> <?php echo $room_type['location']; ?>
@@ -326,7 +348,7 @@ $rooms = get_all_rooms();
                                         <small class="text-muted text-center">
                                             <?php 
                                             if ($room_status == 'occupied') {
-                                                echo 'Currently occupied by guest';
+                                                echo 'Currently occupied by customer';
                                             } elseif ($room_status == 'maintenance') {
                                                 echo 'Room under maintenance';
                                             } elseif ($room_status == 'inactive') {
@@ -344,6 +366,175 @@ $rooms = get_all_rooms();
                 }
             }
             echo '</div>';
+            
+            // Add dynamic rooms section for rooms added by admin (room numbers > 39)
+            $dynamic_rooms = [];
+            foreach ($rooms_data as $room) {
+                $room_num = (int)$room['room_number'];
+                if ($room_num > 39) {
+                    $dynamic_rooms[] = $room;
+                }
+            }
+            
+            // Sort dynamic rooms by room number
+            usort($dynamic_rooms, function($a, $b) {
+                return (int)$a['room_number'] - (int)$b['room_number'];
+            });
+            
+            if (!empty($dynamic_rooms)) {
+                echo '<div class="row">';
+                
+                foreach ($dynamic_rooms as $room) {
+                    $room_num = $room['room_number'];
+                    $room_status = $room_statuses[$room_num] ?? 'available';
+                    $status_info = $status_config[$room_status];
+                    
+                    // Use room image from database or default
+                    $room_image = $room['image'] ? $room['image'] : 'assets/images/rooms/standard/room12.jpg';
+                    if (!file_exists($room_image)) {
+                        $room_image = 'assets/images/rooms/standard/room12.jpg';
+                    }
+                    
+                    // Determine badge based on room type
+                    $badge = '';
+                    $badge_class = '';
+                    switch (strtolower($room['room_type'])) {
+                        case 'presidential':
+                            $badge = 'Presidential';
+                            $badge_class = 'bg-danger';
+                            break;
+                        case 'executive':
+                            $badge = 'Executive';
+                            $badge_class = 'bg-primary';
+                            break;
+                        case 'suite':
+                            $badge = 'Premium';
+                            $badge_class = 'bg-info';
+                            break;
+                        case 'family':
+                            $badge = 'Family';
+                            $badge_class = 'bg-success';
+                            break;
+                        case 'deluxe':
+                            $badge = 'Popular';
+                            $badge_class = 'bg-warning';
+                            break;
+                    }
+                    
+                    $border_class = $badge ? 'border-' . str_replace('bg-', '', $badge_class) : '';
+                    ?>
+                    <div class="col-md-6 col-lg-4 mb-4">
+                        <div class="card h-100 shadow-sm <?php echo $border_class; ?>">
+                            <div class="position-relative">
+                                <img src="<?php echo $room_image; ?>" 
+                                     class="card-img-top" alt="Room <?php echo $room_num; ?>" 
+                                     style="height: 200px; object-fit: cover;">
+                                <?php if ($badge): ?>
+                                <div class="position-absolute top-0 end-0 m-2">
+                                    <span class="badge <?php echo $badge_class; ?>"><?php echo $badge; ?></span>
+                                </div>
+                                <?php endif; ?>
+                            </div>
+                            <div class="card-body">
+                                <h5 class="card-title"><?php echo htmlspecialchars($room['name']); ?><br>Room Number: <?php echo $room_num; ?></h5>
+                                <p class="mb-2">
+                                    <strong><?php echo __('rooms.room_status'); ?>:</strong> 
+                                    <span class="<?php echo $status_info['class']; ?>">
+                                        <?php echo $status_info['text']; ?> <?php echo $status_info['icon']; ?>
+                                    </span>
+                                </p>
+                                
+                                <!-- Capacity and Location -->
+                                <div class="mb-2 d-flex justify-content-between">
+                                    <p class="mb-0">
+                                        <strong>Capacity:</strong> <?php echo $room['capacity']; ?> customer<?php echo $room['capacity'] > 1 ? 's' : ''; ?>
+                                    </p>
+                                    <p class="mb-0">
+                                        <strong>Type:</strong> <?php echo ucfirst($room['room_type']); ?>
+                                    </p>
+                                </div>
+                                
+                                <!-- Description -->
+                                <?php if ($room['description']): ?>
+                                <div class="mb-2">
+                                    <p class="small text-muted"><?php echo htmlspecialchars($room['description']); ?></p>
+                                </div>
+                                <?php endif; ?>
+                                
+                                <!-- Services Section -->
+                                <div class="mb-2">
+                                    <p class="mb-1 small"><strong><?php echo __('rooms.services'); ?>:</strong></p>
+                                    <div class="d-flex flex-wrap gap-1">
+                                        <?php 
+                                        // Default amenities based on room type
+                                        $default_amenities = [];
+                                        switch (strtolower($room['room_type'])) {
+                                            case 'presidential':
+                                                $default_amenities = ['Master Bedroom', 'Private Dining Area', 'Butler Service', 'Panoramic City Views'];
+                                                break;
+                                            case 'executive':
+                                                $default_amenities = ['King Size Bed', 'Executive Lounge Access', 'Premium Amenities', 'Work Desk'];
+                                                break;
+                                            case 'suite':
+                                                $default_amenities = ['King Size Bed', 'Living Area', 'Premium WiFi', 'Mini Bar'];
+                                                break;
+                                            case 'family':
+                                                $default_amenities = ['Multiple Beds', 'Free WiFi', 'Smart TV', 'Extra Space'];
+                                                break;
+                                            case 'deluxe':
+                                                $default_amenities = ['Queen Bed', 'Premium WiFi', 'Smart TV', 'Work Desk'];
+                                                break;
+                                            default:
+                                                $default_amenities = ['Free WiFi', 'Air Conditioning', 'Private Bathroom', 'Daily Housekeeping'];
+                                        }
+                                        
+                                        foreach ($default_amenities as $amenity): ?>
+                                            <span class="badge bg-light text-dark border" style="font-size: 0.7rem;"><?php echo $amenity; ?></span>
+                                        <?php endforeach; ?>
+                                    </div>
+                                </div>
+                                
+                                <div class="d-flex justify-content-between align-items-center mt-3">
+                                    <span class="h5 text-gold mb-0">ETB <?php echo number_format($room['price'], 2); ?><small class="text-muted">/night</small></span>
+                                    <div class="d-flex flex-column gap-2">
+                                        <?php if ($status_info['bookable']): ?>
+                                        <button class="btn btn-sm btn-outline-primary" onclick="addToCart(<?php echo $room['id']; ?>, '<?php echo addslashes($room['name']); ?>', <?php echo $room['price']; ?>)">
+                                            <i class="fas fa-shopping-cart"></i> <?php echo __('rooms.add_to_cart'); ?>
+                                        </button>
+                                        <?php if (!is_logged_in()): ?>
+                                        <button class="btn btn-sm btn-outline-gold" onclick="showLoginPrompt('room')">
+                                            <i class="fas fa-lock"></i> <?php echo __('nav.login'); ?>
+                                        </button>
+                                        <?php else: ?>
+                                        <a href="booking.php?room=<?php echo $room['id']; ?>" class="btn btn-sm btn-gold">
+                                            <i class="fas fa-calendar-check"></i> <?php echo __('rooms.book_now'); ?>
+                                        </a>
+                                        <?php endif; ?>
+                                        <?php else: ?>
+                                        <button class="btn btn-sm btn-secondary" disabled>
+                                            <i class="fas fa-ban"></i> <?php echo __('rooms.not_available'); ?>
+                                        </button>
+                                        <small class="text-muted text-center">
+                                            <?php 
+                                            if ($room_status == 'occupied') {
+                                                echo 'Currently occupied by customer';
+                                            } elseif ($room_status == 'maintenance') {
+                                                echo 'Room under maintenance';
+                                            } elseif ($room_status == 'inactive') {
+                                                echo 'Room temporarily closed';
+                                            }
+                                            ?>
+                                        </small>
+                                        <?php endif; ?>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <?php
+                }
+                echo '</div>';
+            }
             ?>
             
             <div class="text-center mt-4">
@@ -435,6 +626,16 @@ $rooms = get_all_rooms();
         // Override formatCurrency function to ensure ETB display
         function formatCurrency(amount) {
             return 'ETB ' + parseFloat(amount).toFixed(2);
+        }
+        
+        // Update all currency displays to use ETB
+        function updateCurrencyDisplay() {
+            // Update any existing currency displays on the page
+            const currencyElements = document.querySelectorAll('[data-currency]');
+            currencyElements.forEach(element => {
+                const amount = parseFloat(element.dataset.currency);
+                element.textContent = formatCurrency(amount);
+            });
         }
         
         // Fix room layout on page load

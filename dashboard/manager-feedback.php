@@ -3,7 +3,7 @@ session_start();
 require_once '../includes/config.php';
 require_once '../includes/functions.php';
 
-require_role('manager');
+require_auth_role('manager', '../login.php');
 
 $success = '';
 $error = '';

@@ -8,7 +8,7 @@ require_once 'includes/functions.php';
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Shopping Cart - Ras Hotel</title>
+    <title>Shopping Cart - Harar Ras Hotel</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <link rel="stylesheet" href="assets/css/style.css">
@@ -59,21 +59,30 @@ require_once 'includes/functions.php';
                 <!-- Cart Items List -->
                 <div id="cartItems" style="display: none;">
                     <div class="row">
-                        <div class="col-lg-8">
-                            <div class="card border-0 shadow-sm">
-                                <div class="card-header bg-gold text-white">
-                                    <h5 class="mb-0"><i class="fas fa-shopping-cart me-2"></i>Cart Items</h5>
-                                </div>
-                                <div class="card-body p-0">
-                                    <div id="cartItemsList">
-                                        <!-- Cart items will be populated here -->
-                                    </div>
-                                </div>
+                        <div class="col-12">
+                            <h4 class="mb-4"><i class="fas fa-shopping-cart me-2"></i>Your Selected Items</h4>
+                            <div id="cartItemsList" class="row">
+                                <!-- Cart items will be populated here -->
                             </div>
                         </div>
-                        
+                    </div>
+                    
+                    <!-- Cart Summary -->
+                    <div class="row mt-5">
+                        <div class="col-lg-8">
+                            <div class="d-flex gap-3">
+                                <a href="rooms.php" class="btn btn-outline-gold">
+                                    <i class="fas fa-plus me-2"></i>Add More Rooms
+                                </a>
+                                <a href="services.php" class="btn btn-outline-gold">
+                                    <i class="fas fa-plus me-2"></i>Add Services
+                                </a>
+                                <button class="btn btn-outline-danger" onclick="clearCart()">
+                                    <i class="fas fa-trash me-2"></i>Clear Cart
+                                </button>
+                            </div>
+                        </div>
                         <div class="col-lg-4">
-                            <!-- Cart Summary -->
                             <div class="card border-0 shadow-sm">
                                 <div class="card-header bg-light">
                                     <h5 class="mb-0"><i class="fas fa-calculator me-2"></i>Order Summary</h5>
@@ -81,42 +90,16 @@ require_once 'includes/functions.php';
                                 <div class="card-body">
                                     <div class="d-flex justify-content-between mb-2">
                                         <span>Subtotal:</span>
-                                        <span id="cartSubtotal">$0.00</span>
+                                        <span id="cartSubtotal">ETB 0.00</span>
                                     </div>
                                     <div class="d-flex justify-content-between mb-2">
                                         <span>Tax (10%):</span>
-                                        <span id="cartTax">$0.00</span>
+                                        <span id="cartTax">ETB 0.00</span>
                                     </div>
                                     <hr>
                                     <div class="d-flex justify-content-between fw-bold fs-5">
                                         <span>Total:</span>
-                                        <span id="cartTotal" class="text-gold">$0.00</span>
-                                    </div>
-                                    
-                                    <div class="mt-4">
-                                        <?php if (is_logged_in()): ?>
-                                            <button class="btn btn-gold w-100 mb-2" onclick="proceedToCheckout()">
-                                                <i class="fas fa-credit-card me-2"></i>Proceed to Checkout
-                                            </button>
-                                        <?php else: ?>
-                                            <a href="login.php?redirect=cart" class="btn btn-gold w-100 mb-2">
-                                                <i class="fas fa-sign-in-alt me-2"></i>Login to Checkout
-                                            </a>
-                                        <?php endif; ?>
-                                        <button class="btn btn-outline-secondary w-100" onclick="clearCart()">
-                                            <i class="fas fa-trash me-2"></i>Clear Cart
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <!-- Promo Code -->
-                            <div class="card border-0 shadow-sm mt-3">
-                                <div class="card-body">
-                                    <h6 class="mb-3"><i class="fas fa-tag me-2"></i>Promo Code</h6>
-                                    <div class="input-group">
-                                        <input type="text" class="form-control" placeholder="Enter promo code" id="promoCode">
-                                        <button class="btn btn-outline-gold" onclick="applyPromoCode()">Apply</button>
+                                        <span id="cartTotal" class="text-gold">ETB 0.00</span>
                                     </div>
                                 </div>
                             </div>
@@ -143,7 +126,7 @@ require_once 'includes/functions.php';
             updateCartBadge();
         });
         
-        function loadCart() {
+        async function loadCart() {
             const cartContainer = document.getElementById('cartContainer');
             const emptyCart = document.getElementById('emptyCart');
             const cartItems = document.getElementById('cartItems');
@@ -161,42 +144,174 @@ require_once 'includes/functions.php';
             let cartHTML = '';
             let subtotal = 0;
             
-            cart.forEach((item, index) => {
-                const itemTotal = item.price * (item.quantity || 1);
-                subtotal += itemTotal;
+            // Get room details for each cart item
+            for (let i = 0; i < cart.length; i++) {
+                const item = cart[i];
                 
-                cartHTML += `
-                    <div class="border-bottom p-3">
-                        <div class="row align-items-center">
-                            <div class="col-md-6">
-                                <h6 class="mb-1">${item.name || item.roomName}</h6>
-                                <small class="text-muted">
-                                    ${item.roomNumber ? `Room #${item.roomNumber}` : ''}
-                                    ${item.category ? `Category: ${item.category}` : ''}
-                                </small>
-                            </div>
-                            <div class="col-md-2 text-center">
-                                <div class="input-group input-group-sm">
-                                    <button class="btn btn-outline-secondary" onclick="updateQuantity(${index}, -1)">-</button>
-                                    <input type="text" class="form-control text-center" value="${item.quantity || 1}" readonly>
-                                    <button class="btn btn-outline-secondary" onclick="updateQuantity(${index}, 1)">+</button>
+                if (item.type === 'room') {
+                    try {
+                        // Fetch room details from database
+                        const response = await fetch(`api/get_room_details.php?id=${item.id}`);
+                        const roomData = await response.json();
+                        
+                        if (roomData.success) {
+                            const room = roomData.room;
+                            const itemTotal = room.price * (item.quantity || 1);
+                            subtotal += itemTotal;
+                            
+                            // Determine badge based on room type
+                            let badge = '';
+                            let badgeClass = '';
+                            switch (room.room_type.toLowerCase()) {
+                                case 'presidential':
+                                    badge = 'Presidential';
+                                    badgeClass = 'bg-danger';
+                                    break;
+                                case 'executive':
+                                    badge = 'Executive';
+                                    badgeClass = 'bg-primary';
+                                    break;
+                                case 'suite':
+                                    badge = 'Premium';
+                                    badgeClass = 'bg-info';
+                                    break;
+                                case 'family':
+                                    badge = 'Family';
+                                    badgeClass = 'bg-success';
+                                    break;
+                                case 'deluxe':
+                                    badge = 'Popular';
+                                    badgeClass = 'bg-warning';
+                                    break;
+                            }
+                            
+                            // Default amenities based on room type
+                            let amenities = [];
+                            switch (room.room_type.toLowerCase()) {
+                                case 'presidential':
+                                    amenities = ['Master Bedroom', 'Private Dining Area', 'Butler Service', 'Panoramic City Views'];
+                                    break;
+                                case 'executive':
+                                    amenities = ['King Size Bed', 'Executive Lounge Access', 'Premium Amenities', 'Work Desk'];
+                                    break;
+                                case 'suite':
+                                    amenities = ['King Size Bed', 'Living Area', 'Premium WiFi', 'Mini Bar'];
+                                    break;
+                                case 'family':
+                                    amenities = ['Multiple Beds', 'Free WiFi', 'Smart TV', 'Extra Space'];
+                                    break;
+                                case 'deluxe':
+                                    amenities = ['Queen Bed', 'Premium WiFi', 'Smart TV', 'Work Desk'];
+                                    break;
+                                default:
+                                    amenities = ['Free WiFi', 'Air Conditioning', 'Private Bathroom', 'Daily Housekeeping'];
+                            }
+                            
+                            const roomImage = room.image || 'assets/images/rooms/standard/room12.jpg';
+                            const isLoggedIn = <?php echo is_logged_in() ? 'true' : 'false'; ?>;
+                            
+                            cartHTML += `
+                                <div class="col-md-6 col-lg-4 mb-4">
+                                    <div class="card h-100 shadow-sm">
+                                        <div class="position-relative">
+                                            <img src="${roomImage}" class="card-img-top" alt="Room ${room.room_number}" style="height: 200px; object-fit: cover;">
+                                            ${badge ? `<div class="position-absolute top-0 end-0 m-2"><span class="badge ${badgeClass}">${badge}</span></div>` : ''}
+                                            <div class="position-absolute top-0 start-0 m-2">
+                                                <span class="badge bg-success"><i class="fas fa-shopping-cart"></i> In Cart</span>
+                                            </div>
+                                        </div>
+                                        <div class="card-body">
+                                            <h5 class="card-title">${room.name}<br>Room Number: ${room.room_number}</h5>
+                                            <p class="mb-2">
+                                                <strong>Room Status:</strong> 
+                                                <span class="text-success">Available <i class="fas fa-check-circle"></i></span>
+                                            </p>
+                                            
+                                            <div class="mb-2 d-flex justify-content-between">
+                                                <p class="mb-0">
+                                                    <strong>Capacity:</strong> ${room.capacity} customer${room.capacity > 1 ? 's' : ''}
+                                                </p>
+                                                <p class="mb-0">
+                                                    <strong>Type:</strong> ${room.room_type.charAt(0).toUpperCase() + room.room_type.slice(1)}
+                                                </p>
+                                            </div>
+                                            
+                                            ${room.description ? `<div class="mb-2"><p class="small text-muted">${room.description}</p></div>` : ''}
+                                            
+                                            <div class="mb-2">
+                                                <p class="mb-1 small"><strong>Services:</strong></p>
+                                                <div class="d-flex flex-wrap gap-1">
+                                                    ${amenities.map(amenity => `<span class="badge bg-light text-dark border" style="font-size: 0.7rem;">${amenity}</span>`).join('')}
+                                                </div>
+                                            </div>
+                                            
+                                            <div class="d-flex justify-content-between align-items-center mt-3">
+                                                <span class="h5 text-gold mb-0">ETB ${parseFloat(room.price).toFixed(2)}<small class="text-muted">/night</small></span>
+                                                <div class="d-flex flex-column gap-2">
+                                                    ${!isLoggedIn ? 
+                                                        `<a href="login.php?redirect=booking&room=${room.id}" class="btn btn-sm btn-gold">
+                                                            <i class="fas fa-sign-in-alt"></i> Login to Book
+                                                        </a>` :
+                                                        `<a href="booking.php?room=${room.id}" class="btn btn-sm btn-gold">
+                                                            <i class="fas fa-calendar-check"></i> Book Now
+                                                        </a>`
+                                                    }
+                                                    <button class="btn btn-sm btn-outline-danger" onclick="removeFromCart(${i})">
+                                                        <i class="fas fa-trash"></i> Remove
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
+                        }
+                    } catch (error) {
+                        console.error('Error fetching room details:', error);
+                        // Fallback to basic display
+                        const itemTotal = item.price * (item.quantity || 1);
+                        subtotal += itemTotal;
+                        
+                        cartHTML += `
+                            <div class="col-md-6 col-lg-4 mb-4">
+                                <div class="card h-100 shadow-sm">
+                                    <div class="card-body">
+                                        <h5 class="card-title">${item.name}</h5>
+                                        <p class="text-muted">Room details unavailable</p>
+                                        <div class="d-flex justify-content-between align-items-center mt-3">
+                                            <span class="h5 text-gold mb-0">ETB ${parseFloat(item.price).toFixed(2)}</span>
+                                            <button class="btn btn-sm btn-outline-danger" onclick="removeFromCart(${i})">
+                                                <i class="fas fa-trash"></i> Remove
+                                            </button>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
-                            <div class="col-md-2 text-center">
-                                <span class="fw-bold">$${item.price.toFixed(2)}</span>
-                            </div>
-                            <div class="col-md-2 text-center">
-                                <span class="fw-bold text-gold">$${itemTotal.toFixed(2)}</span>
-                            </div>
-                            <div class="col-md-1 text-center">
-                                <button class="btn btn-sm btn-outline-danger" onclick="removeFromCart(${index})">
-                                    <i class="fas fa-trash"></i>
-                                </button>
+                        `;
+                    }
+                } else {
+                    // Handle non-room items (services, food, etc.)
+                    const itemTotal = item.price * (item.quantity || 1);
+                    subtotal += itemTotal;
+                    
+                    cartHTML += `
+                        <div class="col-md-6 col-lg-4 mb-4">
+                            <div class="card h-100 shadow-sm">
+                                <div class="card-body">
+                                    <h5 class="card-title">${item.name}</h5>
+                                    <p class="text-muted">${item.type.charAt(0).toUpperCase() + item.type.slice(1)}</p>
+                                    <div class="d-flex justify-content-between align-items-center mt-3">
+                                        <span class="h5 text-gold mb-0">ETB ${parseFloat(item.price).toFixed(2)}</span>
+                                        <button class="btn btn-sm btn-outline-danger" onclick="removeFromCart(${i})">
+                                            <i class="fas fa-trash"></i> Remove
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                `;
-            });
+                    `;
+                }
+            }
             
             cartItemsList.innerHTML = cartHTML;
             updateCartSummary(subtotal);
@@ -206,21 +321,9 @@ require_once 'includes/functions.php';
             const tax = subtotal * 0.1;
             const total = subtotal + tax;
             
-            document.getElementById('cartSubtotal').textContent = `$${subtotal.toFixed(2)}`;
-            document.getElementById('cartTax').textContent = `$${tax.toFixed(2)}`;
-            document.getElementById('cartTotal').textContent = `$${total.toFixed(2)}`;
-        }
-        
-        function updateQuantity(index, change) {
-            if (cart[index]) {
-                cart[index].quantity = (cart[index].quantity || 1) + change;
-                if (cart[index].quantity <= 0) {
-                    cart.splice(index, 1);
-                }
-                localStorage.setItem('hotelCart', JSON.stringify(cart));
-                loadCart();
-                updateCartBadge();
-            }
+            document.getElementById('cartSubtotal').textContent = `ETB ${subtotal.toFixed(2)}`;
+            document.getElementById('cartTax').textContent = `ETB ${tax.toFixed(2)}`;
+            document.getElementById('cartTotal').textContent = `ETB ${total.toFixed(2)}`;
         }
         
         function removeFromCart(index) {
@@ -246,48 +349,28 @@ require_once 'includes/functions.php';
         function updateCartBadge() {
             const badge = document.querySelector('.cart-badge');
             if (badge) {
-                badge.textContent = cart.length;
-                badge.style.display = cart.length > 0 ? 'inline-block' : 'none';
-            }
-        }
-        
-        function proceedToCheckout() {
-            if (cart.length === 0) {
-                showNotification('Your cart is empty!', 'warning');
-                return;
-            }
-            
-            // Store cart data in session and redirect to booking
-            localStorage.setItem('checkoutCart', JSON.stringify(cart));
-            window.location.href = 'checkout.php';
-        }
-        
-        function applyPromoCode() {
-            const promoCode = document.getElementById('promoCode').value.trim();
-            if (promoCode) {
-                // Here you can add promo code validation logic
-                showNotification('Promo code functionality coming soon!', 'info');
+                const totalItems = cart.reduce((sum, item) => sum + (item.quantity || 1), 0);
+                badge.textContent = totalItems;
+                badge.style.display = totalItems > 0 ? 'inline-block' : 'none';
             }
         }
         
         function showNotification(message, type = 'info') {
-            // Create notification element
             const notification = document.createElement('div');
             notification.className = `alert alert-${type === 'success' ? 'success' : type === 'warning' ? 'warning' : type === 'error' ? 'danger' : 'info'} alert-dismissible fade show position-fixed`;
             notification.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
             notification.innerHTML = `
-                ${message}
+                <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'warning' ? 'exclamation-triangle' : 'info-circle'}"></i> ${message}
                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             `;
             
             document.body.appendChild(notification);
             
-            // Auto remove after 3 seconds
             setTimeout(() => {
                 if (notification.parentNode) {
                     notification.remove();
                 }
-            }, 3000);
+            }, 4000);
         }
     </script>
 </body>

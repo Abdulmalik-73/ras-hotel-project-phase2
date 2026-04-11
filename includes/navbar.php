@@ -23,6 +23,7 @@
                         <li><a class="dropdown-item" href="services.php#spa"><i class="fas fa-spa me-2"></i> <?php echo __('services.spa'); ?></a></li>
                         <li><a class="dropdown-item" href="services.php#laundry"><i class="fas fa-tshirt me-2"></i> <?php echo __('services.laundry'); ?></a></li>
                         <li><a class="dropdown-item" href="services.php#amenities"><i class="fas fa-concierge-bell me-2"></i> <?php echo __('services.room_service'); ?></a></li>
+                        <li><a class="dropdown-item" href="services.php#amenities"><i class="fas fa-hotel me-2"></i> Hotel Amenities</a></li>
                     </ul>
                 </li>
                 <?php if (!is_logged_in()): ?>
@@ -40,18 +41,18 @@
                         </a>
                         <ul class="dropdown-menu" aria-labelledby="bookingDropdown">
                             <li><a class="dropdown-item" href="booking.php"><i class="fas fa-bed"></i> <?php echo __('booking.book_room'); ?></a></li>
-                            <li><a class="dropdown-item" href="food-booking.php"><i class="fas fa-utensils"></i> <?php echo __('booking.order_food'); ?></a></li>
+                            <li><a class="dropdown-item" href="services.php#restaurant"><i class="fas fa-utensils"></i> <?php echo __('booking.order_food'); ?></a></li>
                         </ul>
                     </li>
                     <?php endif; ?>
                 <?php else: ?>
                     <li class="nav-item dropdown">
-                        <a class="btn btn-gold btn-sm ms-2 dropdown-toggle" href="#" id="bookingDropdownGuest" role="button" data-bs-toggle="dropdown" aria-expanded="false" title="<?php echo __('rooms.login_to_book'); ?>">
+                        <a class="btn btn-gold btn-sm ms-2 dropdown-toggle" href="#" id="bookingDropdownCustomer" role="button" data-bs-toggle="dropdown" aria-expanded="false" title="<?php echo __('rooms.login_to_book'); ?>">
                             <i class="fas fa-calendar-check"></i> <?php echo __('nav.book_now'); ?>
                         </a>
                         <ul class="dropdown-menu" aria-labelledby="bookingDropdownGuest">
                             <li><a class="dropdown-item" href="booking.php"><i class="fas fa-bed"></i> <?php echo __('booking.book_room'); ?></a></li>
-                            <li><a class="dropdown-item" href="food-booking.php"><i class="fas fa-utensils"></i> <?php echo __('booking.order_food'); ?></a></li>
+                            <li><a class="dropdown-item" href="services.php#restaurant"><i class="fas fa-utensils"></i> <?php echo __('booking.order_food'); ?></a></li>
                         </ul>
                     </li>
                 <?php endif; ?>
@@ -242,6 +243,8 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function switchLanguage(lang) {
+    console.log('Switching language to:', lang);
+    
     // Show loading indicator
     const languageLinks = document.querySelectorAll('.language-submenu a');
     languageLinks.forEach(link => {
@@ -255,18 +258,24 @@ function switchLanguage(lang) {
         headers: {'Content-Type': 'application/x-www-form-urlencoded'},
         body: 'lang=' + lang
     })
-    .then(response => response.json())
+    .then(response => {
+        console.log('Response status:', response.status);
+        return response.json();
+    })
     .then(data => {
+        console.log('Response data:', data);
         if (data.success) {
+            console.log('Language changed successfully, reloading page...');
             location.reload();
         } else {
-            alert('Failed to change language');
+            console.error('Failed to change language:', data.message);
+            alert('Failed to change language: ' + data.message);
             location.reload();
         }
     })
     .catch(error => {
         console.error('Error:', error);
-        alert('Error changing language');
+        alert('Error changing language: ' + error.message);
         location.reload();
     });
 }

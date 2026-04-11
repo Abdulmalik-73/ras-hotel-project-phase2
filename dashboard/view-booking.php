@@ -7,7 +7,7 @@ session_start();
 require_once '../includes/config.php';
 require_once '../includes/functions.php';
 
-require_role('admin');
+require_auth_role('admin', '../login.php');
 
 $booking_id = (int)($_GET['id'] ?? 0);
 $message = '';
@@ -51,7 +51,7 @@ $query = "SELECT b.*,
           COALESCE(r.name, 'Food Order') as room_name, 
           COALESCE(r.room_number, 'N/A') as room_number,
           r.price as room_price,
-          CONCAT(u.first_name, ' ', u.last_name) as guest_name,
+          CONCAT(u.first_name, ' ', u.last_name) as customer_name,
           u.email, u.phone, u.address
           FROM bookings b
           LEFT JOIN rooms r ON b.room_id = r.id
@@ -88,6 +88,7 @@ if (!empty($booking['check_in_date']) && !empty($booking['check_out_date'])) {
     <title>View Booking - Admin Dashboard</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="../assets/css/print.css">
     <style>
         body { background: #f8f9fa; }
         .booking-card { background: white; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
@@ -100,7 +101,7 @@ if (!empty($booking['check_in_date']) && !empty($booking['check_out_date'])) {
     </style>
 </head>
 <body>
-    <div class="container py-4">
+    <div class="container py-4 single-page-print">
         <div class="booking-card p-4">
             <div class="d-flex justify-content-between align-items-center mb-4 no-print">
                 <h2><i class="fas fa-file-alt me-2"></i> Booking Details</h2>
@@ -181,14 +182,14 @@ if (!empty($booking['check_in_date']) && !empty($booking['check_out_date'])) {
                 </div>
             </div>
             
-            <!-- Guest Information -->
+            <!-- Customer Information -->
             <div class="mb-4">
-                <h4 class="section-title">Guest Information</h4>
+                <h4 class="section-title">Customer Information</h4>
                 <div class="row">
                     <div class="col-md-6">
                         <div class="info-row">
                             <div class="info-label">Name</div>
-                            <div><?php echo htmlspecialchars($booking['guest_name'] ?? ''); ?></div>
+                            <div><?php echo htmlspecialchars($booking['customer_name'] ?? ''); ?></div>
                         </div>
                         <div class="info-row">
                             <div class="info-label">Email</div>
@@ -232,8 +233,8 @@ if (!empty($booking['check_in_date']) && !empty($booking['check_out_date'])) {
                             <div><?php echo $nights; ?> night<?php echo $nights > 1 ? 's' : ''; ?></div>
                         </div>
                         <div class="info-row">
-                            <div class="info-label">Number of Guests</div>
-                            <div><?php echo $booking['customers']; ?> guest<?php echo $booking['customers'] > 1 ? 's' : ''; ?></div>
+                            <div class="info-label">Number of Customers</div>
+                            <div><?php echo $booking['customers']; ?> customer<?php echo $booking['customers'] > 1 ? 's' : ''; ?></div>
                         </div>
                         <div class="info-row">
                             <div class="info-label">Room Rate per Night</div>

@@ -1,6 +1,9 @@
 <?php
+session_start();
 require_once '../includes/config.php';
-require_role('receptionist');
+require_once '../includes/functions.php';
+
+require_auth_role('receptionist', '../login.php');
 
 $checkin_id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 
@@ -45,6 +48,7 @@ $total_amount = $checkin['rate_per_night'] * $checkin['nights_stay'];
     <title>Check-In Details - Harar Ras Hotel</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="../assets/css/print.css">
     <style>
         .detail-section {
             background: #f8f9fa;
@@ -123,7 +127,7 @@ $total_amount = $checkin['rate_per_night'] * $checkin['nights_stay'];
         </div>
     </nav>
 
-    <div class="container py-4">
+    <div class="container py-4 single-page-print">
         <div class="row">
             <div class="col-12">
                 <!-- Success Alert -->

@@ -22,6 +22,12 @@ if (is_logged_in()) {
 $error = '';
 $success = '';
 
+// Check for OAuth errors
+if (isset($_SESSION['oauth_error'])) {
+    $error = $_SESSION['oauth_error'];
+    unset($_SESSION['oauth_error']);
+}
+
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $full_name = sanitize_input($_POST['full_name']);
     $email = sanitize_input($_POST['email']);
@@ -338,6 +344,54 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             text-decoration: none;
         }
         
+        .btn-google {
+            background: white;
+            color: #757575;
+            border: 2px solid #dadce0;
+            padding: 10px 18px;
+            border-radius: 8px;
+            font-weight: 500;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: block;
+            text-align: center;
+            width: 100%;
+            margin-bottom: 12px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .btn-google:hover {
+            background: #f8f9fa;
+            color: #3c4043;
+            border-color: #dadce0;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            text-decoration: none;
+        }
+        
+        .btn-google-disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            position: relative;
+        }
+        
+        .btn-google-disabled:hover {
+            background: white;
+            transform: none;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        .btn-google-disabled::after {
+            content: "⚙️";
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 14px;
+        }
+        
         .alert {
             border-radius: 8px;
             padding: 8px;
@@ -387,37 +441,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             font-weight: 500;
             position: relative;
             z-index: 1;
-        }
-        
-        .btn-oauth {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
-            padding: 10px;
-            border-radius: 8px;
-            font-weight: 600;
-            font-size: 13px;
-            text-decoration: none;
-            transition: all 0.3s ease;
-            border: 2px solid #e2e8f0;
-            background: white;
-            width: 100%;
-        }
-        
-        .btn-oauth:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
-            text-decoration: none;
-        }
-        
-        .btn-google {
-            color: #3c4043;
-        }
-        
-        .btn-google:hover {
-            border-color: #4285F4;
-            background: #f8f9fa;
         }
         
         .login-link {
@@ -509,7 +532,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         .form-group:nth-child(5) { animation-delay: 0.5s; }
         .button-group { animation: slideUp 0.6s ease-out 0.6s both; }
         .divider { animation: slideUp 0.6s ease-out 0.65s both; }
-        .btn-oauth { animation: slideUp 0.6s ease-out 0.7s both; }
         .login-link { animation: slideUp 0.6s ease-out 0.75s both; }
         
         @keyframes slideUp {
@@ -647,23 +669,51 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 </div>
             </form>
             
+            <!-- Google OAuth Button -->
             <div class="divider">
                 <span>or</span>
             </div>
             
-            <a href="oauth-login.php?provider=google<?php echo $redirect ? '&redirect=' . urlencode($redirect) . ($room_id ? '&room=' . $room_id : '') : ''; ?>" class="btn-oauth btn-google">
-                <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M17.64 9.20443C17.64 8.56625 17.5827 7.95262 17.4764 7.36353H9V10.8449H13.8436C13.635 11.9699 13.0009 12.9231 12.0477 13.5613V15.8194H14.9564C16.6582 14.2526 17.64 11.9453 17.64 9.20443Z" fill="#4285F4"/>
-                    <path d="M8.99976 18C11.4298 18 13.467 17.1941 14.9561 15.8195L12.0475 13.5613C11.2416 14.1013 10.2107 14.4204 8.99976 14.4204C6.65567 14.4204 4.67158 12.8372 3.96385 10.71H0.957031V13.0418C2.43794 15.9831 5.48158 18 8.99976 18Z" fill="#34A853"/>
-                    <path d="M3.96409 10.7098C3.78409 10.1698 3.68182 9.59301 3.68182 8.99983C3.68182 8.40665 3.78409 7.82983 3.96409 7.28983V4.95801H0.957273C0.347727 6.17301 0 7.54755 0 8.99983C0 10.4521 0.347727 11.8266 0.957273 13.0416L3.96409 10.7098Z" fill="#FBBC05"/>
-                    <path d="M8.99976 3.57955C10.3211 3.57955 11.5075 4.03364 12.4402 4.92545L15.0216 2.34409C13.4629 0.891818 11.4257 0 8.99976 0C5.48158 0 2.43794 2.01682 0.957031 4.95818L3.96385 7.29C4.67158 5.16273 6.65567 3.57955 8.99976 3.57955Z" fill="#EA4335"/>
+            <?php
+            // Check if Google OAuth is configured for real functionality
+            $oauth_configured = false;
+            if (file_exists('includes/services/GoogleOAuthService.php')):
+                require_once 'includes/services/GoogleOAuthService.php';
+                $oauth_service = new GoogleOAuthService($conn);
+                $oauth_configured = $oauth_service->isConfigured();
+                
+                if ($oauth_configured):
+                    // Prepare state parameter for redirect
+                    $state_params = [];
+                    if ($redirect) {
+                        $state_params['redirect'] = $redirect;
+                        if ($room_id) {
+                            $state_params['room'] = $room_id;
+                        }
+                    }
+                    $state = base64_encode(http_build_query($state_params));
+                    $google_auth_url = $oauth_service->getAuthUrl($state);
+            ?>
+            <a href="<?php echo htmlspecialchars($google_auth_url); ?>" class="btn-google">
+                <svg width="18" height="18" viewBox="0 0 24 24" style="margin-right: 8px; vertical-align: middle;">
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
                 </svg>
-                <span>Continue with Google</span>
+                Continue with Google
             </a>
-            
-            <div class="divider">
-                <span>or</span>
-            </div>
+            <?php else: ?>
+            <a href="#" onclick="showGoogleSetupInfo(); return false;" class="btn-google btn-google-disabled">
+                <svg width="18" height="18" viewBox="0 0 24 24" style="margin-right: 8px; vertical-align: middle; opacity: 0.5;">
+                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                </svg>
+                Continue with Google
+            </a>
+            <?php endif; endif; ?>
             
             <div class="login-link">
                 Already have an account? 
@@ -901,6 +951,17 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 }
             });
         });
+        
+        function showGoogleSetupInfo() {
+            alert('Google OAuth Setup Required:\n\n' +
+                  '1. Go to https://console.developers.google.com/\n' +
+                  '2. Create a new project\n' +
+                  '3. Enable Google+ API\n' +
+                  '4. Create OAuth 2.0 credentials\n' +
+                  '5. Add redirect URI: ' + window.location.origin + '/final%20project2/oauth-callback.php\n' +
+                  '6. Update .env file with your Client ID and Secret\n\n' +
+                  'Contact your developer for assistance.');
+        }
     </script>
 </body>
 </html>

@@ -3,6 +3,7 @@
 -- =====================================================
 -- Complete hotel management database with all features
 -- Database name: harar_ras_hotel
+-- UPDATED: Screenshot-only payment system (Chapa removed)
 -- Error-free and ready for production
 -- =====================================================
 
@@ -113,7 +114,7 @@ CREATE TABLE IF NOT EXISTS rooms (
 -- =====================================================
 
 -- Bookings Table (unified for rooms and food orders)
--- OPTIMIZED: All columns included in single CREATE TABLE statement
+-- UPDATED: Screenshot-only payment system
 CREATE TABLE IF NOT EXISTS bookings (
     id INT AUTO_INCREMENT PRIMARY KEY,
     user_id INT NOT NULL,
@@ -137,10 +138,10 @@ CREATE TABLE IF NOT EXISTS bookings (
     deposit_refunded DECIMAL(10, 2) DEFAULT 0.00,
     status ENUM('pending', 'confirmed', 'checked_in', 'checked_out', 'cancelled') DEFAULT 'pending',
     payment_status ENUM('pending', 'paid', 'refunded') DEFAULT 'pending',
-    payment_method VARCHAR(100) NULL,
+    payment_method VARCHAR(100) NULL COMMENT 'telebirr, cbe, abyssinia, cooperative',
     special_requests TEXT,
     checkout_notes TEXT,
-    -- Food order integration columns
+    -- Service booking integration
     booking_type ENUM('room', 'food_order', 'spa_service', 'laundry_service') DEFAULT 'room',
     payment_reference VARCHAR(50) NULL,
     payment_deadline TIMESTAMP NULL,
@@ -149,12 +150,21 @@ CREATE TABLE IF NOT EXISTS bookings (
     verified_at TIMESTAMP NULL,
     checked_in_by INT NULL,
     checked_out_by INT NULL,
-    payment_screenshot VARCHAR(255) NULL,
-    screenshot_uploaded_at TIMESTAMP NULL,
+    -- Screenshot Payment System (NEW)
+    screenshot_path VARCHAR(255) NULL COMMENT 'Path to uploaded payment screenshot',
+    screenshot_uploaded_at TIMESTAMP NULL COMMENT 'When screenshot was uploaded',
     rejection_reason TEXT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    
+    -- Indexes for performance
     INDEX idx_customer_name (customer_name),
     INDEX idx_customer_email (customer_email),
+    INDEX idx_booking_reference (booking_reference),
+    INDEX idx_verification_status (verification_status),
+    INDEX idx_payment_method (payment_method),
+    INDEX idx_screenshot_uploaded (screenshot_uploaded_at),
+    
+    -- Foreign keys
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE SET NULL,
     FOREIGN KEY (verified_by) REFERENCES users(id) ON DELETE SET NULL,
@@ -468,72 +478,28 @@ INSERT INTO hotel_settings (setting_key, setting_value, setting_type, descriptio
 ON DUPLICATE KEY UPDATE setting_key=setting_key;
 
 -- =====================================================
--- STEP 6: INSERT PAYMENT METHODS (FIXED)
+-- =====================================================
+-- STEP 6: INSERT PAYMENT METHODS (SCREENSHOT UPLOAD SYSTEM)
 -- =====================================================
 
 INSERT INTO payment_method_instructions 
 (method_code, method_name, bank_name, account_number, account_holder_name, mobile_number, payment_instructions, verification_tips, display_order) 
 VALUES
-('telebirr', 'TeleBirr', 'Ethio Telecom', '0973409026', 'Abdulmalik Nure', NULL, 
-'1. Open TeleBirr app
-2. Select Send Money
-3. Enter amount: {AMOUNT}
-4. Enter recipient: 0973409026
-5. Add reference: {REFERENCE}
-6. Complete transaction
-7. Take screenshot of confirmation', 
+('telebirr', 'TeleBirr', 'Ethio Telecom', '0973409026', 'Harar Ras Hotel', NULL, 
+'1. Open TeleBirr app\n2. Select Send Money\n3. Enter amount\n4. Enter recipient: 0973409026\n5. Add reference code\n6. Complete transaction\n7. Take screenshot of confirmation\n8. Upload screenshot on payment page', 
 'Ensure the screenshot shows the exact amount, recipient number, reference code, and successful transaction status.', 1),
 
-('cbe_mobile', 'CBE Mobile Banking', 'Commercial Bank of Ethiopia', '1000-1234-5678-90', 'Harar Ras Hotel', NULL, 
-'1. Open CBE Mobile app
-2. Login to your account
-3. Select Transfer Money
-4. Enter amount: {AMOUNT}
-5. Enter account: 1000-1234-5678-90
-6. Add reference: {REFERENCE}
-7. Complete transfer
-8. Take screenshot', 
+('cbe', 'CBE Mobile Banking', 'Commercial Bank of Ethiopia', '1000274236552', 'Harar Ras Hotel', NULL, 
+'1. Open CBE Mobile app\n2. Login to your account\n3. Select Transfer Money\n4. Enter amount\n5. Enter account: 1000274236552\n6. Add reference code\n7. Complete transfer\n8. Take screenshot\n9. Upload screenshot on payment page', 
 'Screenshot must show successful transfer with correct amount, account number, and reference code.', 2),
 
-('awash_mobile', 'Awash Mobile Banking', 'Awash Bank', '2000-9876-5432-10', 'Harar Ras Hotel', NULL, 
-'1. Open Awash Mobile app
-2. Select Fund Transfer
-3. Enter amount: {AMOUNT}
-4. Enter account: 2000-9876-5432-10
-5. Add reference: {REFERENCE}
-6. Confirm transfer
-7. Screenshot confirmation', 
-'Ensure screenshot includes transaction ID, correct amount, and reference number.', 3),
+('abyssinia', 'Abyssinia Bank', 'Abyssinia Bank', '244422382', 'Harar Ras Hotel', NULL,
+'1. Login to Abyssinia Bank Mobile/Internet Banking\n2. Select Transfer/Payment\n3. Enter amount\n4. Enter account: 244422382\n5. Add reference code\n6. Complete transaction\n7. Take screenshot of confirmation\n8. Upload screenshot on payment page',
+'Verify the screenshot shows successful transaction with correct amount, account number 244422382, and reference code.', 3),
 
-('abyssinia_bank', 'Abyssinia Bank', 'Abyssinia Bank', '244422381', 'Harar Ras Hotel', NULL,
-'1. Login to Abyssinia Bank Mobile/Internet Banking
-2. Select Transfer/Payment
-3. Enter amount: {AMOUNT}
-4. Enter account: 244422381
-5. Add reference: {REFERENCE}
-6. Complete transaction
-7. Take screenshot of confirmation',
-'Verify the screenshot shows successful transaction with correct amount, account number 244422381, and reference code.', 4),
-
-('coop_bank_oromia', 'Cooperative Bank Of Oromia', 'Cooperative Bank Of Oromia', '0151143452800', 'Harar Ras Hotel', NULL,
-'1. Login to Cooperative Bank Mobile/Internet Banking
-2. Select Fund Transfer
-3. Enter amount: {AMOUNT}
-4. Enter account: 0151143452800
-5. Add reference: {REFERENCE}
-6. Complete transfer
-7. Take screenshot of confirmation',
-'Ensure screenshot displays successful transfer with correct amount, account number 0151143452800, and reference code.', 5),
-
-('dashen_bank', 'Dashen Bank', 'Dashen Bank', '106725625', 'Harar Ras Hotel', NULL,
-'1. Login to Dashen Bank Mobile/Internet Banking
-2. Select Transfer Money
-3. Enter amount: {AMOUNT}
-4. Enter account: 106725625
-5. Add reference: {REFERENCE}
-6. Confirm and complete transfer
-7. Take screenshot of successful transaction',
-'Verify screenshot shows completed transaction with correct amount, account number 106725625, and reference code.', 6)
+('cooperative', 'Cooperative Bank of Oromia', 'Cooperative Bank of Oromia', '1000056621528', 'Harar Ras Hotel', NULL,
+'1. Login to Cooperative Bank Mobile/Internet Banking\n2. Select Fund Transfer\n3. Enter amount\n4. Enter account: 1000056621528\n5. Add reference code\n6. Complete transfer\n7. Take screenshot of confirmation\n8. Upload screenshot on payment page',
+'Ensure screenshot displays successful transfer with correct amount, account number 1000056621528, and reference code.', 4)
 ON DUPLICATE KEY UPDATE method_code=method_code;
 
 -- =====================================================
@@ -784,7 +750,7 @@ SELECT
     b.total_price,
     b.payment_method,
     b.verification_status,
-    b.payment_screenshot,
+    b.screenshot_path,
     b.screenshot_uploaded_at,
     b.payment_deadline,
     CASE 
@@ -1095,7 +1061,7 @@ SET FOREIGN_KEY_CHECKS = 1;
 
 -- Add email tracking columns to bookings table
 ALTER TABLE bookings 
-ADD COLUMN IF NOT EXISTS email_sent TINYINT(1) DEFAULT 0 AFTER payment_screenshot,
+ADD COLUMN IF NOT EXISTS email_sent TINYINT(1) DEFAULT 0 AFTER screenshot_path,
 ADD COLUMN IF NOT EXISTS email_sent_at TIMESTAMP NULL AFTER email_sent,
 ADD COLUMN IF NOT EXISTS email_error TEXT NULL AFTER email_sent_at;
 
@@ -3110,3 +3076,51 @@ END;
 -- =====================================================
 
 SELECT 'M-Pesa Integration tables and procedures created successfully!' as message;
+
+-- =====================================================
+-- SCREENSHOT PAYMENT SYSTEM DOCUMENTATION
+-- =====================================================
+
+-- PAYMENT SYSTEM OVERVIEW:
+-- This database now supports a screenshot-only payment system
+-- No online payment gateways (Chapa removed)
+-- Manual bank/mobile payments with screenshot verification
+
+-- SUPPORTED PAYMENT METHODS (4 ONLY):
+-- 1. TeleBirr: 0973409026
+-- 2. CBE Mobile Banking: 1000274236552
+-- 3. Abyssinia Bank: 244422382
+-- 4. Cooperative Bank of Oromia: 1000056621528
+-- Account Holder: Harar Ras Hotel (same for all)
+
+-- PAYMENT FLOW:
+-- 1. Customer creates booking
+-- 2. Selects payment method
+-- 3. Makes payment via mobile/bank
+-- 4. Uploads screenshot (screenshot_path column)
+-- 5. Staff verifies payment (verification_status)
+-- 6. Booking confirmed when approved
+
+-- KEY COLUMNS IN BOOKINGS TABLE:
+-- screenshot_path: Path to uploaded payment screenshot
+-- screenshot_uploaded_at: When screenshot was uploaded
+-- payment_method: telebirr, cbe, abyssinia, cooperative
+-- verification_status: pending_payment, pending_verification, verified, rejected, expired
+
+-- FILE STORAGE:
+-- Screenshots stored in: uploads/payments/
+-- Max file size: 2MB
+-- Allowed formats: JPG, PNG, JPEG
+
+-- STAFF VERIFICATION:
+-- Access: dashboard/verify-payments.php
+-- Actions: Approve/Reject payments
+-- View: Screenshot preview with booking details
+
+-- =====================================================
+-- DATABASE SETUP COMPLETED SUCCESSFULLY
+-- =====================================================
+-- Total Tables: 35+ (all hotel management features)
+-- Payment System: Screenshot Upload Only
+-- Ready for Production: YES
+-- =====================================================

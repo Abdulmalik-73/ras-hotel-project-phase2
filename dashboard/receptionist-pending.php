@@ -3,7 +3,7 @@ session_start();
 require_once '../includes/config.php';
 require_once '../includes/functions.php';
 
-require_role('receptionist');
+require_auth_role('receptionist', '../login.php');
 
 $message = '';
 $error = '';
@@ -13,21 +13,89 @@ if ($_POST && isset($_POST['action'])) {
     $booking_id = (int)$_POST['booking_id'];
     
     if ($_POST['action'] == 'confirm') {
-        // UNIFIED APPROVAL: pending → checked_in (not just confirmed)
-        $query = "UPDATE bookings SET status = 'checked_in', actual_checkin_time = NOW(), checked_in_by = ? WHERE id = ? AND status = 'pending'";
-        $stmt = $conn->prepare($query);
-        $stmt->bind_param("ii", $_SESSION['user_id'], $booking_id);
+        // Get booking type first to determine how to handle it
+        $type_query = "SELECT booking_type FROM bookings WHERE id = ? AND status = 'pending'";
+        $type_stmt = $conn->prepare($type_query);
+        $type_stmt->bind_param("i", $booking_id);
+        $type_stmt->execute();
+        $type_result = $type_stmt->get_result();
         
-        if ($stmt->execute() && $stmt->affected_rows > 0) {
-            // Log the activity
-            $booking_query = "SELECT user_id, booking_reference FROM bookings WHERE id = $booking_id";
-            $booking_result = $conn->query($booking_query);
-            if ($booking_result && $booking = $booking_result->fetch_assoc()) {
-                log_booking_activity($booking_id, $booking['user_id'], 'checked_in', 'pending', 'checked_in', 'Booking approved and checked in by receptionist', $_SESSION['user_id']);
-            }
-            $message = 'Booking approved and guest checked in successfully!';
+        if ($type_result->num_rows == 0) {
+            $error = 'Booking not found or already processed';
         } else {
-            $error = 'Failed to approve booking or booking already processed';
+            $booking_type_data = $type_result->fetch_assoc();
+            $booking_type = $booking_type_data['booking_type'];
+            
+            // For food orders and services, just mark as confirmed (not checked_in)
+            if ($booking_type == 'food_order' || $booking_type == 'spa_service' || $booking_type == 'laundry_service') {
+                $query = "UPDATE bookings SET status = 'confirmed', verified_at = NOW(), verified_by = ? WHERE id = ? AND status = 'pending'";
+                $stmt = $conn->prepare($query);
+                $stmt->bind_param("ii", $_SESSION['user_id'], $booking_id);
+                
+                if ($stmt->execute() && $stmt->affected_rows > 0) {
+                    // Log the activity
+                    $booking_query = "SELECT user_id, booking_reference FROM bookings WHERE id = ?";
+                    $log_stmt = $conn->prepare($booking_query);
+                    $log_stmt->bind_param("i", $booking_id);
+                    $log_stmt->execute();
+                    $booking_result = $log_stmt->get_result();
+                    
+                    if ($booking_result && $booking = $booking_result->fetch_assoc()) {
+                        log_booking_activity($booking_id, $booking['user_id'], 'confirmed', 'pending', 'confirmed', 'Service confirmed by receptionist', $_SESSION['user_id']);
+                    }
+                    
+                    // Different success messages for different service types
+                    switch ($booking_type) {
+                        case 'food_order':
+                            $message = 'Food order confirmed successfully! Kitchen has been notified.';
+                            break;
+                        case 'spa_service':
+                            $message = 'Spa & Wellness service confirmed successfully! Customer will be notified.';
+                            break;
+                        case 'laundry_service':
+                            $message = 'Laundry service confirmed successfully! Service team has been notified.';
+                            break;
+                        default:
+                            $message = 'Service confirmed successfully!';
+                    }
+                } else {
+                    // Different error messages for different service types
+                    switch ($booking_type) {
+                        case 'food_order':
+                            $error = 'Failed to confirm food order or order already processed';
+                            break;
+                        case 'spa_service':
+                            $error = 'Failed to confirm spa service or service already processed';
+                            break;
+                        case 'laundry_service':
+                            $error = 'Failed to confirm laundry service or service already processed';
+                            break;
+                        default:
+                            $error = 'Failed to confirm service or service already processed';
+                    }
+                }
+            } else {
+                // For room bookings: pending → checked_in
+                $query = "UPDATE bookings SET status = 'checked_in', actual_checkin_time = NOW(), checked_in_by = ? WHERE id = ? AND status = 'pending'";
+                $stmt = $conn->prepare($query);
+                $stmt->bind_param("ii", $_SESSION['user_id'], $booking_id);
+                
+                if ($stmt->execute() && $stmt->affected_rows > 0) {
+                    // Log the activity
+                    $booking_query = "SELECT user_id, booking_reference FROM bookings WHERE id = ?";
+                    $log_stmt = $conn->prepare($booking_query);
+                    $log_stmt->bind_param("i", $booking_id);
+                    $log_stmt->execute();
+                    $booking_result = $log_stmt->get_result();
+                    
+                    if ($booking_result && $booking = $booking_result->fetch_assoc()) {
+                        log_booking_activity($booking_id, $booking['user_id'], 'checked_in', 'pending', 'checked_in', 'Booking approved and checked in by receptionist', $_SESSION['user_id']);
+                    }
+                    $message = 'Room booking approved and customer checked in successfully! Room is now occupied.';
+                } else {
+                    $error = 'Failed to approve room booking or booking already processed';
+                }
+            }
         }
     } elseif ($_POST['action'] == 'cancel') {
         $cancel_reason = sanitize_input($_POST['cancel_reason']);
@@ -63,7 +131,11 @@ $pending_bookings = $conn->query("
            sb.service_category,
            sb.service_date,
            sb.service_time,
-           sb.quantity as service_quantity
+           sb.quantity as service_quantity,
+           b.screenshot_path,
+           b.screenshot_uploaded_at,
+           b.payment_method,
+           b.verification_status
     FROM bookings b 
     LEFT JOIN rooms r ON b.room_id = r.id 
     LEFT JOIN users u ON b.user_id = u.id 
@@ -211,9 +283,6 @@ $pending_bookings = $conn->query("
             </a>
             <a href="receptionist-checkout.php" class="nav-link">
                 <i class="fas fa-minus-circle me-2"></i> Process Check-out
-            </a>
-            <a href="verify-payments.php" class="nav-link">
-                <i class="fas fa-check-circle me-2"></i> Verify Payments
             </a>
             <a href="receptionist-pending.php" class="nav-link active">
                 <i class="fas fa-calendar-check me-2"></i> Pending Bookings
@@ -364,15 +433,64 @@ $pending_bookings = $conn->query("
                                                 <i class="fas fa-money-bill me-1"></i> <?php echo format_currency($booking['total_price']); ?>
                                             </small>
                                         </p>
+                                        
+                                        <!-- Payment Screenshot Section -->
+                                        <?php if ($booking['screenshot_path']): ?>
+                                        <div class="payment-screenshot mb-3">
+                                            <h6 class="text-primary mb-2">
+                                                <i class="fas fa-image me-1"></i> Payment Screenshot
+                                                <?php if ($booking['payment_method']): ?>
+                                                    <small class="text-muted">(<?php echo ucfirst($booking['payment_method']); ?>)</small>
+                                                <?php endif; ?>
+                                            </h6>
+                                            <div class="screenshot-container" style="max-width: 200px;">
+                                                <img src="../<?php echo htmlspecialchars($booking['screenshot_path']); ?>" 
+                                                     alt="Payment Screenshot" 
+                                                     class="img-fluid rounded border"
+                                                     style="cursor: pointer; max-height: 150px; object-fit: cover;"
+                                                     onclick="showScreenshotModal('<?php echo htmlspecialchars($booking['screenshot_path']); ?>', '<?php echo htmlspecialchars($booking['booking_reference']); ?>')">
+                                            </div>
+                                            <?php if ($booking['screenshot_uploaded_at']): ?>
+                                                <small class="text-muted d-block mt-1">
+                                                    <i class="fas fa-clock me-1"></i>
+                                                    Uploaded: <?php echo date('M j, Y g:i A', strtotime($booking['screenshot_uploaded_at'])); ?>
+                                                </small>
+                                            <?php endif; ?>
+                                            <?php if ($booking['verification_status']): ?>
+                                                <span class="badge bg-<?php 
+                                                    echo $booking['verification_status'] == 'verified' ? 'success' : 
+                                                        ($booking['verification_status'] == 'pending_verification' ? 'warning' : 
+                                                        ($booking['verification_status'] == 'rejected' ? 'danger' : 'secondary')); 
+                                                ?> mt-1">
+                                                    <?php echo ucfirst(str_replace('_', ' ', $booking['verification_status'])); ?>
+                                                </span>
+                                            <?php endif; ?>
+                                        </div>
+                                        <?php elseif ($booking['verification_status'] == 'pending_payment'): ?>
+                                        <div class="payment-status mb-3">
+                                            <span class="badge bg-warning">
+                                                <i class="fas fa-clock me-1"></i> Awaiting Payment Screenshot
+                                            </span>
+                                        </div>
+                                        <?php endif; ?>
                                         <div class="d-flex gap-1">
-                                            <form method="POST" class="d-inline">
-                                                <input type="hidden" name="action" value="confirm">
-                                                <input type="hidden" name="booking_id" value="<?php echo $booking['id']; ?>">
-                                                <button type="submit" class="btn btn-success btn-sm" 
-                                                        onclick="return confirm('Confirm this booking?')">
-                                                    <i class="fas fa-check"></i> Confirm
-                                                </button>
-                                            </form>
+                                            <?php if ($booking_type == 'room'): ?>
+                                                <!-- For room bookings, redirect to detailed check-in form -->
+                                                <a href="receptionist-checkin.php?booking_ref=<?php echo urlencode($booking['booking_reference']); ?>" 
+                                                   class="btn btn-success btn-sm">
+                                                    <i class="fas fa-key"></i> Check-in
+                                                </a>
+                                            <?php else: ?>
+                                                <!-- For other services, confirm directly -->
+                                                <form method="POST" class="d-inline">
+                                                    <input type="hidden" name="action" value="confirm">
+                                                    <input type="hidden" name="booking_id" value="<?php echo $booking['id']; ?>">
+                                                    <button type="submit" class="btn btn-success btn-sm" 
+                                                            onclick="return confirmService('<?php echo $booking_type == 'food_order' ? 'food order' : ($booking_type == 'spa_service' ? 'spa service' : 'laundry service'); ?>')">
+                                                        <i class="fas fa-check"></i> Confirm
+                                                    </button>
+                                                </form>
+                                            <?php endif; ?>
                                             <button class="btn btn-danger btn-sm" 
                                                     onclick="showCancelModal(<?php echo $booking['id']; ?>, '<?php echo htmlspecialchars($booking['booking_reference']); ?>')">
                                                 <i class="fas fa-times"></i> Cancel
@@ -437,6 +555,80 @@ $pending_bookings = $conn->query("
         </div>
     </div>
     
+    <!-- Screenshot Modal -->
+    <div class="modal fade" id="screenshotModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Payment Screenshot - <span id="screenshot_booking_ref"></span></h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body text-center">
+                    <img id="screenshot_image" src="" alt="Payment Screenshot" class="img-fluid rounded border">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <a id="screenshot_download" href="" download class="btn btn-primary">
+                        <i class="fas fa-download"></i> Download
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Booking Details Modal -->
+    <div class="modal fade" id="detailsModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white py-2">
+                    <h6 class="modal-title mb-0"><i class="fas fa-info-circle me-2"></i>Booking Details - <span id="details_booking_ref"></span></h6>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-3">
+                    <!-- Customer & Booking Info in compact rows -->
+                    <div class="row g-2 mb-3">
+                        <div class="col-12">
+                            <div class="bg-light p-2 rounded">
+                                <div class="row g-1">
+                                    <div class="col-6"><small class="text-muted">Customer:</small><br><strong id="details_customer_name"></strong></div>
+                                    <div class="col-6"><small class="text-muted">Email:</small><br><span id="details_email" class="small"></span></div>
+                                    <div class="col-6"><small class="text-muted">Phone:</small><br><span id="details_phone"></span></div>
+                                    <div class="col-6"><small class="text-muted">Type:</small><br><span id="details_booking_type"></span></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Booking Details -->
+                    <div class="row g-2 mb-3">
+                        <div class="col-6"><small class="text-muted">Total Amount:</small><br><span id="details_total_price" class="text-success fw-bold"></span></div>
+                        <div class="col-6"><small class="text-muted">Status:</small><br><span id="details_status"></span></div>
+                        <div class="col-6"><small class="text-muted">Created:</small><br><span id="details_created_at" class="small"></span></div>
+                        <div class="col-6"><small class="text-muted">Payment:</small><br><span id="details_payment_status"></span></div>
+                    </div>
+                    
+                    <!-- Service-specific details -->
+                    <div id="service_details" class="mb-3"></div>
+                    
+                    <!-- Special Requests -->
+                    <div class="mb-3">
+                        <small class="text-muted">Special Requests:</small>
+                        <div id="special_requests" class="bg-light p-2 rounded small"></div>
+                    </div>
+                    
+                    <!-- Payment Information -->
+                    <div class="border-top pt-3">
+                        <small class="text-muted"><i class="fas fa-credit-card me-1"></i>Payment Information:</small>
+                        <div id="payment_info" class="mt-2"></div>
+                    </div>
+                </div>
+                <div class="modal-footer py-2">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         function showCancelModal(bookingId, bookingRef) {
@@ -446,8 +638,138 @@ $pending_bookings = $conn->query("
         }
         
         function showBookingDetails(bookingId) {
-            // This could be expanded to show a detailed modal
-            alert('Booking details feature can be expanded here');
+            console.log('Fetching booking details for ID:', bookingId);
+            
+            // Show loading state
+            const detailsModal = new bootstrap.Modal(document.getElementById('detailsModal'));
+            document.getElementById('details_booking_ref').textContent = 'Loading...';
+            detailsModal.show();
+            
+            // Fetch booking data from API
+            fetch(`../api/get_booking_details.php?id=${bookingId}`)
+                .then(response => {
+                    console.log('Response status:', response.status);
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('API Response:', data);
+                    if (data.success) {
+                        populateDetailsModal(data.booking);
+                    } else {
+                        alert('Error loading booking details: ' + data.message);
+                        detailsModal.hide();
+                    }
+                })
+                .catch(error => {
+                    console.error('Fetch error:', error);
+                    alert('Error loading booking details: ' + error.message);
+                    detailsModal.hide();
+                });
+        }
+        
+        function populateDetailsModal(booking) {
+            console.log('Populating modal with booking data:', booking);
+            
+            // Basic information
+            document.getElementById('details_booking_ref').textContent = booking.booking_reference || 'N/A';
+            document.getElementById('details_customer_name').textContent = (booking.first_name || '') + ' ' + (booking.last_name || '');
+            document.getElementById('details_email').textContent = booking.email || 'N/A';
+            document.getElementById('details_phone').textContent = booking.phone || 'N/A';
+            document.getElementById('details_booking_type').textContent = booking.booking_type_display || 'N/A';
+            document.getElementById('details_total_price').textContent = booking.total_price_formatted || 'N/A';
+            document.getElementById('details_created_at').textContent = booking.created_at_formatted || 'N/A';
+            document.getElementById('details_status').textContent = booking.status || 'N/A';
+            document.getElementById('details_payment_status').textContent = booking.payment_status || 'N/A';
+            
+            // Service-specific details - compact format
+            const serviceDetails = document.getElementById('service_details');
+            if (booking.booking_type === 'room') {
+                serviceDetails.innerHTML = `
+                    <div class="bg-light p-2 rounded">
+                        <small class="text-muted">Room Details:</small>
+                        <div class="row g-1 mt-1">
+                            <div class="col-6"><strong>Room:</strong> ${booking.room_name || 'N/A'} (${booking.room_number || 'N/A'})</div>
+                            <div class="col-6"><strong>Guests:</strong> ${booking.customers || 'N/A'}</div>
+                            <div class="col-6"><strong>Check-in:</strong> ${booking.check_in_date || 'N/A'}</div>
+                            <div class="col-6"><strong>Check-out:</strong> ${booking.check_out_date || 'N/A'}</div>
+                        </div>
+                    </div>
+                `;
+            } else if (booking.booking_type === 'food_order') {
+                serviceDetails.innerHTML = `
+                    <div class="bg-light p-2 rounded">
+                        <small class="text-muted">Food Order Details:</small>
+                        <div class="row g-1 mt-1">
+                            <div class="col-6"><strong>Table:</strong> ${booking.table_reservation ? 'Yes' : 'Takeaway'}</div>
+                            <div class="col-6"><strong>Customers:</strong> ${booking.guests || 1}</div>
+                            ${booking.reservation_date ? `
+                            <div class="col-6"><strong>Date:</strong> ${booking.reservation_date}</div>
+                            <div class="col-6"><strong>Time:</strong> ${booking.reservation_time || 'N/A'}</div>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+            } else if (booking.booking_type === 'spa_service' || booking.booking_type === 'laundry_service') {
+                const serviceType = booking.booking_type === 'spa_service' ? 'Spa Service' : 'Laundry Service';
+                serviceDetails.innerHTML = `
+                    <div class="bg-light p-2 rounded">
+                        <small class="text-muted">${serviceType} Details:</small>
+                        <div class="row g-1 mt-1">
+                            <div class="col-6"><strong>Service:</strong> ${booking.service_name || 'N/A'}</div>
+                            <div class="col-6"><strong>Quantity:</strong> ${booking.service_quantity || 1}</div>
+                            ${booking.service_date ? `
+                            <div class="col-6"><strong>Date:</strong> ${booking.service_date}</div>
+                            <div class="col-6"><strong>Time:</strong> ${booking.service_time || 'N/A'}</div>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+            } else {
+                serviceDetails.innerHTML = '<small class="text-muted">No additional service details available.</small>';
+            }
+            
+            // Special requests - compact
+            const specialRequests = document.getElementById('special_requests');
+            specialRequests.textContent = booking.special_requests || 'None';
+            
+            // Payment information - compact
+            const paymentInfo = document.getElementById('payment_info');
+            if (booking.screenshot_path) {
+                paymentInfo.innerHTML = `
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <small><strong>Method:</strong> ${booking.payment_method_display || 'N/A'}</small>
+                        </div>
+                        <div class="col-6">
+                            <small><strong>Status:</strong></small>
+                            <span class="badge bg-${booking.verification_status_color || 'secondary'} ms-1">${booking.verification_status_display || 'Unknown'}</span>
+                        </div>
+                        <div class="col-12">
+                            <small><strong>Screenshot:</strong></small><br>
+                            <img src="../${booking.screenshot_path}" alt="Payment Screenshot" 
+                                 class="img-fluid rounded border mt-1" style="max-width: 120px; cursor: pointer;"
+                                 onclick="showScreenshotModal('${booking.screenshot_path}', '${booking.booking_reference}')">
+                            <br><small class="text-muted">Uploaded: ${booking.screenshot_uploaded_at_formatted || 'N/A'}</small>
+                        </div>
+                    </div>
+                `;
+            } else {
+                paymentInfo.innerHTML = `
+                    <div class="alert alert-warning py-2 mb-0">
+                        <small><i class="fas fa-exclamation-triangle"></i> No payment screenshot uploaded yet</small>
+                    </div>
+                `;
+            }
+        }
+        
+        function showScreenshotModal(screenshotPath, bookingRef) {
+            document.getElementById('screenshot_image').src = '../' + screenshotPath;
+            document.getElementById('screenshot_booking_ref').textContent = bookingRef;
+            document.getElementById('screenshot_download').href = '../' + screenshotPath;
+            new bootstrap.Modal(document.getElementById('screenshotModal')).show();
         }
         
         function toggleSidebar() {
@@ -458,6 +780,10 @@ $pending_bookings = $conn->query("
             sidebar.classList.toggle('show');
             mainContent.classList.toggle('shifted');
             menuToggle.classList.toggle('shifted');
+        }
+        
+        function confirmService(serviceType) {
+            return confirm('Confirm this ' + serviceType + '?\n\nThe service provider will be notified and the booking will be processed.');
         }
     </script>
 </body>

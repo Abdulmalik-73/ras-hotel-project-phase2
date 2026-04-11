@@ -3,11 +3,7 @@ session_start();
 require_once '../includes/config.php';
 require_once '../includes/functions.php';
 
-// Check if user is logged in and is Super Admin
-if (!is_logged_in() || $_SESSION['user_role'] !== 'super_admin') {
-    header('Location: ../login.php');
-    exit();
-}
+require_auth_role('super_admin', '../login.php');
 
 $user_id = $_SESSION['user_id'];
 $user_name = $_SESSION['user_name'];

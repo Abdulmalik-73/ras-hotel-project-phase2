@@ -1,6 +1,7 @@
 <?php session_start();
 require_once 'includes/config.php';
 require_once 'includes/functions.php';
+require_once 'includes/language.php';
 
 // Get rooms for gallery - limit to available unique images (22 room images)
 $rooms_query = "SELECT id, name, room_number FROM rooms WHERE status = 'active' ORDER BY RAND() LIMIT 22";
@@ -501,22 +502,31 @@ $food_images = [
     <script>
         // Multi-language continuous looping typing animation for hero section
         const translations = {
-            en: {
-                title: "Welcome to Harar Ras Hotel",
-                subtitle: "Experience Luxury & Comfort"
-            },
-            om: {
-                title: "Gara Harar Ras Hotel Baga Nagaan Dhuftan",
-                subtitle: "Qananii fi Mijataa Muuxannoo"
-            },
-            am: {
-                title: "ወደ ሐረር ራስ ሆቴል እንኳን ደህና መጡ",
-                subtitle: "የቅንጦት እና ምቾት ይለማመዱ"
-            }
+            en: <?php 
+                $en_trans = load_translations('en');
+                echo json_encode([
+                    'title' => $en_trans['home']['welcome_title'],
+                    'subtitle' => $en_trans['home']['welcome_subtitle']
+                ]);
+            ?>,
+            am: <?php 
+                $am_trans = load_translations('am');
+                echo json_encode([
+                    'title' => $am_trans['home']['welcome_title'],
+                    'subtitle' => $am_trans['home']['welcome_subtitle']
+                ]);
+            ?>,
+            om: <?php 
+                $om_trans = load_translations('om');
+                echo json_encode([
+                    'title' => $om_trans['home']['welcome_title'],
+                    'subtitle' => $om_trans['home']['welcome_subtitle']
+                ]);
+            ?>
         };
         
         // Get current language from session or default to English
-        const currentLang = '<?php echo $_SESSION['language'] ?? 'en'; ?>';
+        const currentLang = '<?php echo get_current_language(); ?>';
         
         // Sleep utility function
         function sleep(ms) {

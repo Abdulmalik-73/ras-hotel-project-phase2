@@ -15,10 +15,10 @@ $booking_data = null;
 $refund_calculation = null;
 
 // Handle booking search
-if (isset($_POST['search_booking']) && (!empty($_POST['booking_reference']) || !empty($_POST['guest_email']) || !empty($_POST['guest_name']))) {
+if (isset($_POST['search_booking']) && (!empty($_POST['booking_reference']) || !empty($_POST['customer_email']) || !empty($_POST['customer_name']))) {
     $booking_ref = sanitize_input($_POST['booking_reference'] ?? '');
-    $guest_email = sanitize_input($_POST['guest_email'] ?? '');
-    $guest_name = sanitize_input($_POST['guest_name'] ?? '');
+    $customer_email = sanitize_input($_POST['customer_email'] ?? '');
+    $customer_name = sanitize_input($_POST['customer_name'] ?? '');
     
     // Build dynamic query based on provided search criteria
     $where_conditions = [];
@@ -31,15 +31,15 @@ if (isset($_POST['search_booking']) && (!empty($_POST['booking_reference']) || !
         $param_types .= 's';
     }
     
-    if (!empty($guest_email)) {
+    if (!empty($customer_email)) {
         $where_conditions[] = "u.email = ?";
-        $params[] = $guest_email;
+        $params[] = $customer_email;
         $param_types .= 's';
     }
     
-    if (!empty($guest_name)) {
+    if (!empty($customer_name)) {
         $where_conditions[] = "(CONCAT(u.first_name, ' ', u.last_name) LIKE ? OR u.first_name LIKE ? OR u.last_name LIKE ?)";
-        $search_name = "%$guest_name%";
+        $search_name = "%$customer_name%";
         $params[] = $search_name;
         $params[] = $search_name;
         $params[] = $search_name;
@@ -289,7 +289,7 @@ $conn->query($create_table);
         <div class="card mb-4">
             <div class="card-header bg-primary text-white">
                 <h5 class="mb-0"><i class="fas fa-search"></i> Search Booking for Refund</h5>
-                <small>Enter booking reference, guest email, or guest name to process refund</small>
+                <small>Enter booking reference, customer email, or customer name to process refund</small>
             </div>
             <div class="card-body">
                 <form method="POST" action="">
@@ -302,17 +302,17 @@ $conn->query($create_table);
                             <small class="text-muted">Exact booking reference</small>
                         </div>
                         <div class="col-md-4 mb-3">
-                            <label class="form-label">Guest Email:</label>
-                            <input type="email" name="guest_email" class="form-control" 
-                                   placeholder="guest@example.com"
-                                   value="<?php echo isset($_POST['guest_email']) ? htmlspecialchars($_POST['guest_email']) : ''; ?>">
-                            <small class="text-muted">Guest's email address</small>
+                            <label class="form-label">Customer Email:</label>
+                            <input type="email" name="customer_email" class="form-control" 
+                                   placeholder="customer@example.com"
+                                   value="<?php echo isset($_POST['customer_email']) ? htmlspecialchars($_POST['customer_email']) : ''; ?>">
+                            <small class="text-muted">Customer's email address</small>
                         </div>
                         <div class="col-md-4 mb-3">
-                            <label class="form-label">Guest Name:</label>
-                            <input type="text" name="guest_name" class="form-control" 
+                            <label class="form-label">Customer Name:</label>
+                            <input type="text" name="customer_name" class="form-control" 
                                    placeholder="John Doe"
-                                   value="<?php echo isset($_POST['guest_name']) ? htmlspecialchars($_POST['guest_name']) : ''; ?>">
+                                   value="<?php echo isset($_POST['customer_name']) ? htmlspecialchars($_POST['customer_name']) : ''; ?>">
                             <small class="text-muted">First name, last name, or full name</small>
                         </div>
                     </div>
@@ -347,7 +347,7 @@ $conn->query($create_table);
                                 <tr>
                                     <th>Select</th>
                                     <th>Booking Ref</th>
-                                    <th>Guest Name</th>
+                                    <th>Customer Name</th>
                                     <th>Email</th>
                                     <th>Room</th>
                                     <th>Check-in</th>
@@ -405,7 +405,7 @@ $conn->query($create_table);
                                 <h6 class="text-primary">Booking Information</h6>
                                 <table class="table table-sm">
                                     <tr><td><strong>Reference:</strong></td><td><?php echo htmlspecialchars($booking_data['booking_reference']); ?></td></tr>
-                                    <tr><td><strong>Guest:</strong></td><td><?php echo htmlspecialchars($booking_data['first_name'] . ' ' . $booking_data['last_name']); ?></td></tr>
+                                    <tr><td><strong>Customer:</strong></td><td><?php echo htmlspecialchars($booking_data['first_name'] . ' ' . $booking_data['last_name']); ?></td></tr>
                                     <tr><td><strong>Room:</strong></td><td><?php echo htmlspecialchars($booking_data['room_name']); ?></td></tr>
                                     <tr><td><strong>Check-in:</strong></td><td><?php echo date('M j, Y', strtotime($booking_data['check_in'])); ?></td></tr>
                                     <tr><td><strong>Check-out:</strong></td><td><?php echo date('M j, Y', strtotime($booking_data['check_out'])); ?></td></tr>
@@ -416,7 +416,7 @@ $conn->query($create_table);
                                 <table class="table table-sm">
                                     <tr><td><strong>Email:</strong></td><td><?php echo htmlspecialchars($booking_data['email']); ?></td></tr>
                                     <tr><td><strong>Phone:</strong></td><td><?php echo htmlspecialchars($booking_data['phone']); ?></td></tr>
-                                    <tr><td><strong>Guests:</strong></td><td><?php echo $booking_data['guests']; ?></td></tr>
+                                    <tr><td><strong>Customers:</strong></td><td><?php echo $booking_data['customers']; ?></td></tr>
                                     <tr><td><strong>Status:</strong></td><td><span class="badge bg-info"><?php echo ucfirst($booking_data['status']); ?></span></td></tr>
                                 </table>
                             </div>
@@ -451,7 +451,7 @@ $conn->query($create_table);
                                         <label class="form-label">Refund Reason:</label>
                                         <select name="refund_reason" class="form-select" required>
                                             <option value="">Select Reason</option>
-                                            <option value="guest_cancellation">Guest Cancellation</option>
+                                            <option value="customer_cancellation">Customer Cancellation</option>
                                             <option value="hotel_cancellation">Hotel Cancellation</option>
                                             <option value="emergency">Emergency</option>
                                             <option value="medical_reasons">Medical Reasons</option>
@@ -548,7 +548,7 @@ $conn->query($create_table);
                             <tr>
                                 <th>Refund Ref</th>
                                 <th>Booking Ref</th>
-                                <th>Guest</th>
+                                <th>Customer</th>
                                 <th>Original Amount</th>
                                 <th>Refund Amount</th>
                                 <th>Status</th>

@@ -437,4 +437,140 @@ class EmailTemplates {
         
         return self::getBaseTemplate($content);
     }
+
+    
+    /**
+     * Payment Verification Template
+     */
+    public static function getPaymentVerificationTemplate($booking) {
+        $customerName = htmlspecialchars($booking['first_name'] . ' ' . $booking['last_name']);
+        $bookingRef = htmlspecialchars($booking['booking_reference']);
+        $totalAmount = number_format($booking['total_price'], 2);
+        $paymentMethod = ucfirst($booking['payment_method'] ?? 'N/A');
+        $verifiedDate = date('F j, Y g:i A');
+        
+        // Determine booking type and details
+        $bookingTypeDisplay = '';
+        $bookingDetails = '';
+        
+        if ($booking['booking_type'] === 'room') {
+            $bookingTypeDisplay = 'Room Booking';
+            $roomName = htmlspecialchars($booking['room_name']);
+            $roomNumber = htmlspecialchars($booking['room_number']);
+            $checkIn = $booking['check_in_date'] ? date('F j, Y', strtotime($booking['check_in_date'])) : 'N/A';
+            $checkOut = $booking['check_out_date'] ? date('F j, Y', strtotime($booking['check_out_date'])) : 'N/A';
+            
+            $bookingDetails = '
+    <tr>
+        <td style="border-bottom: 1px solid #dee2e6; padding: 12px;">
+            <strong style="color: #495057;">Room:</strong>
+        </td>
+        <td style="border-bottom: 1px solid #dee2e6; padding: 12px; text-align: right;">
+            ' . $roomName . ' (' . $roomNumber . ')
+        </td>
+    </tr>
+    <tr>
+        <td style="border-bottom: 1px solid #dee2e6; padding: 12px;">
+            <strong style="color: #495057;">Check-in Date:</strong>
+        </td>
+        <td style="border-bottom: 1px solid #dee2e6; padding: 12px; text-align: right;">
+            ' . $checkIn . '
+        </td>
+    </tr>
+    <tr>
+        <td style="border-bottom: 1px solid #dee2e6; padding: 12px;">
+            <strong style="color: #495057;">Check-out Date:</strong>
+        </td>
+        <td style="border-bottom: 1px solid #dee2e6; padding: 12px; text-align: right;">
+            ' . $checkOut . '
+        </td>
+    </tr>';
+        } else {
+            $bookingTypeDisplay = ucfirst(str_replace('_', ' ', $booking['booking_type']));
+        }
+        
+        $content = '
+<div style="text-align: center; margin-bottom: 30px;">
+    <div style="display: inline-block; background-color: #28a745; color: white; padding: 10px 20px; border-radius: 50px; font-size: 14px; font-weight: bold;">
+        ✅ PAYMENT VERIFIED
+    </div>
+</div>
+
+<h2 style="color: #333; margin: 0 0 10px 0; font-size: 24px;">Dear ' . $customerName . ',</h2>
+
+<p style="color: #666; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0;">
+    Great news! Your payment has been successfully verified by our staff. Your booking is now confirmed and ready.
+</p>
+
+<table width="100%" cellpadding="12" cellspacing="0" style="background-color: #f8f9fa; border-radius: 8px; margin: 20px 0;">
+    <tr>
+        <td style="border-bottom: 1px solid #dee2e6; padding: 12px;">
+            <strong style="color: #495057;">Booking Reference:</strong>
+        </td>
+        <td style="border-bottom: 1px solid #dee2e6; padding: 12px; text-align: right;">
+            <span style="color: #007bff; font-weight: bold; font-size: 16px;">' . $bookingRef . '</span>
+        </td>
+    </tr>
+    <tr>
+        <td style="border-bottom: 1px solid #dee2e6; padding: 12px;">
+            <strong style="color: #495057;">Booking Type:</strong>
+        </td>
+        <td style="border-bottom: 1px solid #dee2e6; padding: 12px; text-align: right;">
+            ' . $bookingTypeDisplay . '
+        </td>
+    </tr>
+    ' . $bookingDetails . '
+    <tr>
+        <td style="border-bottom: 1px solid #dee2e6; padding: 12px;">
+            <strong style="color: #495057;">Payment Method:</strong>
+        </td>
+        <td style="border-bottom: 1px solid #dee2e6; padding: 12px; text-align: right;">
+            ' . $paymentMethod . '
+        </td>
+    </tr>
+    <tr>
+        <td style="border-bottom: 1px solid #dee2e6; padding: 12px;">
+            <strong style="color: #495057;">Verified On:</strong>
+        </td>
+        <td style="border-bottom: 1px solid #dee2e6; padding: 12px; text-align: right;">
+            ' . $verifiedDate . '
+        </td>
+    </tr>
+    <tr>
+        <td style="padding: 12px;">
+            <strong style="color: #495057; font-size: 16px;">Total Amount Paid:</strong>
+        </td>
+        <td style="padding: 12px; text-align: right;">
+            <strong style="color: #28a745; font-size: 18px;">ETB ' . $totalAmount . '</strong>
+        </td>
+    </tr>
+</table>
+
+<div style="background-color: #d4edda; border-left: 4px solid #28a745; padding: 15px; margin: 20px 0; border-radius: 4px;">
+    <p style="margin: 0; color: #155724; font-size: 14px;">
+        <strong>🎉 Payment Status: VERIFIED</strong><br>
+        Your payment has been successfully verified by our staff. Your booking is now confirmed and you can proceed with confidence.
+    </p>
+</div>
+
+<div style="background-color: #e3f2fd; border-left: 4px solid #007bff; padding: 15px; margin: 20px 0; border-radius: 4px;">
+    <p style="margin: 0; color: #0056b3; font-size: 14px;">
+        <strong>📌 What\'s Next?</strong><br>
+        • Your booking is now confirmed<br>
+        • You can view your booking details in your account<br>
+        • Contact us if you have any questions or need assistance
+    </p>
+</div>
+
+<p style="color: #666; font-size: 14px; line-height: 1.6; margin: 20px 0;">
+    Thank you for choosing Harar Ras Hotel. We look forward to serving you and providing you with an excellent experience.
+</p>
+
+<p style="color: #666; font-size: 14px; line-height: 1.6; margin: 20px 0 0 0;">
+    Best regards,<br>
+    <strong>The Harar Ras Hotel Team</strong>
+</p>';
+        
+        return self::getBaseTemplate($content);
+    }
 }

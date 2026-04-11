@@ -1,6 +1,9 @@
 <?php
+session_start();
 require_once '../includes/config.php';
-require_role('receptionist');
+require_once '../includes/functions.php';
+
+require_auth_role('receptionist', '../login.php');
 
 $message = '';
 $error = '';
@@ -218,9 +221,9 @@ $room_types_result = $conn->query($room_types_query);
                         <a href="receptionist-checkout.php" class="list-group-item list-group-item-action">
                             <i class="fas fa-minus-circle"></i> Process Check-out
                         </a>
-                        <a href="verify-payments.php" class="list-group-item list-group-item-action">
-                            <i class="fas fa-check-circle"></i> Verify Payments
-                        </a>
+                        <button onclick="history.back()" class="list-group-item list-group-item-action" style="border: none; background: #f8f9fa;">
+                            <i class="fas fa-arrow-left"></i> Back
+                        </button>
                         <a href="receptionist-pending.php" class="list-group-item list-group-item-action">
                             <i class="fas fa-calendar-check"></i> Pending Bookings
                         </a>

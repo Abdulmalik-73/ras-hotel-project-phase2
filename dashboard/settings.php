@@ -7,7 +7,14 @@ session_start();
 require_once '../includes/config.php';
 require_once '../includes/functions.php';
 
-require_role('admin'); // Admins and Super Admins can modify settings (super_admin has access to everything)
+// Allow both admin and super_admin to access settings
+require_auth_roles(['admin', 'super_admin'], '../login.php');
+
+// Detect user role for sidebar - check both possible session variables
+$user_role = $_SESSION['user_role'] ?? $_SESSION['role'] ?? '';
+$is_super_admin = ($user_role === 'super_admin');
+$dashboard_link = $is_super_admin ? 'super-admin.php' : 'admin.php';
+$dashboard_title = $is_super_admin ? 'Super Admin Panel' : 'Admin Panel';
 
 // Handle settings update
 if ($_POST) {
@@ -106,7 +113,7 @@ foreach ($counts_queries as $key => $query) {
     <style>
         .sidebar {
             min-height: 100vh;
-            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            background: <?php echo $is_super_admin ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : 'linear-gradient(135deg, #1e3c72 0%, #2a5298 100%)'; ?>;
         }
         .sidebar .nav-link {
             color: rgba(255,255,255,0.8);
@@ -151,24 +158,32 @@ foreach ($counts_queries as $key => $query) {
             <div class="col-md-3 col-lg-2 px-0">
                 <div class="sidebar d-flex flex-column p-3">
                     <h4 class="text-white mb-4">
-                        <i class="fas fa-hotel"></i> Admin Panel
+                        <i class="fas fa-<?php echo $is_super_admin ? 'crown' : 'hotel'; ?>"></i> <?php echo $dashboard_title; ?>
                     </h4>
                     
                     <nav class="nav flex-column">
-                        <a href="admin.php" class="nav-link">
+                        <a href="<?php echo $dashboard_link; ?>" class="nav-link">
                             <i class="fas fa-tachometer-alt me-2"></i> Dashboard
                         </a>
-                        <a href="manage-rooms.php" class="nav-link">
-                            <i class="fas fa-bed me-2"></i> Manage Rooms
-                        </a>
-                        <a href="manage-bookings.php" class="nav-link">
-                            <i class="fas fa-calendar-check me-2"></i> Manage Bookings
-                        </a>
-                        <a href="manage-services.php" class="nav-link">
-                            <i class="fas fa-concierge-bell me-2"></i> Manage Services
-                        </a>
+                        
+                        <?php if ($is_super_admin): ?>
+                            <a href="super-admin-users.php" class="nav-link">
+                                <i class="fas fa-users me-2"></i> User Management
+                            </a>
+                        <?php else: ?>
+                            <a href="manage-rooms.php" class="nav-link">
+                                <i class="fas fa-bed me-2"></i> Manage Rooms
+                            </a>
+                            <a href="manage-bookings.php" class="nav-link">
+                                <i class="fas fa-calendar-check me-2"></i> Manage Bookings
+                            </a>
+                            <a href="manage-services.php" class="nav-link">
+                                <i class="fas fa-concierge-bell me-2"></i> Manage Services
+                            </a>
+                        <?php endif; ?>
+                        
                         <a href="settings.php" class="nav-link active">
-                            <i class="fas fa-cog me-2"></i> Settings
+                            <i class="fas fa-cog me-2"></i> <?php echo $is_super_admin ? 'System Settings' : 'Settings'; ?>
                         </a>
                     </nav>
                     
@@ -188,10 +203,10 @@ foreach ($counts_queries as $key => $query) {
                 <div class="main-content p-4">
                     <div class="d-flex justify-content-between align-items-center mb-4">
                         <div>
-                            <a href="admin.php" class="btn btn-outline-secondary me-3">
+                            <a href="<?php echo $dashboard_link; ?>" class="btn btn-outline-secondary me-3">
                                 <i class="fas fa-arrow-left me-2"></i> Back to Dashboard
                             </a>
-                            <h2 class="d-inline"><i class="fas fa-cog me-2"></i> Hotel Settings</h2>
+                            <h2 class="d-inline"><i class="fas fa-cog me-2"></i> <?php echo $is_super_admin ? 'System Settings' : 'Hotel Settings'; ?></h2>
                         </div>
                         <div class="d-flex gap-2">
                             <button class="btn btn-outline-secondary" onclick="location.reload()">

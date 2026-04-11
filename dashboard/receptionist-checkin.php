@@ -3,11 +3,39 @@ session_start();
 require_once '../includes/config.php';
 require_once '../includes/functions.php';
 
-require_role('receptionist');
+require_auth_role('receptionist', '../login.php');
 
 $message = '';
 $error = '';
 $booking_data = null;
+
+// Check if booking reference is provided in URL (from receptionist dashboard)
+if (isset($_GET['booking_ref']) && !empty($_GET['booking_ref'])) {
+    $booking_ref = sanitize_input($_GET['booking_ref']);
+    
+    $search_query = "SELECT b.*, 
+                     COALESCE(r.name, 'Food Order') as room_name, 
+                     COALESCE(r.room_number, 'N/A') as room_number, 
+                     COALESCE(r.price, 0) as price,
+                     CONCAT(u.first_name, ' ', u.last_name) as guest_name, u.email, u.phone,
+                     DATEDIFF(b.check_out_date, b.check_in_date) as nights,
+                     b.payment_status, b.payment_method
+                     FROM bookings b
+                     LEFT JOIN rooms r ON b.room_id = r.id
+                     JOIN users u ON b.user_id = u.id
+                     WHERE b.booking_reference = ? AND b.status = 'pending' AND b.booking_type = 'room'";
+    
+    $stmt = $conn->prepare($search_query);
+    $stmt->bind_param("s", $booking_ref);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    
+    if ($result && $result->num_rows > 0) {
+        $booking_data = $result->fetch_assoc();
+    } else {
+        $error = 'Room booking not found, not pending, or already processed';
+    }
+}
 
 // Get today's check-ins
 $today = date('Y-m-d');
@@ -22,7 +50,7 @@ $todays_checkins_query = "SELECT b.*,
                           LEFT JOIN rooms r ON b.room_id = r.id
                           JOIN users u ON b.user_id = u.id
                           WHERE DATE(b.check_in_date) = '$today' 
-                          AND b.status = 'confirmed' 
+                          AND b.status = 'pending' 
                           AND b.verification_status = 'verified'
                           AND b.booking_type = 'room'
                           ORDER BY b.check_in_date ASC";
@@ -64,7 +92,7 @@ if ($_POST && isset($_POST['action'])) {
                          FROM bookings b
                          LEFT JOIN rooms r ON b.room_id = r.id
                          JOIN users u ON b.user_id = u.id
-                         WHERE b.status = 'confirmed' AND b.booking_type = 'room'";
+                         WHERE b.status = 'pending' AND b.booking_type = 'room'";
         
         if ($search_type == 'reference') {
             $search_query .= " AND b.booking_reference = '$search_value'";
@@ -78,7 +106,7 @@ if ($_POST && isset($_POST['action'])) {
         if ($result && $result->num_rows > 0) {
             $booking_data = $result->fetch_assoc();
         } else {
-            $error = 'Booking not found or not confirmed';
+            $error = 'Room booking not found, not pending, or not confirmed';
         }
     } elseif ($_POST['action'] == 'process_checkin') {
         $booking_id = (int)$_POST['booking_id'];
@@ -98,7 +126,7 @@ if ($_POST && isset($_POST['action'])) {
         $conn->begin_transaction();
         
         try {
-            // Update booking with check-in details
+            // Update booking with check-in details - change from pending to checked_in
             $update_query = "UPDATE bookings SET 
                             status = 'checked_in',
                             customer_name = ?,
@@ -110,14 +138,24 @@ if ($_POST && isset($_POST['action'])) {
                             incidental_deposit = ?,
                             deposit_payment_method = ?,
                             actual_checkin_time = NOW(),
-                            checked_in_by = ?
+                            checked_in_by = ?,
+                            verified_at = NOW(),
+                            verified_by = ?
                             WHERE id = ?";
             
             $stmt = $conn->prepare($update_query);
-            $stmt->bind_param("ssssssdsii", $customer_name, $customer_email, $customer_phone, 
+            $stmt->bind_param("ssssssdsiii", $customer_name, $customer_email, $customer_phone, 
                              $id_type, $id_number, $room_key_number, $deposit_amount, 
-                             $deposit_payment_method, $_SESSION['user_id'], $booking_id);
+                             $deposit_payment_method, $_SESSION['user_id'], $_SESSION['user_id'], $booking_id);
             $stmt->execute();
+            
+            // Update room status to 'occupied' when checked in
+            if (!empty($room_id)) {
+                $room_occupied_query = "UPDATE rooms SET status = 'occupied' WHERE id = ?";
+                $room_occupied_stmt = $conn->prepare($room_occupied_query);
+                $room_occupied_stmt->bind_param("i", $room_id);
+                $room_occupied_stmt->execute();
+            }
             
             // Issue room key
             if (!empty($room_key_number)) {
@@ -143,17 +181,98 @@ if ($_POST && isset($_POST['action'])) {
             $booking_query = "SELECT user_id FROM bookings WHERE id = $booking_id";
             $booking_result = $conn->query($booking_query);
             if ($booking_result && $booking = $booking_result->fetch_assoc()) {
-                log_booking_activity($booking_id, $booking['user_id'], 'checked_in', 'confirmed', 'checked_in', 
-                                    'Guest checked in by receptionist', $_SESSION['user_id']);
+                log_booking_activity($booking_id, $booking['user_id'], 'checked_in', 'pending', 'checked_in', 
+                                    'Customer checked in by receptionist with detailed form', $_SESSION['user_id']);
+            }
+            
+            // Create detailed checkin record
+            $booking_details_query = "SELECT b.*, r.name as room_name, r.room_number, 
+                                     CONCAT(u.first_name, ' ', u.last_name) as customer_name,
+                                     u.email, u.phone
+                                     FROM bookings b
+                                     LEFT JOIN rooms r ON b.room_id = r.id
+                                     JOIN users u ON b.user_id = u.id
+                                     WHERE b.id = ?";
+            $details_stmt = $conn->prepare($booking_details_query);
+            $details_stmt->bind_param("i", $booking_id);
+            $details_stmt->execute();
+            $booking_details = $details_stmt->get_result()->fetch_assoc();
+            
+            $confirmation_number = 'CHK-' . date('Ymd') . '-' . strtoupper(substr(uniqid(), -6));
+            
+            // Only create checkin record if booking details exist and checkins table exists
+            if ($booking_details) {
+                // Check if checkins table exists before inserting
+                $table_check = $conn->query("SHOW TABLES LIKE 'checkins'");
+                if ($table_check && $table_check->num_rows > 0) {
+                    try {
+                        // Create checkin record
+                        $nights = (int)((strtotime($booking_details['check_out_date']) - strtotime($booking_details['check_in_date'])) / (60 * 60 * 24));
+                        
+                        $checkin_insert = $conn->prepare("
+                            INSERT INTO checkins (
+                                customer_id, booking_id, hotel_name, hotel_location, 
+                                check_in_date, check_out_date,
+                                guest_full_name, guest_date_of_birth, guest_id_type, guest_id_number, 
+                                guest_nationality, guest_home_address, guest_phone_number, guest_email_address,
+                                room_type, room_number, nights_stay, number_of_guests, rate_per_night,
+                                payment_type, amount_paid, balance_due, confirmation_number, 
+                                additional_requests, checked_in_by
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ");
+                        
+                        $hotel_name = 'Harar Ras Hotel';
+                        $hotel_location = 'Jugol Street, Harar, Ethiopia';
+                        $guest_dob = '1990-01-01';
+                        $nationality = 'Ethiopian';
+                        $address = $notes ?? 'N/A';
+                        $payment_type = $payment_method ?? 'cash';
+                        $amount_paid = (float)($payment_collected ?? $booking_details['total_price']);
+                        $balance_due = 0.00;
+                        $number_of_guests = (int)($booking_details['customers'] ?? 1);
+                        $rate_per_night = (float)($booking_details['price'] ?? 0);
+                        $user_id = (int)$booking_details['user_id'];
+                        $checked_in_by = (int)$_SESSION['user_id'];
+                        
+                        $room_name = $booking_details['room_name'] ?? 'Standard Room';
+                        $room_number = $booking_details['room_number'] ?? 'N/A';
+                        
+                        $checkin_insert->bind_param(
+                            "iissssssssssssssiidsddssi",
+                            $user_id, $booking_id, $hotel_name, $hotel_location,
+                            $booking_details['check_in_date'], $booking_details['check_out_date'],
+                            $customer_name, $guest_dob, $id_type, $id_number,
+                            $nationality, $address, $customer_phone, $customer_email,
+                            $room_name, $room_number, $nights, $number_of_guests,
+                            $rate_per_night, $payment_type, $amount_paid, $balance_due,
+                            $confirmation_number, $notes, $checked_in_by
+                        );
+                        
+                        $checkin_insert->execute();
+                    } catch (Exception $checkin_error) {
+                        // Log the error but don't fail the entire transaction
+                        error_log("Checkin record creation failed: " . $checkin_error->getMessage());
+                    }
+                }
             }
             
             $conn->commit();
-            $message = 'Guest checked in successfully! Room key issued.';
-            $booking_data = null;
+            $success_message = 'Room booking approved and customer checked in successfully! Room is now occupied. Confirmation number: ' . ($confirmation_number ?? 'N/A');
+            
+            // Store success message in session for display on dashboard
+            $_SESSION['success_message'] = $success_message;
+            
+            // Use PHP header redirect instead of JavaScript
+            header("Location: receptionist.php?checkin_success=1");
+            exit();
             
         } catch (Exception $e) {
             $conn->rollback();
-            $error = 'Failed to process check-in: ' . $e->getMessage();
+            error_log("Check-in process failed: " . $e->getMessage());
+            $error = 'Failed to process check-in: ' . $e->getMessage() . '. Please try again or contact IT support.';
+            
+            // Clear any booking data to show search form again
+            $booking_data = null;
         }
     }
 }
@@ -167,6 +286,7 @@ if ($_POST && isset($_POST['action'])) {
     <title>New Check-in - Receptionist Dashboard</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="../assets/css/print.css">
     <style>
         .navbar-receptionist {
             background: linear-gradient(135deg, #007bff 0%, #0056b3 100%) !important;
@@ -246,9 +366,6 @@ if ($_POST && isset($_POST['action'])) {
                         <a href="receptionist-checkout.php" class="nav-link">
                             <i class="fas fa-minus-circle me-2"></i> Process Check-out
                         </a>
-                        <a href="verify-payments.php" class="nav-link">
-                            <i class="fas fa-check-circle me-2"></i> Verify Payments
-                        </a>
                         <a href="receptionist-pending.php" class="nav-link">
                             <i class="fas fa-calendar-check me-2"></i> Pending Bookings
                         </a>
@@ -270,7 +387,7 @@ if ($_POST && isset($_POST['action'])) {
             
             <!-- Main Content -->
             <div class="col-md-9 col-lg-10">
-                <div class="main-content p-4">
+                <div class="main-content p-4 single-page-print">
                     <div class="d-flex justify-content-between align-items-center mb-4">
                         <div>
                             <a href="receptionist.php" class="btn btn-outline-secondary me-3">
@@ -312,7 +429,7 @@ if ($_POST && isset($_POST['action'])) {
                                     <thead class="table-light">
                                         <tr>
                                             <th>Booking Ref</th>
-                                            <th>Guest Name</th>
+                                            <th>Customer Name</th>
                                             <th>Room</th>
                                             <th>Phone</th>
                                             <th>Nights</th>
@@ -376,7 +493,7 @@ if ($_POST && isset($_POST['action'])) {
                                         <label class="form-label fw-bold">Search By:</label>
                                         <select name="search_type" id="searchType" class="form-select form-select-lg" required>
                                             <option value="reference">Booking Reference</option>
-                                            <option value="name">Guest Last Name</option>
+                                            <option value="name">Customer Last Name</option>
                                             <option value="phone">Mobile Number</option>
                                         </select>
                                     </div>
@@ -398,8 +515,9 @@ if ($_POST && isset($_POST['action'])) {
                                 <h6 class="alert-heading"><i class="fas fa-lightbulb me-2"></i> Quick Tips:</h6>
                                 <ul class="mb-0 small">
                                     <li>Booking references start with "HRH" followed by date and number</li>
-                                    <li>For name search, enter the guest's last name</li>
+                                    <li>For name search, enter the customer's last name</li>
                                     <li>Phone numbers can be searched with or without country code</li>
+                                    <li>Only pending room bookings with verified payments can be checked in</li>
                                 </ul>
                             </div>
                         </div>
@@ -411,7 +529,7 @@ if ($_POST && isset($_POST['action'])) {
                             if (this.value === 'reference') {
                                 searchValue.placeholder = 'Enter booking reference (e.g., HRH20241011)';
                             } else if (this.value === 'name') {
-                                searchValue.placeholder = 'Enter guest last name';
+                                searchValue.placeholder = 'Enter customer last name';
                             } else if (this.value === 'phone') {
                                 searchValue.placeholder = 'Enter mobile number';
                             }
@@ -430,7 +548,7 @@ if ($_POST && isset($_POST['action'])) {
                                     <thead class="table-light">
                                         <tr>
                                             <th>Booking Ref</th>
-                                            <th>Guest Name</th>
+                                            <th>Customer Name</th>
                                             <th>Room</th>
                                             <th>Phone</th>
                                             <th>Nights</th>
@@ -479,7 +597,7 @@ if ($_POST && isset($_POST['action'])) {
                                             <div class="booking-info">
                                                 <div class="row mb-3">
                                                     <div class="col-md-6">
-                                                        <h6 class="text-primary mb-3"><i class="fas fa-user me-2"></i> Guest Information</h6>
+                                                        <h6 class="text-primary mb-3"><i class="fas fa-user me-2"></i> Customer Information</h6>
                                                         <p class="mb-2"><strong>Name:</strong> <?php echo htmlspecialchars($booking_data['guest_name'] ?? ''); ?></p>
                                                         <p class="mb-2"><strong>Email:</strong> <?php echo htmlspecialchars($booking_data['email'] ?? ''); ?></p>
                                                         <p class="mb-2"><strong>Phone:</strong> <?php echo htmlspecialchars($booking_data['phone'] ?? 'Not provided'); ?></p>
@@ -763,7 +881,7 @@ if ($_POST && isset($_POST['action'])) {
                                         
                                         <!-- Action Buttons -->
                                         <div class="d-flex gap-3 justify-content-center">
-                                            <button type="submit" class="btn btn-success btn-lg px-5">
+                                            <button type="submit" class="btn btn-success btn-lg px-5" id="checkinBtn">
                                                 <i class="fas fa-check-circle me-2"></i> Complete Check-in
                                             </button>
                                             <a href="receptionist-checkin.php" class="btn btn-secondary btn-lg px-4">
@@ -774,6 +892,27 @@ if ($_POST && isset($_POST['action'])) {
                                             </button>
                                         </div>
                                     </form>
+                                    
+                                    <script>
+                                    // Add form submission handling with loading state
+                                    document.querySelector('form').addEventListener('submit', function(e) {
+                                        const submitBtn = document.getElementById('checkinBtn');
+                                        const originalText = submitBtn.innerHTML;
+                                        
+                                        // Show loading state
+                                        submitBtn.disabled = true;
+                                        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i> Processing Check-in...';
+                                        
+                                        // Set a timeout to prevent infinite loading
+                                        setTimeout(function() {
+                                            if (submitBtn.disabled) {
+                                                submitBtn.disabled = false;
+                                                submitBtn.innerHTML = originalText;
+                                                alert('Check-in is taking longer than expected. Please try again or contact IT support.');
+                                            }
+                                        }, 30000); // 30 second timeout
+                                    });
+                                    </script>
                                 </div>
                             </div>
                         </div>
@@ -805,7 +944,7 @@ if ($_POST && isset($_POST['action'])) {
                                 </div>
                                 <div class="card-body">
                                     <p class="small mb-2"><strong>Incidental Deposit:</strong> Recommended 500-1000 ETB for room damages or minibar charges</p>
-                                    <p class="small mb-2"><strong>ID Verification:</strong> Always verify guest ID matches booking name</p>
+                                    <p class="small mb-2"><strong>ID Verification:</strong> Always verify customer ID matches booking name</p>
                                     <p class="small mb-0"><strong>Room Key:</strong> Record key number for tracking</p>
                                 </div>
                             </div>

@@ -1,0 +1,555 @@
+/* Global Print Styles for Harar Ras Hotel - ULTRA COMPACT */
+@media print {
+    /* Hide all navigation and non-essential elements */
+    .no-print, 
+    .navbar, 
+    nav, 
+    footer, 
+    .footer,
+    .btn,
+    button,
+    .modal,
+    .alert,
+    .breadcrumb,
+    .pagination,
+    .social-links,
+    .quick-links,
+    .contact-info,
+    .back-to-top,
+    .floating-btn,
+    .sidebar,
+    .header-actions,
+    .action-buttons,
+    .dropdown,
+    .dropdown-menu,
+    .offcanvas,
+    .toast,
+    .tooltip,
+    .popover,
+    .carousel-control-prev,
+    .carousel-control-next,
+    .carousel-indicators { 
+        display: none !important; 
+    }
+    
+    /* Clean print layout - ULTRA COMPACT VERSION */
+    * {
+        -webkit-print-color-adjust: exact !important;
+        color-adjust: exact !important;
+        box-sizing: border-box !important;
+    }
+    
+    @page {
+        margin: 0.75in !important;
+        size: A4 !important;
+    }
+    
+    body { 
+        background: white !important;
+        color: black !important;
+        font-size: 12pt !important;
+        line-height: 1.4 !important;
+        margin: 0 !important;
+        padding: 15px !important;
+        font-family: 'Arial', sans-serif !important;
+    }
+    
+    .container,
+    .container-fluid {
+        max-width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        width: 100% !important;
+    }
+    
+    .row {
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+    
+    .col,
+    [class*="col-"] {
+        padding: 0 8px !important;
+        margin: 0 !important;
+    }
+    
+    /* Customer-friendly card styling for print */
+    .card {
+        border: 2px solid #333 !important;
+        box-shadow: none !important;
+        margin-bottom: 15px !important;
+        page-break-inside: avoid;
+        background: white !important;
+        padding: 0 !important;
+    }
+    
+    .card-header {
+        background: #f8f9fa !important;
+        color: black !important;
+        border-bottom: 2px solid #333 !important;
+        padding: 12px 15px !important;
+        font-size: 14pt !important;
+        font-weight: bold !important;
+        margin: 0 !important;
+        line-height: 1.3 !important;
+    }
+    
+    .card-body {
+        padding: 15px !important;
+        margin: 0 !important;
+    }
+    
+    /* Customer-friendly table styling for print */
+    .table {
+        border-collapse: collapse !important;
+        width: 100% !important;
+        margin-bottom: 15px !important;
+        font-size: 11pt !important;
+        line-height: 1.3 !important;
+    }
+    
+    .table th,
+    .table td {
+        border: 1px solid #333 !important;
+        padding: 8px 10px !important;
+        text-align: left !important;
+        vertical-align: top !important;
+        line-height: 1.3 !important;
+        margin: 0 !important;
+    }
+    
+    .table th {
+        background: #f0f0f0 !important;
+        font-weight: bold !important;
+        font-size: 11pt !important;
+    }
+    
+    /* Customer-friendly badge styling for print */
+    .badge {
+        border: 1px solid #333 !important;
+        background: #f8f9fa !important;
+        color: black !important;
+        padding: 4px 8px !important;
+        font-size: 10pt !important;
+        display: inline !important;
+        line-height: 1.2 !important;
+    }
+    
+    /* Customer-friendly text styling */
+    h1, h2, h3, h4, h5, h6 {
+        color: black !important;
+        page-break-after: avoid;
+        margin: 8px 0 6px 0 !important;
+        padding: 0 !important;
+        line-height: 1.3 !important;
+    }
+    
+    h1 { font-size: 18pt !important; }
+    h2 { font-size: 16pt !important; }
+    h3 { font-size: 14pt !important; }
+    h4 { font-size: 12pt !important; }
+    h5 { font-size: 12pt !important; }
+    h6 { font-size: 11pt !important; }
+    
+    p, div, span {
+        color: black !important;
+        margin: 4px 0 !important;
+        padding: 0 !important;
+        line-height: 1.4 !important;
+    }
+    
+    /* Link styling */
+    a {
+        color: black !important;
+        text-decoration: none !important;
+    }
+    
+    a[href]:after {
+        content: none !important;
+    }
+    
+    /* Page break utilities */
+    .page-break {
+        page-break-before: always;
+    }
+    
+    .page-break-after {
+        page-break-after: always;
+    }
+    
+    .no-page-break {
+        page-break-inside: avoid;
+    }
+    
+    /* Customer-friendly print-specific header */
+    .print-header {
+        display: block !important;
+        text-align: center;
+        margin-bottom: 20px !important;
+        border-bottom: 2px solid #333;
+        padding-bottom: 15px !important;
+        page-break-after: avoid;
+        position: relative !important;
+        z-index: 9999 !important;
+        background: white !important;
+    }
+    
+    .print-header h1 {
+        margin: 0 !important;
+        font-size: 20pt !important;
+        font-weight: bold !important;
+        line-height: 1.2 !important;
+    }
+    
+    .print-header p {
+        margin: 4px 0 !important;
+        font-size: 11pt !important;
+        line-height: 1.3 !important;
+    }
+    
+    /* ULTRA compact print-specific footer */
+    .print-footer {
+        display: block !important;
+        text-align: center;
+        margin-top: 5px !important;
+        border-top: 1px solid #ddd;
+        padding-top: 3px !important;
+        font-size: 6pt !important;
+        color: #666 !important;
+        line-height: 1.0 !important;
+    }
+    
+    /* Hide screen-only elements */
+    .screen-only {
+        display: none !important;
+    }
+    
+    /* Show print-only elements */
+    .print-only {
+        display: block !important;
+    }
+    
+    /* Force print-only header to show */
+    .print-header.print-only {
+        display: block !important;
+        visibility: visible !important;
+    }
+    
+    /* Ensure images print properly but much smaller */
+    img {
+        max-width: 100% !important;
+        height: auto !important;
+        max-height: 50px !important;
+    }
+    
+    /* Form elements for print - ultra compact */
+    input, select, textarea {
+        border: 1px solid #ccc !important;
+        background: white !important;
+        color: black !important;
+        font-size: 7pt !important;
+        padding: 1px !important;
+        line-height: 1.0 !important;
+    }
+    
+    /* Remove any remaining interactive elements */
+    input[type="button"],
+    input[type="submit"],
+    input[type="reset"] {
+        display: none !important;
+    }
+    
+    /* Specific optimizations for booking details */
+    .booking-info {
+        margin: 1px 0 !important;
+        padding: 1px !important;
+    }
+    
+    .booking-info p {
+        margin: 0 !important;
+        line-height: 1.0 !important;
+    }
+    
+    /* ULTRA compact section spacing */
+    section {
+        padding: 2px 0 !important;
+        margin: 0 !important;
+    }
+    
+    /* Remove ALL excessive white space */
+    .mb-1, .mb-2, .mb-3, .mb-4, .mb-5,
+    .mt-1, .mt-2, .mt-3, .mt-4, .mt-5,
+    .py-1, .py-2, .py-3, .py-4, .py-5,
+    .px-1, .px-2, .px-3, .px-4, .px-5,
+    .m-1, .m-2, .m-3, .m-4, .m-5,
+    .p-1, .p-2, .p-3, .p-4, .p-5 {
+        margin: 0 !important;
+        padding: 1px !important;
+    }
+    
+    /* Force content to fit better */
+    .receipt-container {
+        box-shadow: none !important;
+        margin: 0 !important;
+        max-width: 100% !important;
+        border-radius: 0 !important;
+        padding: 0 !important;
+    }
+    
+    /* ULTRA optimize for single page */
+    .single-page-print {
+        font-size: 6pt !important;
+        line-height: 1.0 !important;
+    }
+    
+    .single-page-print .table {
+        font-size: 6pt !important;
+        line-height: 1.0 !important;
+    }
+    
+    .single-page-print .card-header {
+        padding: 1px 3px !important;
+        font-size: 7pt !important;
+        line-height: 1.0 !important;
+    }
+    
+    .single-page-print .card-body {
+        padding: 2px !important;
+    }
+    
+    /* Remove Bootstrap spacing classes completely */
+    .alert {
+        margin: 1px 0 !important;
+        padding: 2px !important;
+        font-size: 7pt !important;
+        line-height: 1.0 !important;
+    }
+    
+    /* Compact list styling */
+    ul, ol {
+        margin: 0 !important;
+        padding-left: 10px !important;
+    }
+    
+    li {
+        margin: 0 !important;
+        padding: 0 !important;
+        line-height: 1.0 !important;
+    }
+    
+    /* Force all text to be compact */
+    * {
+        line-height: 1.0 !important;
+    }
+    
+    /* Special handling for booking details tables */
+    .booking-details-table {
+        width: 100% !important;
+        border-collapse: collapse !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+    
+    .booking-details-table td {
+        padding: 1px 3px !important;
+        font-size: 7pt !important;
+        line-height: 1.0 !important;
+        border: 1px solid #ccc !important;
+        vertical-align: top !important;
+    }
+    
+    .booking-details-table td:first-child {
+        font-weight: bold !important;
+        width: 30% !important;
+        background: #f9f9f9 !important;
+    }
+    
+    /* Food order items table ultra compact */
+    .food-items-table {
+        width: 100% !important;
+        border-collapse: collapse !important;
+        margin: 1px 0 !important;
+        font-size: 6pt !important;
+    }
+    
+    .food-items-table th,
+    .food-items-table td {
+        padding: 1px 2px !important;
+        border: 1px solid #ccc !important;
+        line-height: 1.0 !important;
+    }
+    
+    .food-items-table th {
+        background: #f0f0f0 !important;
+        font-weight: bold !important;
+        font-size: 6pt !important;
+    }
+    
+    /* Ultra compact print class */
+    .ultra-compact-print {
+        font-size: 5pt !important;
+        line-height: 0.8 !important;
+    }
+    
+    .ultra-compact-print * {
+        font-size: 5pt !important;
+        line-height: 0.8 !important;
+        margin: 0 !important;
+        padding: 0px !important;
+    }
+    
+    .ultra-compact-print h1,
+    .ultra-compact-print h2,
+    .ultra-compact-print h3,
+    .ultra-compact-print h4,
+    .ultra-compact-print h5,
+    .ultra-compact-print h6 {
+        font-size: 7pt !important;
+        margin: 0px 0 !important;
+        padding: 0 !important;
+        line-height: 0.9 !important;
+    }
+    
+    .ultra-compact-print .card {
+        margin-bottom: 0px !important;
+        border: 1px solid #ddd !important;
+        padding: 0 !important;
+    }
+    
+    .ultra-compact-print .card-header {
+        padding: 0px 2px !important;
+        font-size: 6pt !important;
+        margin: 0 !important;
+        line-height: 0.8 !important;
+    }
+    
+    .ultra-compact-print .card-body {
+        padding: 0px !important;
+        margin: 0 !important;
+    }
+    
+    .ultra-compact-print .table {
+        font-size: 5pt !important;
+        margin: 0 !important;
+        line-height: 0.8 !important;
+    }
+    
+    .ultra-compact-print .table th,
+    .ultra-compact-print .table td {
+        padding: 0px 1px !important;
+        font-size: 5pt !important;
+        line-height: 0.8 !important;
+        border: 1px solid #ccc !important;
+    }
+    
+    .ultra-compact-print .row {
+        margin: 0 !important;
+    }
+    
+    .ultra-compact-print .col,
+    .ultra-compact-print [class*="col-"] {
+        padding: 0 0px !important;
+    }
+    
+    .ultra-compact-print .mb-4,
+    .ultra-compact-print .mb-3,
+    .ultra-compact-print .mb-2,
+    .ultra-compact-print .mb-1 {
+        margin-bottom: 1px !important;
+    }
+    
+    .ultra-compact-print .text-gold {
+        color: black !important;
+        font-size: 6pt !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+    
+    .ultra-compact-print .badge {
+        font-size: 4pt !important;
+        padding: 0px 1px !important;
+    }
+    
+    .ultra-compact-print .alert {
+        margin: 0 !important;
+        padding: 1px !important;
+        font-size: 5pt !important;
+    }
+    
+    /* Force single page */
+    .ultra-compact-print {
+        page-break-inside: avoid !important;
+        page-break-after: avoid !important;
+    }
+    
+    .ultra-compact-print .container {
+        max-height: 100vh !important;
+        overflow: hidden !important;
+    }
+    
+    /* Remove any potential page breaks */
+    .ultra-compact-print * {
+        page-break-inside: avoid !important;
+        page-break-before: avoid !important;
+        page-break-after: avoid !important;
+    }
+    
+    /* Ensure print footer doesn't create second page */
+    .print-footer {
+        position: fixed !important;
+        bottom: 0 !important;
+        width: 100% !important;
+        font-size: 4pt !important;
+        line-height: 0.8 !important;
+        margin: 0 !important;
+        padding: 1px !important;
+    }
+    
+    /* Hide any potential overflow content */
+    @media print {
+        body {
+            overflow: hidden !important;
+        }
+        
+        /* Ensure no content goes beyond page */
+        .container {
+            max-height: 95vh !important;
+            overflow: hidden !important;
+        }
+        
+        /* Hide any scripts or extra content */
+        script,
+        .modal,
+        .offcanvas,
+        .tooltip,
+        .popover {
+            display: none !important;
+        }
+        
+        /* Force everything to fit on one page */
+        * {
+            max-height: none !important;
+            overflow: visible !important;
+        }
+        
+        /* Remove any potential page break triggers */
+        h1, h2, h3, h4, h5, h6,
+        .card-header,
+        .table-header {
+            page-break-after: avoid !important;
+            page-break-inside: avoid !important;
+        }
+        
+        /* Ensure tables don't break across pages */
+        table {
+            page-break-inside: avoid !important;
+        }
+        
+        tr {
+            page-break-inside: avoid !important;
+            page-break-after: auto !important;
+        }
+    }
+}
+}
+}

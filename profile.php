@@ -1,13 +1,15 @@
 <?php
+/**
+ * User Profile Page - Protected
+ * Requires: User authentication
+ */
+
 session_start();
 require_once 'includes/config.php';
 require_once 'includes/functions.php';
 
-// Check if user is logged in
-if (!is_logged_in()) {
-    header('Location: login.php');
-    exit();
-}
+// Require authentication and prevent caching
+require_auth('login.php');
 
 $user_id = $_SESSION['user_id'];
 $message = '';

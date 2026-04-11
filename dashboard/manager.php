@@ -7,7 +7,7 @@ session_start();
 require_once '../includes/config.php';
 require_once '../includes/functions.php';
 
-require_role('manager');
+require_auth_role('manager', '../login.php');
 
 // Get statistics for dashboard
 $stats_query = "SELECT 
@@ -484,9 +484,6 @@ $staff_count = $staff_count_result->fetch_assoc()['staff_count'];
             <a href="manager-reports.php" class="nav-link">
                 <i class="fas fa-chart-bar me-2"></i> Reports
             </a>
-            <a href="manager-payment-verification.php" class="nav-link">
-                <i class="fas fa-shield-alt me-2"></i> Payment Verification
-            </a>
             <a href="../logout.php" class="nav-link mt-3">
                 <i class="fas fa-sign-out-alt me-2"></i> Logout
             </a>
@@ -735,21 +732,23 @@ $staff_count = $staff_count_result->fetch_assoc()['staff_count'];
                 const bookingStatusChart = new Chart(ctx, {
                     type: 'doughnut',
                     data: {
-                        labels: ['Confirmed', 'Pending', 'Cancelled', 'Checked In', 'Checked Out'],
+                        labels: ['Confirmed', 'Pending', 'Cancelled', 'Checked In', 'Checked Out', 'Refunded'],
                         datasets: [{
                             data: [
                                 <?php echo $status_data['confirmed'] ?? 0; ?>,
                                 <?php echo $status_data['pending'] ?? 0; ?>,
                                 <?php echo $status_data['cancelled'] ?? 0; ?>,
                                 <?php echo $status_data['checked_in'] ?? 0; ?>,
-                                <?php echo $status_data['checked_out'] ?? 0; ?>
+                                <?php echo $status_data['checked_out'] ?? 0; ?>,
+                                <?php echo $status_data['refunded'] ?? 0; ?>
                             ],
                             backgroundColor: [
                                 '#5DADE2',
                                 '#F39C12',
                                 '#E74C3C',
                                 '#27AE60',
-                                '#95A5A6'
+                                '#95A5A6',
+                                '#9B59B6'
                             ],
                             borderWidth: 2,
                             borderColor: '#fff'

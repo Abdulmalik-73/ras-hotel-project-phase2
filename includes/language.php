@@ -23,18 +23,20 @@ function get_current_language() {
         $user_id = $_SESSION['user_id'];
         $query = "SELECT preferred_language FROM users WHERE id = ?";
         $stmt = $conn->prepare($query);
-        $stmt->bind_param("i", $user_id);
-        $stmt->execute();
-        $result = $stmt->get_result();
-        
-        if ($row = $result->fetch_assoc()) {
-            $lang = $row['preferred_language'];
-            // If user's preference is null or empty, default to English
-            if (empty($lang) || !in_array($lang, ['en', 'am', 'om'])) {
-                $lang = 'en';
+        if ($stmt) {
+            $stmt->bind_param("i", $user_id);
+            $stmt->execute();
+            $result = $stmt->get_result();
+            
+            if ($row = $result->fetch_assoc()) {
+                $lang = $row['preferred_language'];
+                // If user's preference is null or empty, default to English
+                if (empty($lang) || !in_array($lang, ['en', 'am', 'om'])) {
+                    $lang = 'en';
+                }
+                $_SESSION['language'] = $lang;
+                return $lang;
             }
-            $_SESSION['language'] = $lang;
-            return $lang;
         }
     }
     
@@ -60,9 +62,13 @@ function set_language($lang) {
         $user_id = $_SESSION['user_id'];
         $query = "UPDATE users SET preferred_language = ? WHERE id = ?";
         $stmt = $conn->prepare($query);
-        $stmt->bind_param("si", $lang, $user_id);
-        $stmt->execute();
+        if ($stmt) {
+            $stmt->bind_param("si", $lang, $user_id);
+            $stmt->execute();
+        }
     }
+    
+    return true;
 }
 
 // Load translations

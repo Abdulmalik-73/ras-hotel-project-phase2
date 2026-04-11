@@ -7,7 +7,7 @@ session_start();
 require_once '../includes/config.php';
 require_once '../includes/functions.php';
 
-require_role('manager');
+require_auth_role('manager', '../login.php');
 
 // Handle booking actions
 if ($_POST) {
@@ -88,7 +88,7 @@ if ($_POST) {
                     $checkin_insert->execute();
                 }
                 
-                set_message('success', 'Booking approved and guest checked in successfully');
+                set_message('success', 'Booking approved and customer checked in successfully');
             } else {
                 set_message('error', 'Failed to approve booking or booking already processed');
             }
@@ -192,7 +192,7 @@ if ($_POST) {
                     );
                     
                     if ($checkin_insert->execute()) {
-                        set_message('success', 'Guest checked in successfully');
+                        set_message('success', 'Customer checked in successfully');
                     } else {
                         set_message('error', 'Failed to create check-in record: ' . $checkin_insert->error);
                     }
@@ -233,9 +233,42 @@ if ($_POST) {
                               WHERE b.id = $booking_id";
                 $conn->query($room_query);
                 
-                set_message('success', 'Guest checked out successfully');
+                set_message('success', 'Customer checked out successfully');
             } else {
-                set_message('error', 'Failed to check out guest');
+                set_message('error', 'Failed to check out customer');
+            }
+            break;
+            
+        case 'delete':
+            // Archive/Delete checked-out bookings
+            // Only allow deletion of checked_out or cancelled bookings
+            $check_query = "SELECT status FROM bookings WHERE id = $booking_id";
+            $check_result = $conn->query($check_query);
+            
+            if ($check_result && $check_result->num_rows > 0) {
+                $booking_status = $check_result->fetch_assoc()['status'];
+                
+                if (in_array($booking_status, ['checked_out', 'cancelled'])) {
+                    // Instead of deleting, we'll mark it as archived
+                    // First, check if archived column exists
+                    $check_archived = $conn->query("SHOW COLUMNS FROM bookings LIKE 'archived'");
+                    if ($check_archived->num_rows == 0) {
+                        // Add archived column if it doesn't exist
+                        $conn->query("ALTER TABLE bookings ADD COLUMN archived TINYINT(1) DEFAULT 0");
+                    }
+                    
+                    // Mark as archived
+                    $archive_query = "UPDATE bookings SET archived = 1 WHERE id = $booking_id";
+                    if ($conn->query($archive_query)) {
+                        set_message('success', 'Booking archived successfully');
+                    } else {
+                        set_message('error', 'Failed to archive booking');
+                    }
+                } else {
+                    set_message('error', 'Only checked-out or cancelled bookings can be archived');
+                }
+            } else {
+                set_message('error', 'Booking not found');
             }
             break;
     }
@@ -247,13 +280,27 @@ if ($_POST) {
 $status_filter = $_GET['status'] ?? '';
 $search = $_GET['search'] ?? '';
 
+// Check if archived column exists
+$check_archived_col = $conn->query("SHOW COLUMNS FROM bookings LIKE 'archived'");
+$has_archived_column = ($check_archived_col && $check_archived_col->num_rows > 0);
+
 $where_conditions = [];
 // Only show room bookings, not food orders
 $where_conditions[] = "b.booking_type = 'room'";
 
+// Exclude archived bookings (only if column exists)
+if ($has_archived_column) {
+    $where_conditions[] = "(b.archived IS NULL OR b.archived = 0)";
+}
+
+// By default, exclude checked_out bookings unless specifically filtered
 if ($status_filter) {
     $where_conditions[] = "b.status = '" . sanitize_input($status_filter) . "'";
+} else {
+    // Show only active bookings (pending, confirmed, checked_in) by default
+    $where_conditions[] = "b.status IN ('pending', 'confirmed', 'checked_in')";
 }
+
 if ($search) {
     $search_term = sanitize_input($search);
     $where_conditions[] = "(b.booking_reference LIKE '%$search_term%' OR CONCAT(u.first_name, ' ', u.last_name) LIKE '%$search_term%' OR u.email LIKE '%$search_term%')";
@@ -268,7 +315,11 @@ $bookings_query = "SELECT b.*,
                    COALESCE(r.name, 'Food Order') as room_name, 
                    COALESCE(r.room_number, 'N/A') as room_number, 
                    CONCAT(u.first_name, ' ', u.last_name) as guest_name, 
-                   u.email, u.phone
+                   u.email, u.phone,
+                   b.screenshot_path,
+                   b.screenshot_uploaded_at,
+                   b.payment_method,
+                   b.verification_status
                    FROM bookings b 
                    LEFT JOIN rooms r ON b.room_id = r.id 
                    JOIN users u ON b.user_id = u.id 
@@ -449,9 +500,6 @@ $bookings = $conn->query($bookings_query);
             <a href="manager-reports.php" class="nav-link">
                 <i class="fas fa-chart-bar me-2"></i> Reports
             </a>
-            <a href="../payment-verification.php" class="nav-link">
-                <i class="fas fa-shield-alt me-2"></i> Payment Verification
-            </a>
             <a href="../logout.php" class="nav-link mt-3">
                 <i class="fas fa-sign-out-alt me-2"></i> Logout
             </a>
@@ -512,10 +560,11 @@ $bookings = $conn->query($bookings_query);
                                     <thead>
                                         <tr>
                                             <th>Booking Ref</th>
-                                            <th>Guest</th>
+                                            <th>Customer</th>
                                             <th>Room</th>
                                             <th>Dates</th>
                                             <th>Total</th>
+                                            <th>Payment</th>
                                             <th>Status</th>
                                             <th>Actions</th>
                                         </tr>
@@ -540,10 +589,43 @@ $bookings = $conn->query($bookings_query);
                                                     <td>
                                                         <strong>In:</strong> <?php echo date('M j', strtotime($booking['check_in_date'])); ?>
                                                         <br><strong>Out:</strong> <?php echo date('M j', strtotime($booking['check_out_date'])); ?>
-                                                        <br><small class="text-muted"><?php echo isset($booking['number_of_guests']) ? $booking['number_of_guests'] : '1'; ?> guests</small>
+                                                        <br><small class="text-muted"><?php echo isset($booking['customers']) ? $booking['customers'] : '1'; ?> customers</small>
                                                     </td>
                                                     <td>
                                                         <strong><?php echo formatCurrency($booking['total_price']); ?></strong>
+                                                    </td>
+                                                    <td>
+                                                        <?php if ($booking['screenshot_path']): ?>
+                                                            <div class="payment-screenshot">
+                                                                <img src="../<?php echo htmlspecialchars($booking['screenshot_path']); ?>" 
+                                                                     alt="Payment Screenshot" 
+                                                                     class="img-thumbnail"
+                                                                     style="max-width: 80px; max-height: 80px; cursor: pointer; object-fit: cover;"
+                                                                     onclick="showScreenshotModal('<?php echo htmlspecialchars($booking['screenshot_path']); ?>', '<?php echo htmlspecialchars($booking['booking_reference']); ?>')">
+                                                                <br>
+                                                                <small class="text-muted">
+                                                                    <?php if ($booking['payment_method']): ?>
+                                                                        <span class="badge bg-secondary"><?php echo ucfirst($booking['payment_method']); ?></span>
+                                                                    <?php endif; ?>
+                                                                </small>
+                                                                <?php if ($booking['verification_status']): ?>
+                                                                    <br>
+                                                                    <span class="badge bg-<?php 
+                                                                        echo $booking['verification_status'] == 'verified' ? 'success' : 
+                                                                            ($booking['verification_status'] == 'pending_verification' ? 'warning' : 
+                                                                            ($booking['verification_status'] == 'rejected' ? 'danger' : 'secondary')); 
+                                                                    ?>">
+                                                                        <?php echo ucfirst(str_replace('_', ' ', $booking['verification_status'])); ?>
+                                                                    </span>
+                                                                <?php endif; ?>
+                                                            </div>
+                                                        <?php elseif ($booking['verification_status'] == 'pending_payment'): ?>
+                                                            <span class="badge bg-warning">
+                                                                <i class="fas fa-clock"></i> Awaiting Payment
+                                                            </span>
+                                                        <?php else: ?>
+                                                            <span class="text-muted">No screenshot</span>
+                                                        <?php endif; ?>
                                                     </td>
                                                     <td>
                                                         <?php
@@ -580,6 +662,12 @@ $bookings = $conn->query($bookings_query);
                                                                 </button>
                                                             <?php endif; ?>
                                                             
+                                                            <?php if (in_array($booking['status'], ['checked_out', 'cancelled'])): ?>
+                                                                <button class="btn btn-danger btn-sm" onclick="deleteBooking(<?php echo $booking['id']; ?>, '<?php echo htmlspecialchars($booking['booking_reference']); ?>')">
+                                                                    <i class="fas fa-trash"></i> Archive
+                                                                </button>
+                                                            <?php endif; ?>
+                                                            
                                                             <?php if (in_array($booking['status'], ['pending', 'confirmed'])): ?>
                                                                 <button class="btn btn-danger btn-sm" onclick="cancelBooking(<?php echo $booking['id']; ?>, '<?php echo htmlspecialchars($booking['booking_reference']); ?>')">
                                                                     <i class="fas fa-times"></i> Cancel
@@ -591,7 +679,7 @@ $bookings = $conn->query($bookings_query);
                                             <?php endwhile; ?>
                                         <?php else: ?>
                                             <tr>
-                                                <td colspan="7" class="text-center py-4">
+                                                <td colspan="8" class="text-center py-4">
                                                     <i class="fas fa-calendar-times fa-3x text-muted mb-3"></i>
                                                     <p class="text-muted">No bookings found</p>
                                                 </td>
@@ -603,6 +691,27 @@ $bookings = $conn->query($bookings_query);
                         </div>
                     </div>
                 </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Screenshot Modal -->
+    <div class="modal fade" id="screenshotModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Payment Screenshot - <span id="screenshot_booking_ref"></span></h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body text-center">
+                    <img id="screenshot_image" src="" alt="Payment Screenshot" class="img-fluid rounded border">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    <a id="screenshot_download" href="" download class="btn btn-primary">
+                        <i class="fas fa-download"></i> Download
+                    </a>
                 </div>
             </div>
         </div>
@@ -624,14 +733,20 @@ $bookings = $conn->query($bookings_query);
         }
         
         function checkinGuest(bookingId) {
-            if (confirm('Check in this guest?')) {
+            if (confirm('Check in this customer?')) {
                 submitAction('checkin', bookingId);
             }
         }
         
         function checkoutGuest(bookingId) {
-            if (confirm('Check out this guest?')) {
+            if (confirm('Check out this customer?')) {
                 submitAction('checkout', bookingId);
+            }
+        }
+        
+        function deleteBooking(bookingId, bookingRef) {
+            if (confirm(`Archive booking ${bookingRef}?\n\nThis will permanently remove it from the active bookings list. This action cannot be undone.`)) {
+                submitAction('delete', bookingId);
             }
         }
         
@@ -645,6 +760,13 @@ $bookings = $conn->query($bookings_query);
             `;
             document.body.appendChild(form);
             form.submit();
+        }
+        
+        function showScreenshotModal(screenshotPath, bookingRef) {
+            document.getElementById('screenshot_image').src = '../' + screenshotPath;
+            document.getElementById('screenshot_booking_ref').textContent = bookingRef;
+            document.getElementById('screenshot_download').href = '../' + screenshotPath;
+            new bootstrap.Modal(document.getElementById('screenshotModal')).show();
         }
     </script>
     <script>

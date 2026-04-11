@@ -15,7 +15,7 @@ session_start();
 require_once '../includes/config.php';
 require_once '../includes/functions.php';
 
-require_role('receptionist');
+require_auth_role('receptionist', '../login.php');
 
 // Safe display function to prevent null value errors
 function safe_display($value, $default = 'N/A') {
@@ -206,11 +206,11 @@ if ($_POST && isset($_POST['action'])) {
             $booking_result = $conn->query($booking_query);
             if ($booking_result && $booking = $booking_result->fetch_assoc()) {
                 log_booking_activity($booking_id, $booking['user_id'], 'checked_out', 'checked_in', 'checked_out', 
-                                    'Guest checked out automatically by system', $_SESSION['user_id']);
+                                    'Customer checked out automatically by system', $_SESSION['user_id']);
             }
             
             $conn->commit();
-            $message = 'Guest checked out successfully! Room is now available for new bookings.';
+            $message = 'Customer checked out successfully! Room is now available for new bookings.';
             $booking_data = null;
             
         } catch (Exception $e) {

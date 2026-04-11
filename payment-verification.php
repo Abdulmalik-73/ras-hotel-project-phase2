@@ -568,7 +568,7 @@ if ($stats_result) {
                                     <p><strong>Check-in:</strong> <?php echo $booking['check_in_date'] ? format_date($booking['check_in_date']) : 'N/A'; ?></p>
                                     <p><strong>Check-out:</strong> <?php echo $booking['check_out_date'] ? format_date($booking['check_out_date']) : 'N/A'; ?></p>
                                     <?php endif; ?>
-                                    <p><strong>Guests/Quantity:</strong> <?php echo $booking['customers']; ?></p>
+                                    <p><strong>Customers/Quantity:</strong> <?php echo $booking['customers']; ?></p>
                                     <p><strong>Total Amount:</strong> <span class="h5 text-success"><?php echo format_currency($booking['total_price']); ?></span></p>
                                     <p><strong>Payment Reference:</strong> <code><?php echo $booking['payment_reference']; ?></code></p>
                                 </div>

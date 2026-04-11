@@ -216,9 +216,6 @@ $stats = $conn->query($stats_query)->fetch_assoc();
                     <a href="manager-bookings.php" class="list-group-item list-group-item-action">
                         <i class="fas fa-calendar-check"></i> Bookings
                     </a>
-                    <a href="manager-payment-verification.php" class="list-group-item list-group-item-action">
-                        <i class="fas fa-money-check-alt"></i> Payment Verification
-                    </a>
                     <a href="manager-customer-feedback.php" class="list-group-item list-group-item-action active">
                         <i class="fas fa-star"></i> Customer Feedback
                     </a>

@@ -209,7 +209,7 @@ $conn->query($create_payments_table);
                             <table class="table table-sm">
                                 <tr><td><strong>Booking Ref:</strong></td><td><?php echo $booking_data['booking_reference']; ?></td></tr>
                                 <tr><td><strong>Room:</strong></td><td><?php echo $booking_data['room_name']; ?></td></tr>
-                                <tr><td><strong>Guest:</strong></td><td><?php echo $booking_data['first_name'] . ' ' . $booking_data['last_name']; ?></td></tr>
+                                <tr><td><strong>Customer:</strong></td><td><?php echo $booking_data['first_name'] . ' ' . $booking_data['last_name']; ?></td></tr>
                                 <tr><td><strong>Check-in:</strong></td><td><?php echo date('M j, Y', strtotime($booking_data['check_in_date'])); ?></td></tr>
                                 <tr><td><strong>Check-out:</strong></td><td><?php echo date('M j, Y', strtotime($booking_data['check_out_date'])); ?></td></tr>
                                 <tr><td><strong>Customers:</strong></td><td><?php echo $booking_data['customers']; ?></td></tr>

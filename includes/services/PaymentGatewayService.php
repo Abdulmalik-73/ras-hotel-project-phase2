@@ -165,7 +165,7 @@ class PaymentGatewayService {
     private function manualVerification($transaction_id, $gateway, $expected_amount) {
         return [
             'success' => true,
-            'message' => 'Transaction ID received. Payment will be verified manually by our staff within 24 hours.',
+            'message' => 'Transaction ID received. Payment will be verified manually by our staff within 30 minutes.',
             'verified' => false,
             'requires_manual_review' => true,
             'gateway' => $gateway,

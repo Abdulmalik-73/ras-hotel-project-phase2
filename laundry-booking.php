@@ -12,32 +12,31 @@ if (!is_logged_in()) {
 $error = '';
 $success = '';
 
-// Get laundry services from database
-$laundry_services_query = "SELECT DISTINCT id, name, price, description FROM services WHERE category = 'laundry' AND status = 'active' ORDER BY price";
-$laundry_services_result = $conn->query($laundry_services_query);
-$laundry_services = [];
+// Get laundry and spa services from database
+$services_query = "SELECT DISTINCT id, name, price, description, category FROM services WHERE (category = 'laundry' OR category = 'spa') AND status = 'active' ORDER BY category, price";
+$services_result = $conn->query($services_query);
+$all_services = [];
 
-// Get laundry services from database
-$laundry_services_query = "SELECT DISTINCT id, name, price, description FROM services WHERE category = 'laundry' AND status = 'active' ORDER BY price";
-$laundry_services_result = $conn->query($laundry_services_query);
-$laundry_services = [];
-
-if (!$laundry_services_result) {
+if (!$services_result) {
     $error = 'Database error: ' . $conn->error;
 } else {
-    while ($row = $laundry_services_result->fetch_assoc()) {
-        // Add unit based on service name
-        $unit = 'per load'; // default
-        if (stripos($row['name'], 'dry cleaning') !== false) {
-            $unit = 'per item';
+    while ($row = $services_result->fetch_assoc()) {
+        // Add unit based on service name and category
+        $unit = 'per session'; // default
+        if ($row['category'] == 'laundry') {
+            $unit = 'per load';
+            if (stripos($row['name'], 'dry cleaning') !== false) {
+                $unit = 'per item';
+            }
         }
         
-        $laundry_services[] = [
+        $all_services[] = [
             'id' => $row['id'],
             'name' => $row['name'],
             'price' => $row['price'],
             'unit' => $unit,
-            'description' => $row['description']
+            'description' => $row['description'],
+            'category' => $row['category']
         ];
     }
 }
@@ -56,7 +55,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['book_service'])) {
     } else {
         // Get service details
         $selected_service = null;
-        foreach ($laundry_services as $service) {
+        foreach ($all_services as $service) {
             if ($service['id'] == $service_id) {
                 $selected_service = $service;
                 break;
@@ -76,26 +75,28 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['book_service'])) {
             
             try {
                 // Generate booking reference
-                $booking_reference = 'LND-' . strtoupper(substr(md5(time() . $_SESSION['user_id']), 0, 8));
+                $booking_reference = ($selected_service['category'] == 'spa' ? 'SPA-' : 'LND-') . strtoupper(substr(md5(time() . $_SESSION['user_id']), 0, 8));
                 
                 // Create booking entry
+                $booking_type = $selected_service['category'] == 'spa' ? 'spa_service' : 'laundry_service';
                 $booking_query = "INSERT INTO bookings (user_id, booking_reference, customers, total_price, booking_type, status, payment_status, verification_status, created_at) 
-                                 VALUES (?, ?, 1, ?, 'laundry_service', 'pending', 'pending', 'pending_payment', NOW())";
+                                 VALUES (?, ?, 1, ?, ?, 'pending', 'pending', 'pending_payment', NOW())";
                 
                 $booking_stmt = $conn->prepare($booking_query);
-                $booking_stmt->bind_param("isd", $_SESSION['user_id'], $booking_reference, $total_price);
+                $booking_stmt->bind_param("isds", $_SESSION['user_id'], $booking_reference, $total_price, $booking_type);
                 $booking_stmt->execute();
                 $booking_id = mysqli_insert_id($conn);
                 
                 // Create service booking entry
                 $service_query = "INSERT INTO service_bookings (booking_id, user_id, service_category, service_name, service_price, quantity, total_price, service_date, service_time, special_requests, status, created_at) 
-                                 VALUES (?, ?, 'laundry', ?, ?, ?, ?, ?, ?, ?, 'pending', NOW())";
+                                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', NOW())";
                 
                 $service_stmt = $conn->prepare($service_query);
-                // Fixed: Changed to 'iisdidsss' to match 9 parameters
-                $service_stmt->bind_param("iisdidsss", 
+                // Fixed: Changed to 'iissdiisss' to match 10 parameters
+                $service_stmt->bind_param("iissdidsss", 
                     $booking_id,                    // i - int
                     $_SESSION['user_id'],           // i - int
+                    $selected_service['category'],  // s - string
                     $selected_service['name'],      // s - string
                     $selected_service['price'],     // d - double
                     $quantity,                      // i - int
@@ -117,13 +118,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['book_service'])) {
                 $update_stmt->execute();
                 
                 // Log user activity
-                log_user_activity($_SESSION['user_id'], 'booking', 'Laundry service booked: ' . $selected_service['name'] . ' x' . $quantity . ' - ' . $booking_reference, $_SERVER['REMOTE_ADDR'] ?? '', $_SERVER['HTTP_USER_AGENT'] ?? '');
+                $activity_desc = ($selected_service['category'] == 'spa' ? 'Spa' : 'Laundry') . ' service booked: ' . $selected_service['name'] . ' x' . $quantity . ' - ' . $booking_reference;
+                log_user_activity($_SESSION['user_id'], 'booking', $activity_desc, $_SERVER['REMOTE_ADDR'] ?? '', $_SERVER['HTTP_USER_AGENT'] ?? '');
                 
                 // Commit transaction
                 $conn->commit();
                 
                 // Redirect to payment upload page
-                header('Location: payment-upload.php?booking=' . $booking_id . '&type=laundry');
+                $redirect_type = $selected_service['category'] == 'spa' ? 'spa' : 'laundry';
+                header('Location: payment-upload.php?booking=' . $booking_id . '&type=' . $redirect_type);
                 exit();
                 
             } catch (Exception $e) {
@@ -152,7 +155,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['book_service'])) {
             <div class="col-lg-8">
                 <div class="card shadow">
                     <div class="card-header bg-warning text-dark">
-                        <h4 class="mb-0"><i class="fas fa-tshirt"></i> Book Laundry Service</h4>
+                        <h4 class="mb-0"><i class="fas fa-spa"></i> <i class="fas fa-tshirt"></i> Book Spa & Laundry Service</h4>
                     </div>
                     <div class="card-body">
                         <?php if ($error): ?>
@@ -170,18 +173,25 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['book_service'])) {
                         <form method="POST" action="">
                             <div class="mb-4">
                                 <label class="form-label fw-bold">Select Service *</label>
-                                <?php if (empty($laundry_services)): ?>
+                                <?php if (empty($all_services)): ?>
                                 <div class="alert alert-warning">
-                                    <i class="fas fa-exclamation-triangle"></i> No laundry services are currently available. Please check back later.
+                                    <i class="fas fa-exclamation-triangle"></i> No services are currently available. Please check back later.
                                 </div>
                                 <?php else: ?>
-                                <?php foreach ($laundry_services as $service): ?>
+                                <?php foreach ($all_services as $service): ?>
                                 <div class="form-check mb-3 p-3 border rounded">
                                     <input class="form-check-input" type="radio" name="service_id" id="service<?php echo $service['id']; ?>" value="<?php echo $service['id']; ?>" required>
                                     <label class="form-check-label w-100" for="service<?php echo $service['id']; ?>">
                                         <div class="d-flex justify-content-between align-items-center">
                                             <div>
-                                                <h6 class="mb-1"><?php echo htmlspecialchars($service['name']); ?></h6>
+                                                <h6 class="mb-1">
+                                                    <?php if ($service['category'] == 'spa'): ?>
+                                                    <i class="fas fa-spa text-purple"></i>
+                                                    <?php else: ?>
+                                                    <i class="fas fa-tshirt text-success"></i>
+                                                    <?php endif; ?>
+                                                    <?php echo htmlspecialchars($service['name']); ?>
+                                                </h6>
                                                 <small class="text-muted"><?php echo htmlspecialchars($service['description']); ?></small>
                                             </div>
                                             <div class="text-end">
@@ -198,27 +208,27 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['book_service'])) {
                             <div class="mb-3">
                                 <label class="form-label fw-bold">Quantity *</label>
                                 <input type="number" name="quantity" class="form-control" min="1" value="1" required>
-                                <small class="text-muted">Number of loads/items</small>
+                                <small class="text-muted">Number of sessions/loads/items</small>
                             </div>
                             
                             <div class="row">
                                 <div class="col-md-6 mb-3">
-                                    <label class="form-label fw-bold">Pickup Date *</label>
+                                    <label class="form-label fw-bold">Service Date *</label>
                                     <input type="date" name="pickup_date" class="form-control" min="<?php echo date('Y-m-d'); ?>" required>
                                 </div>
                                 <div class="col-md-6 mb-3">
-                                    <label class="form-label fw-bold">Pickup Time *</label>
+                                    <label class="form-label fw-bold">Service Time *</label>
                                     <input type="time" name="pickup_time" class="form-control" required>
                                 </div>
                             </div>
                             
                             <div class="mb-3">
                                 <label class="form-label fw-bold">Special Instructions (Optional)</label>
-                                <textarea name="special_requests" class="form-control" rows="3" placeholder="Any special care instructions, stain removal needs, etc..."></textarea>
+                                <textarea name="special_requests" class="form-control" rows="3" placeholder="Any special care instructions, preferences, etc..."></textarea>
                             </div>
                             
                             <div class="alert alert-info">
-                                <i class="fas fa-info-circle"></i> <strong>Note:</strong> After booking, you'll be redirected to upload payment proof. Payment must be completed within 30 minutes.
+                                <i class="fas fa-info-circle"></i> <strong>Note:</strong> After booking, you'll be redirected to upload payment proof. Your payment screenshot will be uploaded successfully. Please wait while we verify your payment. Once it is confirmed, we will send a verification message to your email address.
                             </div>
                             
                             <div class="d-grid gap-2">
