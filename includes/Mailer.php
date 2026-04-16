@@ -25,54 +25,58 @@ class Mailer {
      * @return array ['success' => bool, 'message' => string]
      */
     public static function send(string $toEmail, string $toName, string $subject, string $htmlBody): array {
-        // Check if email is enabled — check PHP constant first, then getenv()
-        $emailEnabled = defined('EMAIL_ENABLED') ? EMAIL_ENABLED : (getenv('EMAIL_ENABLED') ?: 'false');
-        if (strtolower(trim($emailEnabled)) !== 'true') {
-            error_log("Mailer: EMAIL_ENABLED is not true, skipping email to $toEmail");
-            return ['success' => false, 'message' => 'Email service is disabled'];
-        }
-
         // Helper: get constant or env var
         $cfg = function(string $key, string $default = '') {
-            if (defined($key)) return constant($key);
+            if (defined($key)) return (string)constant($key);
             $v = getenv($key);
-            return ($v !== false) ? $v : $default;
+            return ($v !== false && $v !== '') ? (string)$v : $default;
         };
 
-        $fromAddress = $cfg('EMAIL_FROM_ADDRESS') ?: $cfg('EMAIL_USERNAME');
-        $fromName    = $cfg('EMAIL_FROM_NAME', 'Harar Ras Hotel');
-
-        // Try Brevo HTTP API first (works on Render - no SMTP port blocking)
-        $brevoKey = $cfg('BREVO_API_KEY');
-        error_log("Mailer::send to=$toEmail | BREVO=" . (empty($brevoKey) ? 'MISSING' : 'SET('.strlen($brevoKey).')') . " | FROM=$fromAddress | ENABLED=$emailEnabled");
-        if (!empty($brevoKey)) {
-            return self::sendViaBrevo($brevoKey, $toEmail, $toName, $subject, $htmlBody, $fromAddress, $fromName);
+        // Check if email is enabled
+        $emailEnabled = strtolower(trim($cfg('EMAIL_ENABLED', 'false')));
+        if ($emailEnabled !== 'true' && $emailEnabled !== '1') {
+            error_log("Mailer: EMAIL_ENABLED='$emailEnabled' — skipping");
+            return ['success' => false, 'message' => 'Email disabled'];
         }
 
-        // Fallback: SMTP via PHPMailer
+        $fromAddress = $cfg('EMAIL_FROM_ADDRESS') ?: $cfg('EMAIL_USERNAME', '');
+        $fromName    = $cfg('EMAIL_FROM_NAME', 'Harar Ras Hotel');
+
+        // ── Brevo SMTP (works on Render — port 587 via smtp-relay.brevo.com) ──
         $mail = new PHPMailer(true);
         try {
             $mail->isSMTP();
-            $mail->Host       = $cfg('EMAIL_HOST', 'smtp.gmail.com');
+            $mail->Host       = 'smtp-relay.brevo.com';
             $mail->SMTPAuth   = true;
-            $mail->Username   = $cfg('EMAIL_USERNAME');
-            $mail->Password   = $cfg('EMAIL_PASSWORD');
+            $mail->Username   = 'a81bdd001@smtp-brevo.com';   // Brevo SMTP login
+            $mail->Password   = '0mMv3qc1x8DaAdwh';           // Brevo SMTP key
             $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-            $mail->Port       = (int)($cfg('EMAIL_PORT', '587'));
+            $mail->Port       = 587;
             $mail->CharSet    = 'UTF-8';
             $mail->Timeout    = 15;
-            $mail->setFrom($fromAddress, $fromName);
+
+            $mail->setFrom($fromAddress ?: 'nureabdulmalik8@gmail.com', $fromName);
             $mail->addAddress($toEmail, $toName);
             $mail->isHTML(true);
             $mail->Subject = $subject;
             $mail->Body    = $htmlBody;
             $mail->AltBody = strip_tags(str_replace(['<br>', '<br/>', '<br />'], "\n", $htmlBody));
+
             $mail->send();
-            error_log("Mailer: Email sent to $toEmail via SMTP");
-            return ['success' => true, 'message' => 'Email sent successfully'];
+            error_log("Mailer: sent to $toEmail via Brevo SMTP");
+            return ['success' => true, 'message' => 'Email sent via Brevo SMTP'];
+
         } catch (Exception $e) {
             $err = $mail->ErrorInfo;
-            error_log("Mailer SMTP ERROR to $toEmail: $err");
+            error_log("Mailer Brevo SMTP ERROR to $toEmail: $err");
+
+            // Fallback: Brevo HTTP API
+            $brevoKey = $cfg('BREVO_API_KEY', '');
+            if (!empty($brevoKey)) {
+                error_log("Mailer: falling back to Brevo HTTP API");
+                return self::sendViaBrevo($brevoKey, $toEmail, $toName, $subject, $htmlBody, $fromAddress, $fromName);
+            }
+
             return ['success' => false, 'message' => $err];
         }
     }
