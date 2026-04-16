@@ -32,7 +32,10 @@ class EmailService {
      * Initialize PHPMailer with SMTP configuration
      */
     private function initializeMailer() {
-        require_once __DIR__ . '/../../vendor/autoload.php';
+        // Use local PHPMailer files (no Composer needed)
+        require_once __DIR__ . '/../phpmailer/Exception.php';
+        require_once __DIR__ . '/../phpmailer/PHPMailer.php';
+        require_once __DIR__ . '/../phpmailer/SMTP.php';
         
         $this->mailer = new PHPMailer(true);
         
