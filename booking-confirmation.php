@@ -90,174 +90,111 @@ if ($booking_type === 'food_order' && !empty($booking_data['food_order_id'])) {
             background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%);
             min-height: 100vh;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-size: 14px;
         }
-        
         .confirmation-container {
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 20px;
+            padding: 12px;
         }
-        
         .confirmation-card {
             background: white;
-            border-radius: 20px;
-            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            border-radius: 12px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.12);
             overflow: hidden;
-            max-width: 700px;
+            max-width: 560px;
             width: 100%;
-            animation: slideUp 0.6s ease-out;
+            animation: slideUp 0.4s ease-out;
         }
-        
         @keyframes slideUp {
-            from {
-                opacity: 0;
-                transform: translateY(30px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
+            from { opacity: 0; transform: translateY(20px); }
+            to   { opacity: 1; transform: translateY(0); }
         }
-        
         .confirmation-header {
             background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%);
             color: white;
-            padding: 40px;
+            padding: 20px 24px;
             text-align: center;
         }
-        
         .confirmation-header i {
-            font-size: 4rem;
-            margin-bottom: 20px;
-            animation: pulse 2s infinite;
+            font-size: 2.2rem;
+            margin-bottom: 8px;
+            display: block;
         }
-        
-        @keyframes pulse {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.1); }
-            100% { transform: scale(1); }
-        }
-        
         .confirmation-header h1 {
-            font-size: 2.5rem;
+            font-size: 1.4rem;
             font-weight: 700;
-            margin: 0;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            margin: 0 0 4px;
         }
-        
-        .confirmation-content {
-            padding: 40px;
-        }
-        
+        .confirmation-header p { font-size: 0.82rem; margin: 0; opacity: 0.9; }
+        .confirmation-content { padding: 16px 20px; }
         .booking-details {
             background: #f8f9fa;
-            border-radius: 15px;
-            padding: 30px;
-            margin-bottom: 30px;
+            border-radius: 10px;
+            padding: 14px 16px;
+            margin-bottom: 14px;
         }
-        
         .booking-details h4 {
             color: #2ecc71;
-            margin-bottom: 25px;
-            font-size: 1.5rem;
+            margin-bottom: 12px;
+            font-size: 1rem;
         }
-        
         .detail-row {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 20px;
-            margin-bottom: 15px;
+            gap: 8px 16px;
+            margin-bottom: 6px;
         }
-        
-        .detail-item {
-            padding: 10px 0;
-        }
-        
+        .detail-item { padding: 4px 0; }
         .detail-label {
             font-weight: 600;
-            color: #2c3e50;
-            margin-bottom: 5px;
+            color: #555;
+            font-size: 0.75rem;
+            margin-bottom: 2px;
         }
-        
         .detail-value {
             color: #27ae60;
-            font-weight: bold;
-            font-size: 1.1rem;
+            font-weight: 600;
+            font-size: 0.9rem;
         }
-        
         .btn-primary {
             background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%);
             border: none;
-            padding: 15px 40px;
-            border-radius: 25px;
+            padding: 9px 22px;
+            border-radius: 20px;
             font-weight: 600;
-            font-size: 1.1rem;
-            transition: all 0.3s;
-            box-shadow: 0 8px 20px rgba(46, 204, 113, 0.3);
+            font-size: 0.88rem;
+            transition: all 0.2s;
         }
-        
-        .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 12px 25px rgba(46, 204, 113, 0.4);
-        }
-        
+        .btn-primary:hover { transform: translateY(-1px); }
         .btn-outline-primary {
             border: 2px solid #2ecc71;
             color: #2ecc71;
-            padding: 15px 40px;
-            border-radius: 25px;
+            padding: 9px 22px;
+            border-radius: 20px;
             font-weight: 600;
-            font-size: 1.1rem;
-            transition: all 0.3s;
+            font-size: 0.88rem;
+            transition: all 0.2s;
         }
-        
-        .btn-outline-primary:hover {
-            background: #2ecc71;
-            border-color: #2ecc71;
-            transform: translateY(-2px);
-        }
-        
+        .btn-outline-primary:hover { background: #2ecc71; border-color: #2ecc71; color: white; }
         .next-steps {
             background: linear-gradient(135deg, #e8f5e8 0%, #d4edda 100%);
-            border-radius: 15px;
-            padding: 25px;
-            margin-bottom: 30px;
+            border-radius: 10px;
+            padding: 12px 16px;
+            margin-bottom: 14px;
         }
-        
-        .next-steps h5 {
-            color: #155724;
-            margin-bottom: 15px;
-        }
-        
-        .next-steps ul {
-            margin: 0;
-            padding-left: 20px;
-        }
-        
-        .next-steps li {
-            color: #155724;
-            margin-bottom: 8px;
-        }
-        
-        @media (max-width: 768px) {
-            .confirmation-header {
-                padding: 30px 20px;
-            }
-            
-            .confirmation-header h1 {
-                font-size: 2rem;
-            }
-            
-            .confirmation-content {
-                padding: 20px;
-            }
-            
-            .detail-row {
-                grid-template-columns: 1fr;
-                gap: 10px;
-            }
+        .next-steps h5 { color: #155724; margin-bottom: 8px; font-size: 0.9rem; }
+        .next-steps ul { margin: 0; padding-left: 18px; }
+        .next-steps li { color: #155724; margin-bottom: 4px; font-size: 0.82rem; }
+        .alert { padding: 10px 14px; font-size: 0.82rem; border-radius: 8px; }
+        .alert h6 { font-size: 0.85rem; margin-bottom: 4px; }
+        .alert p { margin-bottom: 6px; }
+        @media (max-width: 480px) {
+            .confirmation-header { padding: 16px; }
+            .confirmation-content { padding: 12px 14px; }
+            .detail-row { grid-template-columns: 1fr; gap: 4px; }
         }
     </style>
 </head>
@@ -416,12 +353,12 @@ if ($booking_type === 'food_order' && !empty($booking_data['food_order_id'])) {
                     <div class="detail-row">
                         <div class="detail-item">
                             <div class="detail-label"><?php echo __('confirmation.total_amount'); ?></div>
-                            <div class="detail-value" style="font-size:1.3em;"><?php echo format_currency($booking_data['total_price']); ?></div>
+                            <div class="detail-value"><?php echo format_currency($booking_data['total_price']); ?></div>
                         </div>
                         <div class="detail-item">
                             <div class="detail-label"><?php echo __('confirmation.payment_status'); ?></div>
                             <div class="detail-value">
-                                <span class="badge bg-success fs-6">
+                                <span class="badge bg-success">
                                     <i class="fas fa-check me-1"></i><?php echo __('confirmation.paid'); ?>
                                 </span>
                             </div>
