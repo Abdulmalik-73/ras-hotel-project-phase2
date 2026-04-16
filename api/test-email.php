@@ -17,9 +17,10 @@ $htmlBody = Mailer::wrap('<h2 style="color:#2ecc71;">Test Email ✅</h2><p>If yo
 $result = Mailer::send($to, $name, $subject, $htmlBody);
 
 echo json_encode([
-    'result'   => $result,
-    'sent_to'  => $to,
-    'host'     => defined('EMAIL_HOST') ? EMAIL_HOST : getenv('EMAIL_HOST'),
-    'username' => defined('EMAIL_USERNAME') ? EMAIL_USERNAME : getenv('EMAIL_USERNAME'),
-    'enabled'  => defined('EMAIL_ENABLED') ? EMAIL_ENABLED : getenv('EMAIL_ENABLED'),
+    'result'      => $result,
+    'sent_to'     => $to,
+    'method'      => defined('BREVO_API_KEY') && BREVO_API_KEY ? 'Brevo HTTP API' : 'SMTP',
+    'brevo_key'   => defined('BREVO_API_KEY') ? 'SET (len='.strlen(BREVO_API_KEY).')' : (getenv('BREVO_API_KEY') ? 'SET via getenv' : 'MISSING'),
+    'email_enabled' => defined('EMAIL_ENABLED') ? EMAIL_ENABLED : getenv('EMAIL_ENABLED'),
+    'from'        => defined('EMAIL_FROM_ADDRESS') ? EMAIL_FROM_ADDRESS : getenv('EMAIL_FROM_ADDRESS'),
 ]);
