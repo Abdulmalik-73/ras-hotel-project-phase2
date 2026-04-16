@@ -3,7 +3,6 @@
 error_reporting(E_ERROR | E_PARSE);
 ini_set('display_errors', 0);
 
-session_start();
 require_once '../includes/config.php';
 require_once '../includes/functions.php';
 
@@ -564,9 +563,8 @@ $bookings = $conn->query($bookings_query);
                                             <th>Room</th>
                                             <th>Dates</th>
                                             <th>Total</th>
-                                            <th>Payment</th>
                                             <th>Status</th>
-                                            <th>Actions</th>
+                                            <th>Action</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -595,85 +593,40 @@ $bookings = $conn->query($bookings_query);
                                                         <strong><?php echo formatCurrency($booking['total_price']); ?></strong>
                                                     </td>
                                                     <td>
-                                                        <?php if ($booking['screenshot_path']): ?>
-                                                            <div class="payment-screenshot">
-                                                                <img src="../<?php echo htmlspecialchars($booking['screenshot_path']); ?>" 
-                                                                     alt="Payment Screenshot" 
-                                                                     class="img-thumbnail"
-                                                                     style="max-width: 80px; max-height: 80px; cursor: pointer; object-fit: cover;"
-                                                                     onclick="showScreenshotModal('<?php echo htmlspecialchars($booking['screenshot_path']); ?>', '<?php echo htmlspecialchars($booking['booking_reference']); ?>')">
-                                                                <br>
-                                                                <small class="text-muted">
-                                                                    <?php if ($booking['payment_method']): ?>
-                                                                        <span class="badge bg-secondary"><?php echo ucfirst($booking['payment_method']); ?></span>
-                                                                    <?php endif; ?>
-                                                                </small>
-                                                                <?php if ($booking['verification_status']): ?>
-                                                                    <br>
-                                                                    <span class="badge bg-<?php 
-                                                                        echo $booking['verification_status'] == 'verified' ? 'success' : 
-                                                                            ($booking['verification_status'] == 'pending_verification' ? 'warning' : 
-                                                                            ($booking['verification_status'] == 'rejected' ? 'danger' : 'secondary')); 
-                                                                    ?>">
-                                                                        <?php echo ucfirst(str_replace('_', ' ', $booking['verification_status'])); ?>
-                                                                    </span>
-                                                                <?php endif; ?>
-                                                            </div>
-                                                        <?php elseif ($booking['verification_status'] == 'pending_payment'): ?>
-                                                            <span class="badge bg-warning">
-                                                                <i class="fas fa-clock"></i> Awaiting Payment
+                                                        <?php
+                                                        // Show "Verified" if Chapa payment confirmed, otherwise show booking status
+                                                        if ($booking['payment_status'] === 'paid' && $booking['verification_status'] === 'verified'):
+                                                        ?>
+                                                            <span class="badge bg-success">
+                                                                <i class="fas fa-check-circle me-1"></i> Verified
                                                             </span>
-                                                        <?php else: ?>
-                                                            <span class="text-muted">No screenshot</span>
+                                                        <?php else:
+                                                            $status_badges = [
+                                                                'pending'    => 'warning',
+                                                                'confirmed'  => 'success',
+                                                                'checked_in' => 'primary',
+                                                                'checked_out'=> 'info',
+                                                                'cancelled'  => 'danger'
+                                                            ];
+                                                            $badge_class = $status_badges[$booking['status']] ?? 'secondary';
+                                                        ?>
+                                                            <span class="badge bg-<?php echo $badge_class; ?>">
+                                                                <?php echo ucfirst(str_replace('_', ' ', $booking['status'])); ?>
+                                                            </span>
                                                         <?php endif; ?>
                                                     </td>
                                                     <td>
-                                                        <?php
-                                                        $status_badges = [
-                                                            'pending' => 'warning',
-                                                            'confirmed' => 'success',
-                                                            'checked_in' => 'primary',
-                                                            'checked_out' => 'info',
-                                                            'cancelled' => 'danger'
-                                                        ];
-                                                        $badge_class = $status_badges[$booking['status']] ?? 'secondary';
-                                                        ?>
-                                                        <span class="badge bg-<?php echo $badge_class; ?>">
-                                                            <?php echo ucfirst(str_replace('_', ' ', $booking['status'])); ?>
-                                                        </span>
-                                                    </td>
-                                                    <td>
-                                                        <div class="btn-group-vertical btn-group-sm" role="group">
-                                                            <?php if ($booking['status'] == 'pending'): ?>
-                                                                <button class="btn btn-success btn-sm" onclick="confirmBooking(<?php echo $booking['id']; ?>)">
-                                                                    <i class="fas fa-check"></i> Confirm
-                                                                </button>
-                                                            <?php endif; ?>
-                                                            
-                                                            <?php if ($booking['status'] == 'confirmed'): ?>
-                                                                <button class="btn btn-primary btn-sm" onclick="checkinGuest(<?php echo $booking['id']; ?>)">
-                                                                    <i class="fas fa-sign-in-alt"></i> Check In
-                                                                </button>
-                                                            <?php endif; ?>
-                                                            
-                                                            <?php if ($booking['status'] == 'checked_in'): ?>
-                                                                <button class="btn btn-info btn-sm" onclick="checkoutGuest(<?php echo $booking['id']; ?>)">
-                                                                    <i class="fas fa-sign-out-alt"></i> Check Out
-                                                                </button>
-                                                            <?php endif; ?>
-                                                            
-                                                            <?php if (in_array($booking['status'], ['checked_out', 'cancelled'])): ?>
-                                                                <button class="btn btn-danger btn-sm" onclick="deleteBooking(<?php echo $booking['id']; ?>, '<?php echo htmlspecialchars($booking['booking_reference']); ?>')">
-                                                                    <i class="fas fa-trash"></i> Archive
-                                                                </button>
-                                                            <?php endif; ?>
-                                                            
-                                                            <?php if (in_array($booking['status'], ['pending', 'confirmed'])): ?>
-                                                                <button class="btn btn-danger btn-sm" onclick="cancelBooking(<?php echo $booking['id']; ?>, '<?php echo htmlspecialchars($booking['booking_reference']); ?>')">
-                                                                    <i class="fas fa-times"></i> Cancel
-                                                                </button>
-                                                            <?php endif; ?>
-                                                        </div>
+                                                        <?php if (in_array($booking['status'], ['cancelled', 'checked_out'])): ?>
+                                                            <button class="btn btn-danger btn-sm"
+                                                                onclick="deleteBooking(<?php echo $booking['id']; ?>, '<?php echo htmlspecialchars($booking['booking_reference']); ?>')">
+                                                                <i class="fas fa-trash"></i> Delete
+                                                            </button>
+                                                        <?php else: ?>
+                                                            <button class="btn btn-outline-danger btn-sm"
+                                                                onclick="cancelBooking(<?php echo $booking['id']; ?>, '<?php echo htmlspecialchars($booking['booking_reference']); ?>')">
+                                                                <i class="fas fa-times"></i> Cancel
+                                                            </button>
+                                                        <?php endif; ?>
                                                     </td>
                                                 </tr>
                                             <?php endwhile; ?>

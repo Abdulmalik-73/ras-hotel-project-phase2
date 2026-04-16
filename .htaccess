@@ -3,7 +3,7 @@
 # Enable Rewrite Engine
 <IfModule mod_rewrite.c>
     RewriteEngine On
-    RewriteBase /final%20project2/
+    RewriteBase /
     
     # Redirect to HTTPS (uncomment when SSL is configured)
     # RewriteCond %{HTTPS} off

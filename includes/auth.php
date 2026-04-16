@@ -76,7 +76,11 @@ function check_role($required_role) {
  */
 function require_role($required_role, $redirect_url = '../login.php') {
     if (!check_role($required_role)) {
-        header("Location: $redirect_url");
+        // Use absolute URL to avoid relative redirect failures on Render proxy
+        $proto = ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+               || ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https') ? 'https' : 'http';
+        $host  = $_SERVER['HTTP_HOST'] ?? 'localhost';
+        header("Location: $proto://$host/login.php");
         exit();
     }
 }
@@ -166,6 +170,12 @@ function clear_expired_locks() {
     global $conn;
     
     try {
+        // Check if lock_until column exists before using it
+        $check = $conn->query("SHOW COLUMNS FROM users LIKE 'lock_until'");
+        if (!$check || $check->num_rows == 0) {
+            return; // Column doesn't exist, skip
+        }
+        
         $current_time = date('Y-m-d H:i:s');
         $query = "UPDATE users SET failed_attempts = 0, lock_until = NULL 
                  WHERE lock_until IS NOT NULL AND lock_until <= ?";
@@ -266,18 +276,20 @@ function secure_logout($redirect_to = 'login.php') {
  * Require authentication and prevent caching
  * Use this at the top of all protected pages
  */
-function require_auth($redirect_url = 'login.php') {
-    // Start session if not started
+function require_auth($redirect_url = '../login.php') {
     if (session_status() == PHP_SESSION_NONE) {
         session_start();
     }
-    
-    // Prevent caching
+
     prevent_cache();
-    
-    // Check if logged in
+
     if (!is_logged_in()) {
-        header("Location: $redirect_url");
+        // Build absolute URL to avoid relative redirect failures on Render
+        $proto = ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+               || ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https') ? 'https' : 'http';
+        $host  = $_SERVER['HTTP_HOST'] ?? 'localhost';
+        $abs   = $proto . '://' . $host . '/login.php';
+        header("Location: $abs");
         exit();
     }
 }
@@ -295,15 +307,20 @@ function require_auth_role($required_role, $redirect_url = '../login.php') {
  */
 function require_auth_roles($allowed_roles, $redirect_url = '../login.php') {
     require_auth($redirect_url);
-    
+
+    $proto = ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+           || ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https') ? 'https' : 'http';
+    $host  = $_SERVER['HTTP_HOST'] ?? 'localhost';
+    $abs   = $proto . '://' . $host . '/login.php';
+
     if (!is_logged_in()) {
-        header("Location: $redirect_url");
+        header("Location: $abs");
         exit();
     }
-    
+
     $user_role = $_SESSION['user_role'] ?? $_SESSION['role'] ?? '';
     if (!in_array($user_role, $allowed_roles)) {
-        header("Location: $redirect_url");
+        header("Location: $abs");
         exit();
     }
 }

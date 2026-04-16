@@ -1,5 +1,4 @@
 <?php
-session_start();
 require_once '../includes/config.php';
 require_once '../includes/functions.php';
 
@@ -90,7 +89,7 @@ if (!empty($where_conditions)) {
 }
 
 $query = "SELECT * FROM services $where_clause ORDER BY category, name";
-$services = $conn->query($query);
+$services = $conn->query($query) ?: null;
 ?>
 
 <!DOCTYPE html>
@@ -98,7 +97,7 @@ $services = $conn->query($query);
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Manage Services - <?php echo SITE_NAME; ?></title>
+    <title>Manage Services - <?php echo defined('SITE_NAME') ? SITE_NAME : 'Harar Ras Hotel'; ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>

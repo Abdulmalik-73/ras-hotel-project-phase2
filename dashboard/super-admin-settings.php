@@ -3,7 +3,6 @@
 error_reporting(E_ERROR | E_PARSE);
 ini_set('display_errors', 0);
 
-session_start();
 require_once '../includes/config.php';
 require_once '../includes/functions.php';
 
@@ -54,12 +53,15 @@ if ($_POST) {
 }
 
 // Get current settings
-$settings_query = "SELECT * FROM hotel_settings ORDER BY setting_key";
-$settings_result = $conn->query($settings_query);
 $settings = [];
-while ($row = $settings_result->fetch_assoc()) {
-    $settings[$row['setting_key']] = $row['setting_value'];
-}
+try {
+    $settings_result = $conn->query("SELECT * FROM hotel_settings ORDER BY setting_key");
+    if ($settings_result) {
+        while ($row = $settings_result->fetch_assoc()) {
+            $settings[$row['setting_key']] = $row['setting_value'];
+        }
+    }
+} catch (Exception $e) {}
 
 // Default settings if not set
 $default_settings = [

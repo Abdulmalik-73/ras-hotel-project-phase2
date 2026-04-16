@@ -13,10 +13,18 @@ class EmailService {
     private $conn;
     private $mailer;
     private $enabled;
+
+    // Helper to get config value from constant or env
+    private static function cfg($key, $default = '') {
+        if (defined($key)) return constant($key);
+        $v = getenv($key);
+        return ($v !== false) ? $v : $default;
+    }
     
     public function __construct($db_connection) {
         $this->conn = $db_connection;
-        $this->enabled = getenv('EMAIL_ENABLED') === 'true';
+        $enabled_val = strtolower(self::cfg('EMAIL_ENABLED', 'false'));
+        $this->enabled = ($enabled_val === 'true' || $enabled_val === '1');
         $this->initializeMailer();
     }
     
@@ -31,18 +39,20 @@ class EmailService {
         try {
             // Server settings
             $this->mailer->isSMTP();
-            $this->mailer->Host = getenv('EMAIL_HOST');
-            $this->mailer->SMTPAuth = true;
-            $this->mailer->Username = getenv('EMAIL_USERNAME');
-            $this->mailer->Password = getenv('EMAIL_PASSWORD');
-            $this->mailer->SMTPSecure = getenv('EMAIL_ENCRYPTION') ?: PHPMailer::ENCRYPTION_STARTTLS;
-            $this->mailer->Port = getenv('EMAIL_PORT') ?: 587;
-            $this->mailer->CharSet = 'UTF-8';
+            $this->mailer->Host       = self::cfg('EMAIL_HOST', 'smtp.gmail.com');
+            $this->mailer->SMTPAuth   = true;
+            $this->mailer->Username   = self::cfg('EMAIL_USERNAME');
+            $this->mailer->Password   = self::cfg('EMAIL_PASSWORD');
+            $this->mailer->SMTPSecure = self::cfg('EMAIL_ENCRYPTION', 'tls') === 'ssl'
+                                        ? PHPMailer::ENCRYPTION_SMTPS
+                                        : PHPMailer::ENCRYPTION_STARTTLS;
+            $this->mailer->Port       = (int)(self::cfg('EMAIL_PORT', '587'));
+            $this->mailer->CharSet    = 'UTF-8';
             
             // From address
             $this->mailer->setFrom(
-                getenv('EMAIL_FROM_ADDRESS'),
-                getenv('EMAIL_FROM_NAME')
+                self::cfg('EMAIL_FROM_ADDRESS', self::cfg('EMAIL_USERNAME')),
+                self::cfg('EMAIL_FROM_NAME', 'Harar Ras Hotel')
             );
         } catch (Exception $e) {
             error_log("Email initialization error: " . $e->getMessage());

@@ -3,7 +3,6 @@
 error_reporting(E_ERROR | E_PARSE);
 ini_set('display_errors', 0);
 
-session_start();
 require_once '../includes/config.php';
 require_once '../includes/functions.php';
 
@@ -13,8 +12,15 @@ require_auth_roles(['admin', 'super_admin'], '../login.php');
 // Detect user role for sidebar - check both possible session variables
 $user_role = $_SESSION['user_role'] ?? $_SESSION['role'] ?? '';
 $is_super_admin = ($user_role === 'super_admin');
-$dashboard_link = $is_super_admin ? 'super-admin.php' : 'admin.php';
-$dashboard_title = $is_super_admin ? 'Super Admin Panel' : 'Admin Panel';
+
+// Security: super_admin must use their own settings page
+if ($is_super_admin) {
+    header('Location: super-admin-settings.php');
+    exit;
+}
+
+$dashboard_link = 'admin.php';
+$dashboard_title = 'Admin Panel';
 
 // Handle settings update
 if ($_POST) {
@@ -107,7 +113,7 @@ foreach ($counts_queries as $key => $query) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Settings - <?php echo SITE_NAME; ?></title>
+    <title>Settings - <?php echo defined('SITE_NAME') ? SITE_NAME : 'Harar Ras Hotel'; ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>

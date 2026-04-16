@@ -1,5 +1,4 @@
 <?php
-session_start();
 require_once '../includes/config.php';
 require_once '../includes/functions.php';
 
@@ -366,13 +365,10 @@ if ($_POST && isset($_POST['action'])) {
                         <a href="receptionist-checkout.php" class="nav-link">
                             <i class="fas fa-minus-circle me-2"></i> Process Check-out
                         </a>
-                        <a href="receptionist-pending.php" class="nav-link">
-                            <i class="fas fa-calendar-check me-2"></i> Pending Bookings
-                        </a>
                         <a href="receptionist-rooms.php" class="nav-link">
                             <i class="fas fa-bed me-2"></i> Manage Rooms
                         </a>
-                        <a href="../generate_bill.php" class="nav-link" target="_blank">
+                        <a href="../generate_bill.php" class="nav-link">
                             <i class="fas fa-file-invoice-dollar me-2"></i> Generate Bill
                         </a>
                         </nav>
@@ -434,7 +430,6 @@ if ($_POST && isset($_POST['action'])) {
                                             <th>Phone</th>
                                             <th>Nights</th>
                                             <th>Status</th>
-                                            <th>Action</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -449,21 +444,17 @@ if ($_POST && isset($_POST['action'])) {
                                             <td><?php echo htmlspecialchars($checkin['phone'] ?? 'N/A'); ?></td>
                                             <td><span class="badge bg-primary"><?php echo $checkin['nights']; ?> nights</span></td>
                                             <td>
-                                                <?php if ($checkin['verification_status'] == 'verified'): ?>
-                                                    <span class="badge bg-success">Payment Verified</span>
+                                                <?php if ($checkin['status'] == 'checked_in'): ?>
+                                                    <span class="badge bg-success">
+                                                        <i class="fas fa-check-circle me-1"></i> Checked In
+                                                    </span>
+                                                <?php elseif ($checkin['verification_status'] == 'verified' || $checkin['payment_status'] == 'paid'): ?>
+                                                    <span class="badge bg-info">
+                                                        <i class="fas fa-check me-1"></i> Checked In
+                                                    </span>
                                                 <?php else: ?>
                                                     <span class="badge bg-warning">Pending</span>
                                                 <?php endif; ?>
-                                            </td>
-                                            <td>
-                                                <form method="POST" style="display: inline;">
-                                                    <input type="hidden" name="action" value="search_booking">
-                                                    <input type="hidden" name="search_type" value="reference">
-                                                    <input type="hidden" name="search_value" value="<?php echo htmlspecialchars($checkin['booking_reference']); ?>">
-                                                    <button type="submit" class="btn btn-sm btn-success">
-                                                        <i class="fas fa-arrow-right me-1"></i> Check-in
-                                                    </button>
-                                                </form>
                                             </td>
                                         </tr>
                                         <?php endwhile; ?>

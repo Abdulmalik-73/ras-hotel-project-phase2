@@ -200,8 +200,8 @@ error_log("Booking page loaded at $page_load_time with " . count($rooms) . " roo
                         <i class="fas fa-bed"></i> Room Booking
                     </h5>
                     <p class="mb-0">
-                        <strong>This is the ROOM BOOKING page.</strong> Select your room and dates below.
-                        <br><small>Looking to order food? <a href="food-booking.php" class="alert-link">Click here for Food Ordering</a></small>
+                        <strong><?php echo __('booking_auth.room_booking_page'); ?></strong> <?php echo __('booking_auth.select_room_dates'); ?>
+                        <br><small>Looking to order food? <a href="food-booking.php" class="alert-link"><?php echo __('booking_auth.food_link'); ?></a></small>
                     </p>
                 </div>
                 <div class="col-md-4 text-md-end mt-2 mt-md-0">
@@ -217,7 +217,7 @@ error_log("Booking page loaded at $page_load_time with " . count($rooms) . " roo
             <div class="row mb-4">
                 <div class="col">
                     <a href="index.php" class="btn btn-outline-secondary">
-                        <i class="fas fa-arrow-left"></i> Back to Home
+                        <i class="fas fa-arrow-left"></i> <?php echo __('booking_auth.back_to_home'); ?>
                     </a>
                 </div>
             </div>
@@ -229,7 +229,7 @@ error_log("Booking page loaded at $page_load_time with " . count($rooms) . " roo
                     <div class="card border-danger shadow-lg">
                         <div class="card-header bg-danger text-white text-center">
                             <h3 class="mb-0">
-                                <i class="fas fa-shield-alt"></i> Authentication Required
+                                <i class="fas fa-shield-alt"></i> <?php echo __('booking_auth.auth_required'); ?>
                             </h3>
                             <p class="mb-0 mt-2">Follow these simple steps to complete your booking</p>
                         </div>
@@ -238,27 +238,27 @@ error_log("Booking page loaded at $page_load_time with " . count($rooms) . " roo
                             <div class="row mb-4">
                                 <div class="col-12">
                                     <h5 class="text-danger mb-3">
-                                        <i class="fas fa-list-ol"></i> How to Complete Your Booking:
+                                        <i class="fas fa-list-ol"></i> <?php echo __('booking_auth.how_to_book'); ?>
                                     </h5>
                                     <div class="row">
                                         <div class="col-md-4 mb-3">
                                             <div class="text-center p-3 bg-light rounded">
                                                 <div class="display-4 text-danger mb-2">1</div>
-                                                <h6 class="text-danger">Create Account or Sign In</h6>
+                                                <h6 class="text-danger"><?php echo __('booking_auth.step1_title'); ?></h6>
                                                 <p class="small text-muted mb-0">Choose one of the options below to authenticate</p>
                                             </div>
                                         </div>
                                         <div class="col-md-4 mb-3">
                                             <div class="text-center p-3 bg-light rounded">
                                                 <div class="display-4 text-warning mb-2">2</div>
-                                                <h6 class="text-warning">Return to Booking</h6>
+                                                <h6 class="text-warning"><?php echo __('booking_auth.step2_title'); ?></h6>
                                                 <p class="small text-muted mb-0">You'll be automatically redirected back here</p>
                                             </div>
                                         </div>
                                         <div class="col-md-4 mb-3">
                                             <div class="text-center p-3 bg-light rounded">
                                                 <div class="display-4 text-success mb-2">3</div>
-                                                <h6 class="text-success">Complete Booking</h6>
+                                                <h6 class="text-success"><?php echo __('booking_auth.step3_title'); ?></h6>
                                                 <p class="small text-muted mb-0">Fill out the form and confirm your reservation</p>
                                             </div>
                                         </div>
@@ -272,7 +272,7 @@ error_log("Booking page loaded at $page_load_time with " . count($rooms) . " roo
                                     <div class="card bg-success text-white h-100">
                                         <div class="card-body text-center">
                                             <i class="fas fa-user-plus fa-3x mb-3"></i>
-                                            <h5>New Customer?</h5>
+                                            <h5><?php echo __('booking_auth.new_customer'); ?></h5>
                                             <p class="mb-3">Create a free account in just 2 minutes</p>
                                             <ul class="list-unstyled text-start mb-3">
                                                 <li><i class="fas fa-check me-2"></i> Secure booking process</li>
@@ -282,7 +282,7 @@ error_log("Booking page loaded at $page_load_time with " . count($rooms) . " roo
                                             </ul>
                                             <a href="register.php<?php echo $selected_room_id ? '?redirect=booking&room=' . $selected_room_id : '?redirect=booking'; ?>" 
                                                class="btn btn-light btn-lg">
-                                                <i class="fas fa-user-plus"></i> Create Account Now
+                                                <i class="fas fa-user-plus"></i> <?php echo __('booking_auth.create_account_now'); ?>
                                             </a>
                                         </div>
                                     </div>
@@ -291,7 +291,7 @@ error_log("Booking page loaded at $page_load_time with " . count($rooms) . " roo
                                     <div class="card bg-primary text-white h-100">
                                         <div class="card-body text-center">
                                             <i class="fas fa-sign-in-alt fa-3x mb-3"></i>
-                                            <h5>Existing Customer?</h5>
+                                            <h5><?php echo __('booking_auth.existing_customer'); ?></h5>
                                             <p class="mb-3">Sign in to your account to continue</p>
                                             <ul class="list-unstyled text-start mb-3">
                                                 <li><i class="fas fa-check me-2"></i> Access your profile</li>
@@ -301,7 +301,7 @@ error_log("Booking page loaded at $page_load_time with " . count($rooms) . " roo
                                             </ul>
                                             <a href="login.php<?php echo $selected_room_id ? '?redirect=booking&room=' . $selected_room_id : '?redirect=booking'; ?>" 
                                                class="btn btn-light btn-lg">
-                                                <i class="fas fa-sign-in-alt"></i> Sign In Now
+                                                <i class="fas fa-sign-in-alt"></i> <?php echo __('booking_auth.sign_in_now'); ?>
                                             </a>
                                         </div>
                                     </div>
@@ -311,7 +311,7 @@ error_log("Booking page loaded at $page_load_time with " . count($rooms) . " roo
                             <!-- Why Account Required -->
                             <div class="alert alert-info mt-4">
                                 <h6 class="alert-heading">
-                                    <i class="fas fa-info-circle"></i> Why do I need an account?
+                                    <i class="fas fa-info-circle"></i> <?php echo __('booking_auth.why_account'); ?>
                                 </h6>
                                 <div class="row">
                                     <div class="col-md-6">
@@ -546,12 +546,12 @@ error_log("Booking page loaded at $page_load_time with " . count($rooms) . " roo
                                                 $first_room = $rooms_in_type[0];
                                                 $price_formatted = number_format($first_room['price'], 2);
                                             ?>
-                                            <optgroup label="<?php echo htmlspecialchars($room_type_name); ?> - ETB <?php echo $price_formatted; ?>/night">
+                                            <optgroup label="<?php echo htmlspecialchars($room_type_name); ?> - ETB <?php echo $price_formatted; ?><?php echo __('booking_auth.per_night'); ?>">
                                                 <?php foreach ($rooms_in_type as $room): ?>
                                                 <option value="<?php echo $room['id']; ?>" 
                                                         data-price="<?php echo $room['price']; ?>" 
                                                         data-capacity="<?php echo $room['capacity']; ?>">
-                                                    <?php echo htmlspecialchars($room['name']); ?> Number <?php echo $room['room_number']; ?> - ETB <?php echo number_format($room['price'], 2); ?>/night
+                                                    <?php echo htmlspecialchars($room['name']); ?> Number <?php echo $room['room_number']; ?> - ETB <?php echo number_format($room['price'], 2); ?><?php echo __('booking_auth.per_night'); ?>
                                                 </option>
                                                 <?php endforeach; ?>
                                             </optgroup>
@@ -639,7 +639,7 @@ error_log("Booking page loaded at $page_load_time with " . count($rooms) . " roo
                             <div id="bookingSummary">
                                 <p class="text-muted text-center py-4">
                                     <i class="fas fa-info-circle"></i><br>
-                                    <?php echo __('booking.select_room'); ?> and dates to see pricing
+                                    <?php echo __('booking.select_room'); ?> <?php echo __('booking_auth.and_dates'); ?>
                                 </p>
                             </div>
                         </div>
@@ -709,13 +709,13 @@ error_log("Booking page loaded at $page_load_time with " . count($rooms) . " roo
                             <hr>
                             <div class="mb-2">
                                 <div class="d-flex justify-content-between">
-                                    <span>${formatCurrency(pricePerNight)} × ${nights} night(s)</span>
+                                    <span>${formatCurrency(pricePerNight)} × ${nights} <?php echo __('booking_auth.nights'); ?></span>
                                     <span>${formatCurrency(totalPrice)}</span>
                                 </div>
                             </div>
                             <hr>
                             <div class="d-flex justify-content-between">
-                                <strong>Total:</strong>
+                                <strong><?php echo __('booking_auth.total'); ?>:</strong>
                                 <strong class="text-gold fs-4">${formatCurrency(totalPrice)}</strong>
                             </div>
                         `;
@@ -747,24 +747,10 @@ error_log("Booking page loaded at $page_load_time with " . count($rooms) . " roo
             updateSummary();
             <?php endif; ?>
             
-            // Handle form submission with timeout
+            // Handle form submission
             $('#bookingForm').on('submit', function(e) {
                 const submitBtn = $(this).find('button[type="submit"]');
-                const originalText = submitBtn.html();
-                
-                // Show processing state
-                submitBtn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Processing...');
-                
-                // Set a timeout to prevent infinite processing
-                const timeout = setTimeout(function() {
-                    submitBtn.prop('disabled', false).html(originalText);
-                    alert('Request is taking too long. Please try again.');
-                }, 30000); // 30 seconds timeout
-                
-                // Clear timeout if form submits successfully
-                $(this).on('submit', function() {
-                    clearTimeout(timeout);
-                });
+                submitBtn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> <?php echo __('booking_auth.processing'); ?>');
             });
         });
     </script>

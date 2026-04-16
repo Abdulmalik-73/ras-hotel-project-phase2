@@ -13,9 +13,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $message = sanitize_input($_POST['message']);
     
     if (empty($name) || empty($email) || empty($subject) || empty($message)) {
-        $error = 'Please fill in all required fields';
+        $error = __('contact.error_fields');
     } elseif (!validate_email($email)) {
-        $error = 'Invalid email address';
+        $error = __('contact.error_email');
     } else {
         // Save contact message to database
         $query = "INSERT INTO contact_messages (name, email, phone, subject, message, created_at) 
@@ -40,7 +40,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             
             send_email($admin_email, $email_subject, $email_body);
         } else {
-            $error = 'Failed to send message. Please try again.';
+            $error = __('contact.error_send');
         }
     }
 }
@@ -50,7 +50,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Contact Us - Harar Ras Hotel</title>
+    <title><?php echo __('contact.title'); ?> - Harar Ras Hotel</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <link rel="stylesheet" href="assets/css/style.css">
@@ -64,12 +64,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             <div class="row align-items-center">
                 <div class="col-auto">
                     <a href="index.php" class="btn btn-outline-secondary">
-                        <i class="fas fa-arrow-left"></i> Back to Home
+                        <i class="fas fa-arrow-left"></i> <?php echo __('contact.back_to_home'); ?>
                     </a>
                 </div>
                 <div class="col text-center">
-                    <h1 class="display-4 fw-bold mb-3">Contact Us</h1>
-                    <p class="lead text-muted">We'd love to hear from you</p>
+                    <h1 class="display-4 fw-bold mb-3"><?php echo __('contact.title'); ?></h1>
+                    <p class="lead text-muted"><?php echo __('contact.subtitle'); ?></p>
                 </div>
                 <div class="col-auto">
                     <!-- Spacer for centering -->
@@ -88,7 +88,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 <div class="col-lg-7 mb-4">
                     <div class="card shadow-sm">
                         <div class="card-body p-4">
-                            <h3 class="mb-4">Send us a Message</h3>
+                            <h3 class="mb-4"><?php echo __('contact.send_message'); ?></h3>
                             
                             <?php if ($error): ?>
                                 <div class="alert alert-danger"><?php echo $error; ?></div>
@@ -101,33 +101,32 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             <form method="POST" action="">
                                 <div class="row">
                                     <div class="col-md-6 mb-3">
-                                        <label class="form-label">Your Name *</label>
+                                        <label class="form-label"><?php echo __('contact.your_name'); ?> *</label>
                                         <input type="text" name="name" class="form-control" required>
                                     </div>
                                     <div class="col-md-6 mb-3">
-                                        <label class="form-label">Email Address *</label>
+                                        <label class="form-label"><?php echo __('contact.email_address'); ?> *</label>
                                         <input type="email" name="email" class="form-control" required>
                                     </div>
                                 </div>
                                 
                                 <div class="row">
                                     <div class="col-md-6 mb-3">
-                                        <label class="form-label">Phone Number</label>
+                                        <label class="form-label"><?php echo __('contact.phone_number'); ?></label>
                                         <input type="tel" name="phone" class="form-control">
                                     </div>
                                     <div class="col-md-6 mb-3">
-                                        <label class="form-label">Subject *</label>
+                                        <label class="form-label"><?php echo __('contact.subject'); ?> *</label>
                                         <input type="text" name="subject" class="form-control" required>
                                     </div>
                                 </div>
                                 
                                 <div class="mb-3">
-                                    <label class="form-label">Message *</label>
+                                    <label class="form-label"><?php echo __('contact.message'); ?> *</label>
                                     <textarea name="message" class="form-control" rows="5" required></textarea>
                                 </div>
-                                
                                 <button type="submit" class="btn btn-gold">
-                                    <i class="fas fa-paper-plane"></i> Send Message
+                                    <i class="fas fa-paper-plane"></i> <?php echo __('contact.send_btn'); ?>
                                 </button>
                             </form>
                         </div>
@@ -140,7 +139,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                 <div class="col-lg-5">
                     <div class="card shadow-sm mb-4">
                         <div class="card-body p-4">
-                            <h4 class="mb-4">Contact Information</h4>
+                            <h4 class="mb-4"><?php echo __('contact.contact_info'); ?></h4>
                             
                             <div class="mb-4">
                                 <div class="d-flex mb-3">
@@ -148,7 +147,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                         <i class="fas fa-map-marker-alt fa-lg"></i>
                                     </div>
                                     <div>
-                                        <h6 class="mb-1">Address</h6>
+                                        <h6 class="mb-1"><?php echo __('contact.address'); ?></h6>
                                         <p class="text-muted mb-0">Harar, Ethiopia<br>Near Jugol Walls</p>
                                     </div>
                                 </div>
@@ -158,7 +157,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                         <i class="fas fa-phone fa-lg"></i>
                                     </div>
                                     <div>
-                                        <h6 class="mb-1">Phone</h6>
+                                        <h6 class="mb-1"><?php echo __('contact.phone'); ?></h6>
                                         <p class="text-muted mb-0">+251 25 666 1234</p>
                                     </div>
                                 </div>
@@ -168,7 +167,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                         <i class="fas fa-envelope fa-lg"></i>
                                     </div>
                                     <div>
-                                        <h6 class="mb-1">Email</h6>
+                                        <h6 class="mb-1"><?php echo __('contact.email'); ?></h6>
                                         <p class="text-muted mb-0">info@hararrashotel.com</p>
                                     </div>
                                 </div>
@@ -178,8 +177,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                                         <i class="fas fa-clock fa-lg"></i>
                                     </div>
                                     <div>
-                                        <h6 class="mb-1">Reception Hours</h6>
-                                        <p class="text-muted mb-0">24/7 Available</p>
+                                        <h6 class="mb-1"><?php echo __('contact.reception_hours'); ?></h6>
+                                        <p class="text-muted mb-0"><?php echo __('contact.available_24_7'); ?></p>
                                     </div>
                                 </div>
                             </div>
@@ -188,7 +187,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                             
 
 
-                            <h6 class="mb-3">Follow Us</h6>
+                            <h6 class="mb-3"><?php echo __('contact.follow_us'); ?></h6>
                             <div class="social-links">
                                 <a href="#" class="me-2"><i class="fab fa-facebook-f"></i></a>
                                 <a href="#" class="me-2"><i class="fab fa-twitter"></i></a>
@@ -200,8 +199,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     
                     <div class="card shadow-sm">
                         <div class="card-body p-4">
-                            <h5 class="mb-3">Quick Booking</h5>
-                            <p class="text-muted">Ready to book your stay?</p>
+                            <h5 class="mb-3"><?php echo __('contact.quick_booking'); ?></h5>
+                            <p class="text-muted"><?php echo __('contact.ready_to_book'); ?></p>
                             <a href="booking.php" class="btn btn-gold w-100">
                                 <i class="fas fa-calendar-check"></i> Book Now
                             </a>
@@ -215,7 +214,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     <!-- Map Section (Optional) -->
     <section class="py-5 bg-light">
         <div class="container">
-            <h3 class="text-center mb-4">Find Us</h3>
+            <h3 class="text-center mb-4"><?php echo __('contact.find_us'); ?></h3>
             <div class="ratio ratio-21x9">
                 <iframe 
                     src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3940.0!2d42.1!3d9.3!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zOcKwMTgnMDAuMCJOIDQywrAwNicwMC4wIkU!5e0!3m2!1sen!2set!4v1234567890" 

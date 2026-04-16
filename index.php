@@ -582,20 +582,7 @@ $food_images = [
             startHeroAnimation(currentLang);
         });
         
-        // Re-run animation when language changes
-        function switchLanguage(lang) {
-            fetch('api/switch_language.php', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ language: lang })
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    location.reload();
-                }
-            });
-        }
+        // Language switching is handled by navbar.php's switchLanguage()
     </script>
 </body>
 </html>

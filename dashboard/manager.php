@@ -1,52 +1,50 @@
 <?php
-// Suppress PHP warnings and notices for production
-error_reporting(E_ERROR | E_PARSE);
-ini_set('display_errors', 0);
+ob_start();
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
 
-session_start();
 require_once '../includes/config.php';
 require_once '../includes/functions.php';
 
 require_auth_role('manager', '../login.php');
 
 // Get statistics for dashboard
-$stats_query = "SELECT 
-    (SELECT COUNT(*) FROM bookings WHERE status IN ('confirmed', 'checked_in')) as total_bookings,
-    (SELECT COUNT(*) FROM bookings WHERE DATE(check_in_date) = CURDATE() AND status IN ('confirmed', 'checked_in')) as todays_bookings,
-    (SELECT SUM(total_price) FROM bookings WHERE MONTH(created_at) = MONTH(CURDATE()) AND status IN ('confirmed', 'checked_in', 'checked_out')) as monthly_revenue,
-    (SELECT COUNT(*) FROM rooms WHERE status = 'active') as total_rooms,
-    (SELECT COUNT(DISTINCT room_id) FROM bookings WHERE status = 'checked_in') as occupied_rooms";
+$stats = ['total_bookings'=>0,'todays_bookings'=>0,'monthly_revenue'=>0,'total_rooms'=>0,'occupied_rooms'=>0];
+try {
+    $stats_result = $conn->query("SELECT 
+        (SELECT COUNT(*) FROM bookings WHERE status IN ('confirmed', 'checked_in')) as total_bookings,
+        (SELECT COUNT(*) FROM bookings WHERE DATE(check_in_date) = CURDATE() AND status IN ('confirmed', 'checked_in')) as todays_bookings,
+        (SELECT SUM(total_price) FROM bookings WHERE MONTH(created_at) = MONTH(CURDATE()) AND status IN ('confirmed', 'checked_in', 'checked_out')) as monthly_revenue,
+        (SELECT COUNT(*) FROM rooms WHERE status = 'active') as total_rooms,
+        (SELECT COUNT(DISTINCT room_id) FROM bookings WHERE status = 'checked_in') as occupied_rooms");
+    if ($stats_result) $stats = array_merge($stats, $stats_result->fetch_assoc() ?? []);
+} catch (Exception $e) {}
 
-$stats_result = $conn->query($stats_query);
-$stats = $stats_result->fetch_assoc();
+$occupancy_rate = ($stats['total_rooms'] ?? 0) > 0 ? round((($stats['occupied_rooms'] ?? 0) / $stats['total_rooms']) * 100, 1) : 0;
 
-// Calculate occupancy rate
-$occupancy_rate = $stats['total_rooms'] > 0 ? round(($stats['occupied_rooms'] / $stats['total_rooms']) * 100, 1) : 0;
+$recent_bookings = null;
+try {
+    $recent_bookings = $conn->query("SELECT b.*, COALESCE(r.name,'Food Order') as room_name, COALESCE(r.room_number,'N/A') as room_number, CONCAT(u.first_name,' ',u.last_name) as guest_name FROM bookings b LEFT JOIN rooms r ON b.room_id=r.id JOIN users u ON b.user_id=u.id WHERE b.status IN ('confirmed','checked_in') AND b.booking_type='room' ORDER BY b.created_at DESC LIMIT 10");
+} catch (Exception $e) {}
 
-// Get recent bookings
-$recent_bookings_query = "SELECT b.*, 
-                          COALESCE(r.name, 'Food Order') as room_name, 
-                          COALESCE(r.room_number, 'N/A') as room_number, 
-                          CONCAT(u.first_name, ' ', u.last_name) as guest_name 
-                          FROM bookings b 
-                          LEFT JOIN rooms r ON b.room_id = r.id 
-                          JOIN users u ON b.user_id = u.id 
-                          WHERE b.status IN ('confirmed', 'checked_in', 'pending') AND b.booking_type = 'room'
-                          ORDER BY b.created_at DESC LIMIT 10";
-$recent_bookings = $conn->query($recent_bookings_query);
+$staff_count = 0;
+try {
+    $r = $conn->query("SELECT COUNT(*) as c FROM users WHERE role IN ('receptionist','manager')");
+    if ($r) $staff_count = $r->fetch_assoc()['c'] ?? 0;
+} catch (Exception $e) {}
 
-// Get staff count
-$staff_count_query = "SELECT COUNT(*) as staff_count FROM users WHERE role IN ('receptionist', 'manager')";
-$staff_count_result = $conn->query($staff_count_query);
-$staff_count = $staff_count_result->fetch_assoc()['staff_count'];
+$status_data = [];
+try {
+    $sr = $conn->query("SELECT status, COUNT(*) as count FROM bookings WHERE booking_type='room' GROUP BY status");
+    if ($sr) while ($row = $sr->fetch_assoc()) $status_data[$row['status']] = $row['count'];
+} catch (Exception $e) {}
 ?>
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Manager Dashboard - <?php echo SITE_NAME; ?></title>
+    <title>Manager Dashboard - <?php echo defined('SITE_NAME') ? SITE_NAME : 'Harar Ras Hotel'; ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
@@ -463,9 +461,6 @@ $staff_count = $staff_count_result->fetch_assoc()['staff_count'];
             <a href="manager.php" class="nav-link active">
                 <i class="fas fa-tachometer-alt me-2"></i> Overview
             </a>
-            <a href="manager-bookings.php" class="nav-link">
-                <i class="fas fa-calendar-check me-2"></i> Manage Bookings
-            </a>
             <a href="manager-approve-bill.php" class="nav-link">
                 <i class="fas fa-check-circle me-2"></i> Approve Bill
             </a>
@@ -715,15 +710,8 @@ $staff_count = $staff_count_result->fetch_assoc()['staff_count'];
             // Start animation after 2 seconds
             setTimeout(nextSlide, 2000);
             
-            // Get booking status data
-            <?php
-            $status_query = "SELECT status, COUNT(*) as count FROM bookings WHERE booking_type = 'room' GROUP BY status";
-            $status_result = $conn->query($status_query);
-            $status_data = [];
-            while ($row = $status_result->fetch_assoc()) {
-                $status_data[$row['status']] = $row['count'];
-            }
-            ?>
+            // Get booking status data - already loaded in PHP above
+            
             
             // Create pie chart
             const canvas = document.getElementById('bookingStatusChart');

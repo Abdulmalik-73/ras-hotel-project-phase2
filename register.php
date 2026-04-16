@@ -170,24 +170,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             align-items: center;
             justify-content: center;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            padding: 20px 15px;
-            position: relative;
-        }
-        
-        body::before {
-            content: '';
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(135deg, rgba(102, 126, 234, 0.85) 0%, rgba(118, 75, 162, 0.85) 100%);
-            z-index: -1;
+            padding: 16px 15px;
         }
         
         .signup-wrapper {
-            width: 100%;
-            max-width: 450px;
+            width: 400px;
+            max-width: 90%;
             position: relative;
         }
         
@@ -195,97 +183,87 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            margin-bottom: 10px;
+            margin-bottom: 8px;
         }
         
         .back-button {
             display: inline-flex;
             align-items: center;
-            color: white;
+            color: #fff;
             text-decoration: none;
             font-size: 13px;
             font-weight: 500;
             transition: all 0.3s ease;
-            padding: 6px 12px;
+            padding: 5px 10px;
             border-radius: 8px;
-            background: rgba(255, 255, 255, 0.15);
-            backdrop-filter: blur(10px);
+            background: rgba(0, 0, 0, 0.35);
         }
         
         .back-button:hover {
             color: white;
-            background: rgba(255, 255, 255, 0.25);
+            background: rgba(0, 0, 0, 0.55);
             transform: translateX(-3px);
         }
         
         .back-button i {
-            margin-right: 8px;
-            font-size: 14px;
+            margin-right: 6px;
+            font-size: 13px;
         }
         
         .signup-container {
-            background: white;
-            border-radius: 16px;
-            box-shadow: 0 15px 40px rgba(0, 0, 0, 0.3);
-            padding: 20px 25px;
+            background: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.25);
+            padding: 18px 22px;
             width: 100%;
-            position: relative;
-            overflow: hidden;
-        }
-        
-        .signup-container::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            height: 4px;
-            background: linear-gradient(90deg, #667eea, #764ba2);
+            max-height: 85vh;
+            overflow-y: auto;
         }
         
         .signup-header {
             text-align: center;
-            margin-bottom: 15px;
+            margin-bottom: 10px;
         }
         
         .signup-header h1 {
-            font-size: 24px;
+            font-size: 20px;
             font-weight: 700;
             color: #2d3748;
-            margin-bottom: 4px;
+            margin-bottom: 2px;
         }
         
         .signup-header p {
             color: #718096;
-            font-size: 13px;
+            font-size: 12px;
             margin: 0;
         }
         
         .form-group {
-            margin-bottom: 10px;
+            margin-bottom: 8px;
         }
         
         .form-label {
             font-weight: 600;
             color: #2d3748;
-            margin-bottom: 4px;
+            margin-bottom: 2px;
             display: block;
             font-size: 12px;
         }
         
         .form-control {
-            border: 2px solid #e2e8f0;
+            border: 1.5px solid #e2e8f0;
             border-radius: 8px;
-            padding: 9px 11px;
+            padding: 0 10px;
             font-size: 13px;
             width: 100%;
-            transition: all 0.3s ease;
+            height: 38px;
+            transition: all 0.2s ease;
             background: #f8fafc;
         }
         
         .form-control:focus {
             border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            box-shadow: 0 0 0 2px rgba(102, 126, 234, 0.12);
             outline: none;
             background: white;
         }
@@ -298,32 +276,34 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         .button-group {
             display: flex;
             gap: 8px;
-            margin-top: 15px;
+            margin-top: 10px;
         }
         
         .btn-signup {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             border: none;
-            padding: 10px 18px;
+            padding: 0;
+            height: 38px;
             border-radius: 8px;
             font-weight: 600;
             font-size: 13px;
             cursor: pointer;
-            transition: all 0.3s ease;
+            transition: all 0.2s ease;
             flex: 1;
         }
         
         .btn-signup:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
         }
         
         .btn-cancel {
             background: white;
             color: #667eea;
-            border: 2px solid #667eea;
-            padding: 10px 18px;
+            border: 1.5px solid #667eea;
+            padding: 0;
+            height: 38px;
             border-radius: 8px;
             font-weight: 600;
             font-size: 13px;
@@ -332,42 +312,43 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            transition: all 0.3s ease;
+            transition: all 0.2s ease;
             flex: 1;
         }
         
         .btn-cancel:hover {
             background: #667eea;
             color: white;
-            transform: translateY(-2px);
-            box-shadow: 0 6px 16px rgba(102, 126, 234, 0.3);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 10px rgba(102, 126, 234, 0.3);
             text-decoration: none;
         }
         
         .btn-google {
             background: white;
             color: #757575;
-            border: 2px solid #dadce0;
-            padding: 10px 18px;
+            border: 1.5px solid #dadce0;
+            padding: 0;
+            height: 38px;
             border-radius: 8px;
             font-weight: 500;
             font-size: 13px;
             cursor: pointer;
-            transition: all 0.3s ease;
+            transition: all 0.2s ease;
             text-decoration: none;
-            display: block;
-            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             width: 100%;
-            margin-bottom: 12px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            margin-bottom: 6px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
         }
         
         .btn-google:hover {
             background: #f8f9fa;
             color: #3c4043;
-            border-color: #dadce0;
             transform: translateY(-1px);
-            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            box-shadow: 0 2px 6px rgba(0,0,0,0.12);
             text-decoration: none;
         }
         
@@ -380,7 +361,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         .btn-google-disabled:hover {
             background: white;
             transform: none;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
         }
         
         .btn-google-disabled::after {
@@ -389,13 +370,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
             right: 12px;
             top: 50%;
             transform: translateY(-50%);
-            font-size: 14px;
+            font-size: 13px;
         }
         
         .alert {
             border-radius: 8px;
-            padding: 8px;
-            margin-bottom: 10px;
+            padding: 6px 10px;
+            margin-bottom: 8px;
             font-size: 12px;
             border: none;
             display: flex;
@@ -404,7 +385,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         
         .alert i {
             margin-right: 6px;
-            font-size: 13px;
+            font-size: 12px;
         }
         
         .alert-danger {
@@ -419,7 +400,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         
         .divider {
             text-align: center;
-            margin: 10px 0;
+            margin: 8px 0 6px;
             position: relative;
         }
         
@@ -435,9 +416,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         
         .divider span {
             background: white;
-            padding: 0 12px;
+            padding: 0 10px;
             color: #a0aec0;
-            font-size: 12px;
+            font-size: 11px;
             font-weight: 500;
             position: relative;
             z-index: 1;
@@ -445,7 +426,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         
         .login-link {
             text-align: center;
-            margin-top: 12px;
+            margin-top: 8px;
             font-size: 12px;
             color: #718096;
         }
@@ -463,16 +444,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         .field-error {
             color: #e53e3e;
             font-size: 10px;
-            margin-top: 3px;
+            margin-top: 2px;
             display: block;
         }
         
         /* Responsive Design */
         @media (max-width: 768px) {
             body {
-                padding: 15px 10px;
+                padding: 12px 10px;
             }
-            
             .signup-container {
                 padding: 18px;
                 border-radius: 14px;
@@ -606,7 +586,6 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                     <input type="tel" name="phone" id="phone" class="form-control" 
                            placeholder="Enter your phone number (e.g., +251-911-234-567)"
                            value="<?php echo isset($_POST['phone']) ? htmlspecialchars($_POST['phone']) : ''; ?>">
-                    <small class="text-muted" style="font-size: 11px;">Optional - for booking notifications</small>
                 </div>
                 
                 <div class="form-group">
@@ -958,8 +937,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
                   '2. Create a new project\n' +
                   '3. Enable Google+ API\n' +
                   '4. Create OAuth 2.0 credentials\n' +
-                  '5. Add redirect URI: ' + window.location.origin + '/final%20project2/oauth-callback.php\n' +
-                  '6. Update .env file with your Client ID and Secret\n\n' +
+                  '5. Add redirect URI: ' + window.location.origin + '/oauth-callback.php\n' +
+                  '6. Set GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REDIRECT_URI in Render environment variables\n\n' +
                   'Contact your developer for assistance.');
         }
     </script>

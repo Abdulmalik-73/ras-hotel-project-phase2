@@ -255,13 +255,13 @@ $rooms = get_all_rooms();
             
             // Merge database prices with room type configurations
             foreach ($room_type_configs as &$room_type) {
-                // Get price from first room in the range (assuming same type rooms have same price)
-                $first_room_num = $room_type['start'];
-                if (isset($rooms_by_number[$first_room_num])) {
-                    $room_type['price'] = $rooms_by_number[$first_room_num]['price'];
-                } else {
-                    // Fallback to default price if room not found in database
-                    $room_type['price'] = 2000; // Default price
+                // Find any active room in this range to get the price
+                $room_type['price'] = 2000; // Default fallback
+                for ($rn = $room_type['start']; $rn <= $room_type['end']; $rn++) {
+                    if (isset($rooms_by_number[$rn]) && !empty($rooms_by_number[$rn]['price'])) {
+                        $room_type['price'] = $rooms_by_number[$rn]['price'];
+                        break;
+                    }
                 }
             }
             unset($room_type); // Break reference
@@ -326,10 +326,16 @@ $rooms = get_all_rooms();
                                 </div>
                                 
                                 <div class="d-flex justify-content-between align-items-center mt-3">
-                                    <span class="h5 text-gold mb-0">ETB <?php echo number_format($room_type['price'], 2); ?><small class="text-muted">/night</small></span>
+                                    <?php
+                                    // Use individual room price from DB, fall back to type price
+                                    $individual_price = isset($rooms_by_number[$room_num]['price'])
+                                        ? (float)$rooms_by_number[$room_num]['price']
+                                        : (float)$room_type['price'];
+                                    ?>
+                                    <span class="h5 text-gold mb-0">ETB <?php echo number_format($individual_price, 2); ?><small class="text-muted">/night</small></span>
                                     <div class="d-flex flex-column gap-2">
                                         <?php if ($status_info['bookable']): ?>
-                                        <button class="btn btn-sm btn-outline-primary" onclick="addToCart(<?php echo $room_num; ?>, '<?php echo addslashes($room_type['name']); ?>', <?php echo $room_type['price']; ?>)">
+                                        <button class="btn btn-sm btn-outline-primary" onclick="addToCart(<?php echo $room_num; ?>, '<?php echo addslashes($room_type['name']); ?>', <?php echo $individual_price; ?>)">
                                             <i class="fas fa-shopping-cart"></i> <?php echo __('rooms.add_to_cart'); ?>
                                         </button>
                                         <?php if (!is_logged_in()): ?>

@@ -1,0 +1,80 @@
+services:
+  - type: web
+    name: ras-hotel-project-phase2
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: DB_HOST
+        sync: false
+      - key: DB_PORT
+        value: "39882"
+      - key: DB_USER
+        sync: false
+      - key: DB_PASS
+        sync: false
+      - key: DB_NAME
+        value: railway
+      - key: SITE_URL
+        value: https://ras-hotel-project-phase2.onrender.com
+      - key: SITE_NAME
+        value: "Harar Ras Hotel"
+      - key: CHAPA_SECRET_KEY
+        sync: false
+      - key: CHAPA_PUBLIC_KEY
+        sync: false
+      - key: CHAPA_BASE_URL
+        value: https://api.chapa.co/v1
+      - key: CHAPA_CALLBACK_URL
+        value: https://ras-hotel-project-phase2.onrender.com/api/chapa/callback.php
+      - key: CHAPA_RETURN_URL
+        value: https://ras-hotel-project-phase2.onrender.com/chapa-return.php
+      - key: EMAIL_ENABLED
+        value: "true"
+      - key: EMAIL_HOST
+        value: smtp.gmail.com
+      - key: EMAIL_PORT
+        value: "587"
+      - key: EMAIL_ENCRYPTION
+        value: tls
+      - key: EMAIL_USERNAME
+        sync: false
+      - key: EMAIL_PASSWORD
+        sync: false
+      - key: EMAIL_FROM_ADDRESS
+        sync: false
+      - key: EMAIL_FROM_NAME
+        value: "Harar Ras Hotel"
+      - key: BREVO_API_KEY
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_REDIRECT_URI
+        value: https://ras-hotel-project-phase2.onrender.com/oauth-callback.php
+      - key: SESSION_COOKIE_SECURE
+        value: "1"
+      - key: TIMEZONE
+        value: Africa/Addis_Ababa
+      - key: APP_ENV
+        value: production
+      - key: DISPLAY_ERRORS
+        value: "0"
+      - key: ERROR_REPORTING
+        value: "0"
+      - key: CURRENCY_SYMBOL
+        value: ETB
+      - key: CURRENCY_CODE
+        value: ETB
+      - key: HOTEL_NAME
+        value: "Harar Ras Hotel"
+      - key: HOTEL_PHONE
+        value: "+251-25-666-1234"
+      - key: HOTEL_ADDRESS
+        value: "Harar, Ethiopia"
+      - key: HOTEL_SUPPORT_EMAIL
+        value: info@hararrashotel.com
+      - key: HOTEL_WEBSITE_URL
+        value: https://ras-hotel-project-phase2.onrender.com
+      - key: ADMIN_EMAIL
+        value: info@hararrashotel.com

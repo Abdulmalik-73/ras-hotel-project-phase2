@@ -56,7 +56,7 @@ $bookings = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My Bookings - Harar Ras Hotel</title>
+    <title><?php echo __('my_bookings.title'); ?> - Harar Ras Hotel</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <link rel="stylesheet" href="assets/css/style.css">
@@ -70,12 +70,12 @@ $bookings = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
             <div class="row align-items-center">
                 <div class="col-auto">
                     <a href="index.php" class="btn btn-outline-secondary">
-                        <i class="fas fa-arrow-left"></i> Back to Home
+                        <i class="fas fa-arrow-left"></i> <?php echo __('my_bookings.back_to_home'); ?>
                     </a>
                 </div>
                 <div class="col text-center">
-                    <h1 class="display-5 fw-bold mb-3">My Bookings</h1>
-                    <p class="lead text-muted">View and manage your hotel reservations</p>
+                    <h1 class="display-5 fw-bold mb-3"><?php echo __('my_bookings.title'); ?></h1>
+                    <p class="lead text-muted"><?php echo __('my_bookings.subtitle'); ?></p>
                 </div>
                 <div class="col-auto">
                     <!-- Spacer for centering -->
@@ -102,11 +102,11 @@ $bookings = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
             <?php if (empty($bookings)): ?>
             <div class="text-center py-5">
                 <i class="fas fa-calendar-times fa-4x text-muted mb-4"></i>
-                <h3>No Orders or Bookings Found</h3>
-                <p class="text-muted mb-4">You haven't made any room bookings or food orders yet. Start exploring!</p>
+                <h3><?php echo __('my_bookings.no_bookings'); ?></h3>
+                <p class="text-muted mb-4"><?php echo __('my_bookings.no_bookings_text'); ?></p>
                 <div class="d-flex gap-3 justify-content-center">
                     <a href="rooms.php" class="btn btn-gold btn-lg">
-                        <i class="fas fa-bed"></i> Browse Rooms
+                        <i class="fas fa-bed"></i> <?php echo __('my_bookings.browse_rooms'); ?>
                     </a>
                     <a href="food-booking.php" class="btn btn-outline-gold btn-lg">
                         <i class="fas fa-utensils"></i> Order Food
@@ -136,9 +136,22 @@ $bookings = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
                             </h5>
                             <?php
                             $status_class = 'secondary';
-                            $status_text = ucfirst(str_replace('_', ' ', $booking['current_verification_status'] ?? $booking['status']));
+                            $vs = $booking['current_verification_status'] ?? $booking['status'];
+                            $status_map = [
+                                'pending'              => __('my_bookings.status_pending'),
+                                'pending_payment'      => __('my_bookings.status_pending'),
+                                'pending_verification' => __('my_bookings.status_pending_verification'),
+                                'verified'             => __('my_bookings.status_verified'),
+                                'confirmed'            => __('my_bookings.status_confirmed'),
+                                'rejected'             => __('my_bookings.status_rejected'),
+                                'cancelled'            => __('my_bookings.status_cancelled'),
+                                'expired'              => __('my_bookings.status_expired'),
+                                'checked_in'           => __('my_bookings.status_checked_in'),
+                                'checked_out'          => __('my_bookings.status_checked_out'),
+                            ];
+                            $status_text = $status_map[$vs] ?? ucfirst(str_replace('_', ' ', $vs));
                             
-                            switch($booking['current_verification_status'] ?? $booking['status']) {
+                            switch($vs) {
                                 case 'pending':
                                 case 'pending_payment':
                                     $status_class = 'warning';
@@ -173,11 +186,11 @@ $bookings = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
                                     <small class="text-muted">
                                         <?php 
                                         if ($booking['booking_type'] == 'food_order') {
-                                            echo 'Order Reference';
+                                            echo __('my_bookings.order_reference');
                                         } elseif (in_array($booking['booking_type'], ['spa_service', 'laundry_service'])) {
-                                            echo 'Service Reference';
+                                            echo __('my_bookings.service_reference');
                                         } else {
-                                            echo 'Booking Reference';
+                                            echo __('my_bookings.booking_reference');
                                         }
                                         ?>
                                     </small>
@@ -185,13 +198,13 @@ $bookings = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
                                 </div>
                                 <div class="col-6">
                                     <?php if ($booking['booking_type'] == 'food_order'): ?>
-                                        <small class="text-muted">Table Reserved</small>
-                                        <div class="fw-bold"><?php echo $booking['table_reservation'] ? 'Yes' : 'No (Takeaway)'; ?></div>
+                                        <small class="text-muted"><?php echo __('my_bookings.table_reserved'); ?></small>
+                                        <div class="fw-bold"><?php echo $booking['table_reservation'] ? __('my_bookings.yes') : __('my_bookings.no_takeaway'); ?></div>
                                     <?php elseif (in_array($booking['booking_type'], ['spa_service', 'laundry_service'])): ?>
-                                        <small class="text-muted">Service Name</small>
+                                        <small class="text-muted"><?php echo __('my_bookings.service_name'); ?></small>
                                         <div class="fw-bold"><?php echo htmlspecialchars($booking['service_name'] ?? 'Service'); ?></div>
                                     <?php else: ?>
-                                        <small class="text-muted">Room Number</small>
+                                        <small class="text-muted"><?php echo __('my_bookings.room_number'); ?></small>
                                         <div class="fw-bold"><?php echo $booking['room_number']; ?></div>
                                     <?php endif; ?>
                                 </div>
@@ -200,11 +213,11 @@ $bookings = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
                             <div class="row mb-3">
                                 <?php if ($booking['booking_type'] == 'food_order'): ?>
                                     <div class="col-6">
-                                        <small class="text-muted">Guests</small>
-                                        <div><?php echo $booking['food_guests']; ?> guest(s)</div>
+                                        <small class="text-muted"><?php echo __('my_bookings.guests'); ?></small>
+                                        <div><?php echo $booking['food_guests']; ?> <?php echo __('my_bookings.guest_count'); ?></div>
                                     </div>
                                     <div class="col-6">
-                                        <small class="text-muted">Reservation</small>
+                                        <small class="text-muted"><?php echo __('my_bookings.reservation'); ?></small>
                                         <div>
                                             <?php if ($booking['table_reservation'] && $booking['reservation_date']): ?>
                                                 <?php echo date('M j, Y', strtotime($booking['reservation_date'])); ?>
@@ -218,21 +231,21 @@ $bookings = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
                                     </div>
                                 <?php elseif (in_array($booking['booking_type'], ['spa_service', 'laundry_service'])): ?>
                                     <div class="col-6">
-                                        <small class="text-muted">Service Date</small>
-                                        <div><?php echo !empty($booking['service_date']) ? date('M j, Y', strtotime($booking['service_date'])) : 'N/A'; ?></div>
+                                        <small class="text-muted"><?php echo __('my_bookings.service_date'); ?></small>
+                                        <div><?php echo !empty($booking['service_date']) ? date('M j, Y', strtotime($booking['service_date'])) : __('my_bookings.na'); ?></div>
                                     </div>
                                     <div class="col-6">
-                                        <small class="text-muted">Service Time</small>
-                                        <div><?php echo !empty($booking['service_time']) ? date('g:i A', strtotime($booking['service_time'])) : 'N/A'; ?></div>
+                                        <small class="text-muted"><?php echo __('my_bookings.service_time'); ?></small>
+                                        <div><?php echo !empty($booking['service_time']) ? date('g:i A', strtotime($booking['service_time'])) : __('my_bookings.na'); ?></div>
                                     </div>
                                 <?php else: ?>
                                     <div class="col-6">
-                                        <small class="text-muted">Check-in</small>
-                                        <div><?php echo $booking['check_in_date'] ? date('M j, Y', strtotime($booking['check_in_date'])) : 'N/A'; ?></div>
+                                        <small class="text-muted"><?php echo __('my_bookings.check_in'); ?></small>
+                                        <div><?php echo $booking['check_in_date'] ? date('M j, Y', strtotime($booking['check_in_date'])) : __('my_bookings.na'); ?></div>
                                     </div>
                                     <div class="col-6">
-                                        <small class="text-muted">Check-out</small>
-                                        <div><?php echo $booking['check_out_date'] ? date('M j, Y', strtotime($booking['check_out_date'])) : 'N/A'; ?></div>
+                                        <small class="text-muted"><?php echo __('my_bookings.check_out'); ?></small>
+                                        <div><?php echo $booking['check_out_date'] ? date('M j, Y', strtotime($booking['check_out_date'])) : __('my_bookings.na'); ?></div>
                                     </div>
                                 <?php endif; ?>
                             </div>
@@ -242,33 +255,33 @@ $bookings = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
                                     <small class="text-muted">
                                         <?php 
                                         if ($booking['booking_type'] == 'food_order') {
-                                            echo 'Order Type';
+                                            echo __('my_bookings.order_type');
                                         } elseif (in_array($booking['booking_type'], ['spa_service', 'laundry_service'])) {
-                                            echo 'Quantity';
+                                            echo __('my_bookings.quantity');
                                         } else {
-                                            echo 'Room Guests';
+                                            echo __('my_bookings.room_guests');
                                         }
                                         ?>
                                     </small>
                                     <div>
                                         <?php if ($booking['booking_type'] == 'food_order'): ?>
-                                            <?php echo $booking['table_reservation'] ? 'Dine-in' : 'Takeaway'; ?>
+                                            <?php echo $booking['table_reservation'] ? __('my_bookings.dine_in') : __('my_bookings.takeaway'); ?>
                                         <?php elseif (in_array($booking['booking_type'], ['spa_service', 'laundry_service'])): ?>
-                                            <?php echo $booking['service_quantity'] ?? 1; ?> session(s)
+                                            <?php echo ($booking['service_quantity'] ?? 1) . ' ' . __('my_bookings.sessions'); ?>
                                         <?php else: ?>
-                                            <?php echo $booking['customers']; ?> guest(s)
+                                            <?php echo $booking['customers']; ?> <?php echo __('my_bookings.guest_count'); ?>
                                         <?php endif; ?>
                                     </div>
                                 </div>
                                 <div class="col-6">
-                                    <small class="text-muted">Total Amount</small>
+                                    <small class="text-muted"><?php echo __('my_bookings.total_amount'); ?></small>
                                     <div class="fw-bold text-success"><?php echo format_currency($booking['total_price']); ?></div>
                                 </div>
                             </div>
                             
                             <?php if ($booking['special_requests']): ?>
                             <div class="mb-3">
-                                <small class="text-muted">Special Requests</small>
+                                <small class="text-muted"><?php echo __('my_bookings.special_requests'); ?></small>
                                 <div class="small"><?php echo htmlspecialchars($booking['special_requests']); ?></div>
                             </div>
                             <?php endif; ?>
@@ -276,22 +289,22 @@ $bookings = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
                             <div class="d-flex gap-2 flex-wrap">
                                 <?php if (in_array($booking['current_verification_status'] ?? $booking['status'], ['pending_payment', 'rejected'])): ?>
                                 <a href="payment-upload.php?booking=<?php echo $booking['id']; ?>" class="btn btn-warning btn-sm">
-                                    <i class="fas fa-upload"></i> Upload Payment
+                                    <i class="fas fa-upload"></i> <?php echo __('my_bookings.upload_payment'); ?>
                                 </a>
                                 <?php endif; ?>
                                 
                                 <?php if (($booking['current_verification_status'] ?? $booking['status']) == 'verified'): ?>
                                 <a href="booking-confirmation.php?ref=<?php echo $booking['booking_reference']; ?>" class="btn btn-success btn-sm">
-                                    <i class="fas fa-file-alt"></i> View Confirmation
+                                    <i class="fas fa-file-alt"></i> <?php echo __('my_bookings.view_confirmation'); ?>
                                 </a>
                                 <?php endif; ?>
                                 
                                 <button class="btn btn-outline-primary btn-sm" onclick="viewBookingDetails('<?php echo $booking['booking_reference']; ?>')">
-                                    <i class="fas fa-eye"></i> View Details
+                                    <i class="fas fa-eye"></i> <?php echo __('my_bookings.view_details'); ?>
                                 </button>
                                 
                                 <button class="btn btn-outline-secondary btn-sm" onclick="printBooking(<?php echo htmlspecialchars(json_encode($booking)); ?>)">
-                                    <i class="fas fa-print"></i> Print
+                                    <i class="fas fa-print"></i> <?php echo __('my_bookings.print'); ?>
                                 </button>
                                 
                                 <?php 
@@ -311,7 +324,7 @@ $bookings = $stmt->get_result()->fetch_all(MYSQLI_ASSOC);
                         <div class="card-footer text-muted">
                             <small>
                                 <i class="fas fa-clock"></i>
-                                Booked on <?php echo date('M j, Y g:i A', strtotime($booking['created_at'])); ?>
+                                <?php echo __('my_bookings.booked_on'); ?> <?php echo date('M j, Y g:i A', strtotime($booking['created_at'])); ?>
                             </small>
                         </div>
                     </div>

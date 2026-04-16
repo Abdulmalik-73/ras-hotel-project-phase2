@@ -16,17 +16,14 @@ if (empty($booking_ref)) {
 
 // Get booking details
 $booking_query = "SELECT b.*, 
-                  CASE 
-                      WHEN b.booking_type = 'spa_service' THEN 'Spa & Wellness'
-                      WHEN b.booking_type = 'laundry_service' THEN 'Laundry Service'
-                      WHEN b.booking_type = 'food_order' THEN 'Food Order'
-                      ELSE COALESCE(r.name, 'Room Booking')
-                  END as room_name,
-                  COALESCE(r.room_number, 'N/A') as room_number, 
+                  COALESCE(r.name, '') as room_name,
+                  COALESCE(r.room_number, '') as room_number, 
                   CONCAT(u.first_name, ' ', u.last_name) as customer_name, u.email,
                   cf.id as feedback_id,
                   sb.service_name, sb.service_date, sb.service_time, sb.quantity as service_quantity,
-                  fo.table_reservation, fo.reservation_date, fo.reservation_time, fo.guests as food_guests
+                  fo.order_reference, fo.table_reservation, fo.reservation_date, 
+                  fo.reservation_time, fo.guests as food_guests, fo.special_requests as food_special,
+                  fo.id as food_order_id
                   FROM bookings b 
                   LEFT JOIN rooms r ON b.room_id = r.id 
                   LEFT JOIN users u ON b.user_id = u.id 
@@ -40,7 +37,6 @@ $stmt->execute();
 $result = $stmt->get_result();
 
 if ($result->num_rows == 0) {
-    // Try with different parameter name
     $booking_ref = isset($_GET['booking_ref']) ? sanitize_input($_GET['booking_ref']) : $booking_ref;
     $stmt = $conn->prepare($booking_query);
     $stmt->bind_param("s", $booking_ref);
@@ -54,13 +50,39 @@ if ($result->num_rows == 0) {
 }
 
 $booking_data = $result->fetch_assoc();
+$booking_type = $booking_data['booking_type'] ?? 'room';
+
+// Fetch food order items if food order
+$food_items_list = '';
+if ($booking_type === 'food_order' && !empty($booking_data['food_order_id'])) {
+    $fi = $conn->prepare(
+        "SELECT item_name, quantity, price, total_price 
+         FROM food_order_items WHERE order_id = ? ORDER BY id"
+    );
+    $fi->bind_param("i", $booking_data['food_order_id']);
+    $fi->execute();
+    $fi_result = $fi->get_result();
+    $items = [];
+    while ($row = $fi_result->fetch_assoc()) {
+        $items[] = htmlspecialchars($row['item_name']) . ' x' . $row['quantity'] . ' (ETB ' . number_format($row['price'], 2) . ')';
+    }
+    $food_items_list = implode('<br>', $items);
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Booking Confirmation - Harar Ras Hotel</title>
+    <title><?php
+        $titles = [
+            'room'            => 'Booking Confirmed',
+            'food_order'      => 'Order Confirmed',
+            'spa_service'     => 'Spa & Wellness Confirmed',
+            'laundry_service' => 'Laundry Service Confirmed',
+        ];
+        echo ($titles[$booking_type] ?? 'Confirmed');
+    ?> - Harar Ras Hotel</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <style>
@@ -244,97 +266,163 @@ $booking_data = $result->fetch_assoc();
         <div class="confirmation-card">
             <div class="confirmation-header">
                 <i class="fas fa-check-circle"></i>
-                <h1>Booking Confirmed!</h1>
-                <p class="mb-0">Thank you for choosing Harar Ras Hotel</p>
+                <?php
+                $headers = [
+                    'room'            => ['title' => __('confirmation.room_confirmed'),    'sub' => __('confirmation.room_sub')],
+                    'food_order'      => ['title' => __('confirmation.food_confirmed'),    'sub' => __('confirmation.food_sub')],
+                    'spa_service'     => ['title' => __('confirmation.spa_confirmed'),     'sub' => __('confirmation.spa_sub')],
+                    'laundry_service' => ['title' => __('confirmation.laundry_confirmed'), 'sub' => __('confirmation.laundry_sub')],
+                ];
+                $h = $headers[$booking_type] ?? $headers['room'];
+                ?>
+                <h1><?php echo $h['title']; ?></h1>
+                <p class="mb-0"><?php echo $h['sub']; ?> — <?php echo __('confirmation.thank_you'); ?></p>
             </div>
             
             <div class="confirmation-content">
                 <div class="booking-details">
-                    <h4><i class="fas fa-file-alt me-2"></i>Booking Details</h4>
-                    
+                    <?php
+                    $detail_icons = [
+                        'room'            => 'fa-bed',
+                        'food_order'      => 'fa-utensils',
+                        'spa_service'     => 'fa-spa',
+                        'laundry_service' => 'fa-tshirt',
+                    ];
+                    $detail_titles = [
+                        'room'            => __('confirmation.room_details'),
+                        'food_order'      => __('confirmation.food_details'),
+                        'spa_service'     => __('confirmation.spa_details'),
+                        'laundry_service' => __('confirmation.laundry_details'),
+                    ];
+                    ?>
+                    <h4>
+                        <i class="fas <?php echo $detail_icons[$booking_type] ?? 'fa-file-alt'; ?> me-2"></i>
+                        <?php echo $detail_titles[$booking_type] ?? 'Booking Details'; ?>
+                    </h4>
+
+                    <!-- Reference & Customer — same for all types -->
                     <div class="detail-row">
                         <div class="detail-item">
-                            <div class="detail-label">Booking Reference</div>
+                            <div class="detail-label">
+                                <?php
+                                if ($booking_type === 'food_order') echo __('confirmation.order_reference');
+                                elseif (in_array($booking_type, ['spa_service','laundry_service'])) echo __('confirmation.service_reference');
+                                else echo __('confirmation.booking_reference');
+                                ?>
+                            </div>
                             <div class="detail-value"><?php echo htmlspecialchars($booking_data['booking_reference']); ?></div>
                         </div>
                         <div class="detail-item">
-                            <div class="detail-label">Guest Name</div>
+                            <div class="detail-label"><?php echo __('confirmation.customer_name'); ?></div>
                             <div class="detail-value"><?php echo htmlspecialchars($booking_data['customer_name']); ?></div>
                         </div>
                     </div>
-                    
+
+                    <?php if ($booking_type === 'food_order'): ?>
+                    <?php if ($food_items_list): ?>
                     <div class="detail-row">
-                        <?php if ($booking_data['booking_type'] == 'food_order'): ?>
+                        <div class="detail-item" style="grid-column:1/-1;">
+                            <div class="detail-label"><?php echo __('confirmation.items_ordered'); ?></div>
+                            <div class="detail-value" style="font-size:1rem;"><?php echo $food_items_list; ?></div>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+                    <div class="detail-row">
                         <div class="detail-item">
-                            <div class="detail-label">Order Type</div>
-                            <div class="detail-value"><?php echo $booking_data['table_reservation'] ? 'Dine-in' : 'Takeaway'; ?></div>
+                            <div class="detail-label"><?php echo __('confirmation.order_type'); ?></div>
+                            <div class="detail-value"><?php echo $booking_data['table_reservation'] ? __('confirmation.dine_in') : __('confirmation.takeaway'); ?></div>
                         </div>
                         <div class="detail-item">
-                            <div class="detail-label">Table Reserved</div>
-                            <div class="detail-value"><?php echo $booking_data['table_reservation'] ? 'Yes' : 'No'; ?></div>
+                            <div class="detail-label"><?php echo __('confirmation.table_reserved'); ?></div>
+                            <div class="detail-value"><?php echo $booking_data['table_reservation'] ? __('confirmation.yes') : __('confirmation.no'); ?></div>
                         </div>
-                        <?php elseif (in_array($booking_data['booking_type'], ['spa_service', 'laundry_service'])): ?>
+                    </div>
+                    <?php if (!empty($booking_data['reservation_date'])): ?>
+                    <div class="detail-row">
                         <div class="detail-item">
-                            <div class="detail-label">Service Type</div>
-                            <div class="detail-value"><?php echo htmlspecialchars($booking_data['room_name']); ?></div>
-                        </div>
-                        <div class="detail-item">
-                            <div class="detail-label">Service Name</div>
-                            <div class="detail-value"><?php echo htmlspecialchars($booking_data['service_name'] ?? 'N/A'); ?></div>
-                        </div>
-                        <?php else: ?>
-                        <div class="detail-item">
-                            <div class="detail-label">Room</div>
-                            <div class="detail-value"><?php echo htmlspecialchars($booking_data['room_name']); ?></div>
+                            <div class="detail-label"><?php echo __('confirmation.reservation_date'); ?></div>
+                            <div class="detail-value"><?php echo date('M j, Y', strtotime($booking_data['reservation_date'])); ?></div>
                         </div>
                         <div class="detail-item">
-                            <div class="detail-label">Room Number</div>
-                            <div class="detail-value"><?php echo htmlspecialchars($booking_data['room_number']); ?></div>
+                            <div class="detail-label"><?php echo __('confirmation.reservation_time'); ?></div>
+                            <div class="detail-value"><?php echo date('g:i A', strtotime($booking_data['reservation_time'])); ?></div>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+                    <div class="detail-row">
+                        <div class="detail-item">
+                            <div class="detail-label"><?php echo __('confirmation.guests'); ?></div>
+                            <div class="detail-value"><?php echo $booking_data['food_guests']; ?> <?php echo __('confirmation.persons'); ?></div>
+                        </div>
+                        <?php if (!empty($booking_data['food_special']) && $booking_data['food_special'] !== 'no'): ?>
+                        <div class="detail-item">
+                            <div class="detail-label"><?php echo __('confirmation.special_requests'); ?></div>
+                            <div class="detail-value" style="font-size:1rem;"><?php echo htmlspecialchars($booking_data['food_special']); ?></div>
                         </div>
                         <?php endif; ?>
                     </div>
-                    
+
+                    <?php elseif (in_array($booking_type, ['spa_service', 'laundry_service'])): ?>
                     <div class="detail-row">
-                        <?php if ($booking_data['booking_type'] == 'food_order'): ?>
                         <div class="detail-item">
-                            <div class="detail-label">Reservation Date</div>
-                            <div class="detail-value"><?php echo !empty($booking_data['reservation_date']) ? date('M j, Y', strtotime($booking_data['reservation_date'])) : 'N/A'; ?></div>
+                            <div class="detail-label"><?php echo __('confirmation.service'); ?></div>
+                            <div class="detail-value"><?php echo htmlspecialchars($booking_data['service_name'] ?? __('confirmation.na')); ?></div>
                         </div>
                         <div class="detail-item">
-                            <div class="detail-label">Reservation Time</div>
-                            <div class="detail-value"><?php echo !empty($booking_data['reservation_time']) ? date('g:i A', strtotime($booking_data['reservation_time'])) : 'N/A'; ?></div>
+                            <div class="detail-label"><?php echo __('confirmation.service_type'); ?></div>
+                            <div class="detail-value"><?php echo $booking_type === 'spa_service' ? __('confirmation.spa_wellness') : __('confirmation.laundry_service'); ?></div>
                         </div>
-                        <?php elseif (in_array($booking_data['booking_type'], ['spa_service', 'laundry_service'])): ?>
-                        <div class="detail-item">
-                            <div class="detail-label">Service Date</div>
-                            <div class="detail-value"><?php echo !empty($booking_data['service_date']) ? date('M j, Y', strtotime($booking_data['service_date'])) : 'To be scheduled'; ?></div>
-                        </div>
-                        <div class="detail-item">
-                            <div class="detail-label">Service Time</div>
-                            <div class="detail-value"><?php echo !empty($booking_data['service_time']) ? date('g:i A', strtotime($booking_data['service_time'])) : 'To be scheduled'; ?></div>
-                        </div>
-                        <?php else: ?>
-                        <div class="detail-item">
-                            <div class="detail-label">Check-in Date</div>
-                            <div class="detail-value"><?php echo !empty($booking_data['check_in_date']) ? date('M j, Y', strtotime($booking_data['check_in_date'])) : 'N/A'; ?></div>
-                        </div>
-                        <div class="detail-item">
-                            <div class="detail-label">Check-out Date</div>
-                            <div class="detail-value"><?php echo !empty($booking_data['check_out_date']) ? date('M j, Y', strtotime($booking_data['check_out_date'])) : 'N/A'; ?></div>
-                        </div>
-                        <?php endif; ?>
                     </div>
-                    
                     <div class="detail-row">
                         <div class="detail-item">
-                            <div class="detail-label">Total Amount</div>
-                            <div class="detail-value" style="font-size: 1.3em;"><?php echo format_currency($booking_data['total_price']); ?></div>
+                            <div class="detail-label"><?php echo $booking_type === 'laundry_service' ? __('confirmation.collection_date') : __('confirmation.service_date'); ?></div>
+                            <div class="detail-value"><?php echo !empty($booking_data['service_date']) ? date('M j, Y', strtotime($booking_data['service_date'])) : __('confirmation.to_be_scheduled'); ?></div>
                         </div>
                         <div class="detail-item">
-                            <div class="detail-label">Payment Status</div>
+                            <div class="detail-label"><?php echo $booking_type === 'laundry_service' ? __('confirmation.collection_time') : __('confirmation.service_time'); ?></div>
+                            <div class="detail-value"><?php echo !empty($booking_data['service_time']) ? date('g:i A', strtotime($booking_data['service_time'])) : __('confirmation.to_be_confirmed'); ?></div>
+                        </div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-item">
+                            <div class="detail-label"><?php echo __('confirmation.quantity'); ?></div>
+                            <div class="detail-value"><?php echo ($booking_data['service_quantity'] ?? 1) . ' ' . __('confirmation.sessions'); ?></div>
+                        </div>
+                    </div>
+
+                    <?php else: ?>
+                    <div class="detail-row">
+                        <div class="detail-item">
+                            <div class="detail-label"><?php echo __('confirmation.room'); ?></div>
+                            <div class="detail-value"><?php echo htmlspecialchars($booking_data['room_name']); ?></div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label"><?php echo __('confirmation.room_number'); ?></div>
+                            <div class="detail-value"><?php echo htmlspecialchars($booking_data['room_number'] ?: __('confirmation.na')); ?></div>
+                        </div>
+                    </div>
+                    <div class="detail-row">
+                        <div class="detail-item">
+                            <div class="detail-label"><?php echo __('confirmation.check_in_date'); ?></div>
+                            <div class="detail-value"><?php echo !empty($booking_data['check_in_date']) ? date('M j, Y', strtotime($booking_data['check_in_date'])) : __('confirmation.na'); ?></div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label"><?php echo __('confirmation.check_out_date'); ?></div>
+                            <div class="detail-value"><?php echo !empty($booking_data['check_out_date']) ? date('M j, Y', strtotime($booking_data['check_out_date'])) : __('confirmation.na'); ?></div>
+                        </div>
+                    </div>
+                    <?php endif; ?>
+
+                    <div class="detail-row">
+                        <div class="detail-item">
+                            <div class="detail-label"><?php echo __('confirmation.total_amount'); ?></div>
+                            <div class="detail-value" style="font-size:1.3em;"><?php echo format_currency($booking_data['total_price']); ?></div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label"><?php echo __('confirmation.payment_status'); ?></div>
                             <div class="detail-value">
                                 <span class="badge bg-success fs-6">
-                                    <i class="fas fa-check me-1"></i>Paid
+                                    <i class="fas fa-check me-1"></i><?php echo __('confirmation.paid'); ?>
                                 </span>
                             </div>
                         </div>
@@ -342,35 +430,49 @@ $booking_data = $result->fetch_assoc();
                 </div>
                 
                 <div class="next-steps">
-                    <h5><i class="fas fa-list-check me-2"></i>What's Next?</h5>
+                    <h5><i class="fas fa-list-check me-2"></i><?php echo __('confirmation.whats_next'); ?></h5>
                     <ul>
-                        <li>A confirmation email has been sent to <?php echo htmlspecialchars($booking_data['email']); ?></li>
-                        <li>Please arrive at the hotel on your check-in date</li>
-                        <li>Bring a valid ID for verification at check-in</li>
-                        <li>Contact us if you need to make any changes to your booking</li>
+                        <li><?php echo __('confirmation.email_sent'); ?> <?php echo htmlspecialchars($booking_data['email']); ?></li>
+                        <?php if ($booking_type === 'food_order'): ?>
+                        <li><?php echo __('confirmation.kitchen_preparing'); ?></li>
+                        <li><?php echo __('confirmation.will_notify'); ?></li>
+                        <li><?php echo __('confirmation.contact_special'); ?></li>
+                        <?php elseif ($booking_type === 'spa_service'): ?>
+                        <li><?php echo __('confirmation.arrive_early'); ?></li>
+                        <li><?php echo __('confirmation.bring_reference'); ?></li>
+                        <li><?php echo __('confirmation.contact_reschedule'); ?></li>
+                        <?php elseif ($booking_type === 'laundry_service'): ?>
+                        <li><?php echo __('confirmation.laundry_collected'); ?></li>
+                        <li><?php echo __('confirmation.items_returned'); ?></li>
+                        <li><?php echo __('confirmation.contact_changes'); ?></li>
+                        <?php else: ?>
+                        <li><?php echo __('confirmation.arrive_checkin'); ?></li>
+                        <li><?php echo __('confirmation.bring_id'); ?></li>
+                        <li><?php echo __('confirmation.contact_booking'); ?></li>
+                        <?php endif; ?>
                     </ul>
                     
                     <?php if (!$booking_data['feedback_id']): ?>
                     <div class="alert alert-info mt-3">
-                        <h6><i class="fas fa-star me-2"></i>Share Your Experience</h6>
-                        <p class="mb-2">Help us improve our service by sharing your feedback!</p>
+                        <h6><i class="fas fa-star me-2"></i><?php echo __('confirmation.share_experience'); ?></h6>
+                        <p class="mb-2"><?php echo __('confirmation.feedback_help'); ?></p>
                         <a href="customer-feedback.php?booking_ref=<?php echo urlencode($booking_data['booking_reference']); ?>&payment_id=<?php echo urlencode($booking_data['payment_reference'] ?? ''); ?>" class="btn btn-primary btn-sm">
-                            <i class="fas fa-star me-1"></i> Give Feedback
+                            <i class="fas fa-star me-1"></i> <?php echo __('confirmation.give_feedback'); ?>
                         </a>
                     </div>
                     <?php else: ?>
                     <div class="alert alert-success mt-3">
-                        <i class="fas fa-check-circle me-2"></i>Thank you for your feedback! We appreciate your input.
+                        <i class="fas fa-check-circle me-2"></i><?php echo __('confirmation.feedback_thanks'); ?>
                     </div>
                     <?php endif; ?>
                 </div>
                 
                 <div class="text-center">
                     <a href="index.php" class="btn btn-primary me-3">
-                        <i class="fas fa-home me-2"></i>Back to Home
+                        <i class="fas fa-home me-2"></i><?php echo __('confirmation.back_to_home'); ?>
                     </a>
                     <a href="my-bookings.php" class="btn btn-outline-primary">
-                        <i class="fas fa-calendar me-2"></i>My Bookings
+                        <i class="fas fa-calendar me-2"></i><?php echo __('confirmation.my_bookings'); ?>
                     </a>
                 </div>
             </div>

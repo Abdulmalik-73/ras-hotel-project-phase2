@@ -1,5 +1,4 @@
 <?php
-session_start();
 require_once '../includes/config.php';
 require_once '../includes/functions.php';
 
@@ -102,28 +101,25 @@ $count_result = $conn->query($count_query);
 $total = $count_result->fetch_assoc()['total'];
 $total_pages = ceil($total / $per_page);
 
-// Get users with OAuth information
-$users_query = "SELECT u.*, 
-                CASE WHEN u.google_id IS NOT NULL THEN 'Google' 
-                     WHEN ot.provider IS NOT NULL THEN ot.provider 
-                     ELSE NULL END as oauth_method
+// Get users with OAuth information (oauth_tokens table may not exist)
+$users_query = "SELECT u.*,
+                CASE WHEN u.google_id IS NOT NULL THEN 'Google' ELSE NULL END as oauth_method
                 FROM users u
-                LEFT JOIN oauth_tokens ot ON u.id = ot.user_id
                 $where 
-                GROUP BY u.id
                 ORDER BY u.created_at DESC 
                 LIMIT $offset, $per_page";
 $users = $conn->query($users_query);
 
 // Get statistics
-$stats_query = "SELECT 
+$stats = ['total_customers'=>0,'total_receptionists'=>0,'total_managers'=>0,'total_admins'=>0,'active_users'=>0];
+$stats_result = $conn->query("SELECT 
                 COUNT(CASE WHEN role = 'customer' THEN 1 END) as total_customers,
                 COUNT(CASE WHEN role = 'receptionist' THEN 1 END) as total_receptionists,
                 COUNT(CASE WHEN role = 'manager' THEN 1 END) as total_managers,
                 COUNT(CASE WHEN role = 'admin' THEN 1 END) as total_admins,
                 COUNT(CASE WHEN status = 'active' THEN 1 END) as active_users
-                FROM users";
-$stats = $conn->query($stats_query)->fetch_assoc();
+                FROM users");
+if ($stats_result) $stats = $stats_result->fetch_assoc();
 ?>
 
 <!DOCTYPE html>

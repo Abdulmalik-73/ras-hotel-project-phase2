@@ -11,7 +11,6 @@ set_error_handler(function($errno, $errstr, $errfile, $errline) {
     return false; // Let other errors through
 });
 
-session_start();
 require_once '../includes/config.php';
 require_once '../includes/functions.php';
 
@@ -363,13 +362,10 @@ if ($_POST && isset($_POST['action'])) {
             <a href="receptionist-checkout.php" class="nav-link active">
                 <i class="fas fa-minus-circle me-2"></i> Process Check-out
             </a>
-            <a href="receptionist-pending.php" class="nav-link">
-                <i class="fas fa-calendar-check me-2"></i> Pending Bookings
-            </a>
             <a href="receptionist-rooms.php" class="nav-link">
                 <i class="fas fa-bed me-2"></i> Manage Rooms
             </a>
-            <a href="../generate_bill.php" class="nav-link" target="_blank">
+            <a href="../generate_bill.php" class="nav-link">
                 <i class="fas fa-file-invoice-dollar me-2"></i> Generate Bill
             </a>
             <a href="../logout.php" class="nav-link mt-3">
@@ -662,7 +658,7 @@ if ($_POST && isset($_POST['action'])) {
                                                     <i class="fas fa-search me-2"></i> New Search
                                                 </a>
                                                 <a href="../generate_bill.php?booking_ref=<?php echo $booking_data['booking_reference']; ?>" 
-                                                   class="btn btn-outline-info" target="_blank">
+                                                   class="btn btn-outline-info">
                                                     <i class="fas fa-file-invoice me-2"></i> View Bill
                                                 </a>
                                             </div>
@@ -715,7 +711,7 @@ if ($_POST && isset($_POST['action'])) {
                                                 <i class="fas fa-search me-2"></i> New Search
                                             </a>
                                             <a href="../generate_bill.php?booking_ref=<?php echo $booking_data['booking_reference']; ?>" 
-                                               class="btn btn-info" target="_blank">
+                                               class="btn btn-info">
                                                 <i class="fas fa-file-invoice me-2"></i> Generate Bill
                                             </a>
                                         </div>

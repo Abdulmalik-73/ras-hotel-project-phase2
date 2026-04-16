@@ -4,7 +4,6 @@ error_reporting(0);
 ini_set('display_errors', 0);
 ini_set('log_errors', 1);
 
-session_start();
 require_once '../includes/config.php';
 require_once '../includes/functions.php';
 
@@ -384,13 +383,13 @@ $checkins = $conn->query("
     LEFT JOIN food_orders fo ON b.id = fo.booking_id
     LEFT JOIN service_bookings sb ON b.id = sb.booking_id
     WHERE (
-        (DATE(b.check_in_date) = '$today' AND b.status IN ('confirmed', 'checked_in'))
+        (DATE(b.check_in_date) = '$today' AND b.status IN ('confirmed', 'checked_in') AND b.payment_status = 'paid')
         OR 
         (DATE(b.actual_checkin_time) = '$today' AND b.status = 'checked_in')
         OR
-        (DATE(fo.reservation_date) = '$today' AND b.status = 'confirmed')
+        (DATE(fo.reservation_date) = '$today' AND b.status = 'confirmed' AND b.payment_status = 'paid')
         OR
-        (DATE(sb.service_date) = '$today' AND b.status = 'confirmed')
+        (DATE(sb.service_date) = '$today' AND b.status = 'confirmed' AND b.payment_status = 'paid')
     )
     ORDER BY b.created_at DESC
 ");
@@ -427,28 +426,6 @@ $checkouts = $conn->query("
     ORDER BY b.actual_checkin_time DESC
 ");
 
-// Get pending bookings (awaiting confirmation) - all types
-$pending_bookings = $conn->query("
-    SELECT b.*, 
-           COALESCE(r.name, '') as room_name, 
-           COALESCE(r.room_number, '') as room_number, 
-           COALESCE(r.price, 0) as price,
-           CONCAT(u.first_name, ' ', u.last_name) as guest_name,
-           u.email, u.phone,
-           DATEDIFF(b.check_out_date, b.check_in_date) as nights,
-           b.payment_status,
-           fo.order_reference as food_order_ref,
-           sb.service_name,
-           sb.service_category
-    FROM bookings b 
-    LEFT JOIN rooms r ON b.room_id = r.id 
-    JOIN users u ON b.user_id = u.id 
-    LEFT JOIN food_orders fo ON b.id = fo.booking_id
-    LEFT JOIN service_bookings sb ON b.id = sb.booking_id
-    WHERE b.status = 'pending'
-    ORDER BY b.created_at DESC
-    LIMIT 10
-");
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -497,8 +474,34 @@ $pending_bookings = $conn->query("
             <a class="navbar-brand" href="../index.php">
                 <i class="fas fa-hotel text-gold"></i> Harar Ras Hotel - Reception
             </a>
-            <div class="navbar-nav ms-auto">
-                
+            <div class="navbar-nav ms-auto d-flex align-items-center">
+
+                <!-- ── Notification Bell ── -->
+                <div class="nav-item dropdown me-3" id="notifDropdownWrapper">
+                    <a class="nav-link position-relative" href="#" id="notifBell"
+                       data-bs-toggle="dropdown" aria-expanded="false"
+                       onclick="loadNotifications()">
+                        <i class="fas fa-bell fa-lg"></i>
+                        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"
+                              id="notifBadge" style="display:none;font-size:.65rem;">0</span>
+                    </a>
+                    <div class="dropdown-menu dropdown-menu-end p-0"
+                         id="notifDropdown"
+                         style="width:360px;max-height:480px;overflow-y:auto;">
+                        <div class="d-flex justify-content-between align-items-center px-3 py-2 border-bottom bg-light">
+                            <strong style="font-size:.9rem;"><i class="fas fa-bell text-primary me-1"></i> New Bookings</strong>
+                            <button class="btn btn-link btn-sm p-0 text-muted" onclick="markAllRead()">
+                                Mark all read
+                            </button>
+                        </div>
+                        <div id="notifList">
+                            <div class="text-center py-3 text-muted small">
+                                <i class="fas fa-spinner fa-spin"></i> Loading...
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
                 <span class="navbar-text me-3">
                     <i class="fas fa-user-tie"></i> Welcome, <?php echo htmlspecialchars($_SESSION['user_name']); ?> (Receptionist)
                 </span>
@@ -527,16 +530,13 @@ $pending_bookings = $conn->query("
                         <a href="receptionist-checkout.php" class="list-group-item list-group-item-action">
                             <i class="fas fa-minus-circle"></i> Process Check-out
                         </a>
-                        <a href="receptionist-pending.php" class="list-group-item list-group-item-action">
-                            <i class="fas fa-calendar-check"></i> Pending Bookings
-                        </a>
                         <a href="receptionist-rooms.php" class="list-group-item list-group-item-action">
                             <i class="fas fa-bed"></i> Manage Rooms
                         </a>
                         <a href="receptionist-services.php" class="list-group-item list-group-item-action">
                             <i class="fas fa-utensils"></i> Manage Foods & Services
                         </a>
-                        <a href="../generate_bill.php" class="list-group-item list-group-item-action" target="_blank">
+                        <a href="../generate_bill.php" class="list-group-item list-group-item-action">
                             <i class="fas fa-file-invoice-dollar"></i> Generate Bill
                         </a>
                         </div>
@@ -575,156 +575,194 @@ $pending_bookings = $conn->query("
                     <div class="card-body">
                         <?php if ($checkins->num_rows > 0): ?>
                         <div class="table-responsive">
-                            <table class="table table-hover">
-                                <thead class="table-light">
+                            <?php
+                            // Separate by type
+                            $room_checkins = []; $food_checkins = []; $spa_checkins = []; $laundry_checkins = [];
+                            $checkins->data_seek(0);
+                            while ($b = $checkins->fetch_assoc()) {
+                                switch ($b['booking_type']) {
+                                    case 'room':            $room_checkins[]    = $b; break;
+                                    case 'food_order':      $food_checkins[]    = $b; break;
+                                    case 'spa_service':     $spa_checkins[]     = $b; break;
+                                    case 'laundry_service': $laundry_checkins[] = $b; break;
+                                }
+                            }
+                            ?>
+
+                            <?php /* ── ROOM BOOKINGS ── */ if (!empty($room_checkins)): ?>
+                            <h6 class="text-primary fw-bold mt-2 mb-2"><i class="fas fa-bed me-1"></i> Room Bookings</h6>
+                            <div class="table-responsive mb-4">
+                            <table class="table table-sm table-hover table-bordered mb-0">
+                                <thead class="table-primary">
                                     <tr>
-                                        <th>Booking Ref</th>
-                                        <th>Customer Name</th>
-                                        <th>Contact</th>
-                                        <th>Service Type</th>
-                                        <th>Nights</th>
-                                        <th>Total Amount</th>
-                                        <th>Payment Status</th>
-                                        <th>Check-in Status</th>
+                                        <th>Booking Ref</th><th>Customer</th><th>Room</th>
+                                        <th>Check-in</th><th>Check-out</th><th>Nights</th>
+                                        <th>Total</th><th>Payment</th><th>Status</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    <?php while ($booking = $checkins->fetch_assoc()): 
-                                        // Determine service type display
-                                        $booking_type = $booking['booking_type'];
-                                        $service_display = '';
-                                        $service_badge_class = 'bg-secondary';
-                                        
-                                        if ($booking_type == 'room') {
-                                            $room_name = htmlspecialchars($booking['room_name']);
-                                            $room_number = trim($booking['room_number']);
-                                            
-                                            // Show room name and number
-                                            if (!empty($room_number) && $room_number != 'N/A' && $room_number != '0') {
-                                                $service_display = '<strong style="color: white;">Room</strong><br><span style="font-size: 13px; color: white;">' . $room_name . '</span><br><span style="font-weight: 700; color: white; font-size: 16px;">#' . htmlspecialchars($room_number) . '</span>';
-                                            } else {
-                                                $service_display = '<strong style="color: white;">Room</strong><br><small style="color: white;">' . $room_name . '</small>';
-                                            }
-                                            $service_badge_class = 'bg-primary';
-                                        } elseif ($booking_type == 'food_order') {
-                                            // Get food items for this order
-                                            $food_items_query = "SELECT GROUP_CONCAT(item_name SEPARATOR ', ') as items 
-                                                                FROM food_order_items 
-                                                                WHERE order_id = (SELECT id FROM food_orders WHERE booking_id = {$booking['id']} LIMIT 1)";
-                                            $food_result = $conn->query($food_items_query);
-                                            $food_data = $food_result ? $food_result->fetch_assoc() : null;
-                                            $items_text = $food_data['items'] ?? 'Food items';
-                                            // Show all items without truncation
-                                            $service_display = '<strong>Food Order</strong><br><small style="white-space: normal; line-height: 1.4;">' . htmlspecialchars($items_text) . '</small>';
-                                            $service_badge_class = 'bg-success';
-                                        } elseif ($booking_type == 'spa_service') {
-                                            $service_display = '<strong>Spa & Wellness</strong><br><small>' . htmlspecialchars($booking['service_name'] ?? 'Spa service') . '</small>';
-                                            $service_badge_class = 'bg-info';
-                                        } elseif ($booking_type == 'laundry_service') {
-                                            $service_display = '<strong>Laundry Service</strong><br><small>' . htmlspecialchars($booking['service_name'] ?? 'Laundry') . '</small>';
-                                            $service_badge_class = 'bg-warning text-dark';
-                                        }
-                                    ?>
-                                    <tr>
-                                        <td>
-                                            <strong class="text-primary"><?php echo htmlspecialchars($booking['booking_reference'] ?? ''); ?></strong>
-                                        </td>
-                                        <td>
-                                            <strong><?php echo htmlspecialchars($booking['guest_name'] ?? ''); ?></strong>
-                                        </td>
-                                        <td>
-                                            <small>
-                                                <i class="fas fa-envelope text-muted"></i> <?php echo htmlspecialchars($booking['email'] ?? ''); ?><br>
-                                                <i class="fas fa-phone text-muted"></i> <?php echo htmlspecialchars($booking['phone'] ?? 'Not provided'); ?>
-                                            </small>
-                                        </td>
-                                        <td>
-                                            <span class="badge service-type-badge <?php echo $service_badge_class; ?>">
-                                                <?php echo $service_display; ?>
-                                            </span>
-                                        </td>
-                                        <td><?php echo $booking['nights'] ? $booking['nights'] . ' night(s)' : 'N/A'; ?></td>
-                                        <td>
-                                            <strong><?php echo format_currency($booking['total_price']); ?></strong>
-                                            <?php if ($booking_type == 'room' && $booking['price'] > 0): ?>
-                                            <br><small class="text-muted"><?php echo format_currency($booking['price']); ?>/night</small>
-                                            <?php endif; ?>
-                                        </td>
-                                        <td>
-                                            <?php 
-                                            $payment_status = $booking['payment_status'] ?? 'pending';
-                                            $verification_status = $booking['verification_status'] ?? 'pending';
-                                            
-                                            // Determine badge based on both payment_status and verification_status
-                                            if ($payment_status == 'paid' || $verification_status == 'verified') {
-                                                $badge_class = 'success';
-                                                $status_text = '✅ Prepaid';
-                                            } elseif ($verification_status == 'pending_verification') {
-                                                $badge_class = 'info';
-                                                $status_text = '⏳ Verifying';
-                                            } else {
-                                                $badge_class = 'warning';
-                                                $status_text = '⏳ Payment Due';
-                                            }
-                                            ?>
-                                            <span class="badge bg-<?php echo $badge_class; ?>">
-                                                <?php echo $status_text; ?>
-                                            </span>
-                                            <?php if ($booking['payment_method']): ?>
-                                            <br><small class="text-muted"><?php echo ucfirst($booking['payment_method']); ?></small>
-                                            <?php endif; ?>
-                                        </td>
-                                        <td>
-                                            <?php if ($booking['status'] == 'checked_in'): ?>
-                                                <span class="badge bg-success" style="font-size: 0.9rem; padding: 0.5rem;">
-                                                    <i class="fas fa-check-circle"></i> 
-                                                    <?php echo $booking_type == 'room' ? 'Checked In' : 'Completed'; ?>
-                                                </span>
-                                                <?php if (!empty($booking['actual_checkin_time'])): ?>
-                                                <br><small class="text-muted">
-                                                    <?php echo date('g:i A', strtotime($booking['actual_checkin_time'])); ?>
-                                                </small>
-                                                <?php endif; ?>
-                                            <?php else: ?>
-                                                <?php if ($booking_type == 'room'): ?>
-                                                    <a href="receptionist-checkin.php?booking_ref=<?php echo urlencode($booking['booking_reference']); ?>" class="btn btn-success btn-sm">
-                                                        <i class="fas fa-key"></i> Check In
-                                                    </a>
-                                                <?php else: ?>
-                                                    <span class="badge bg-info" style="font-size: 0.9rem; padding: 0.5rem;">
-                                                        <i class="fas fa-clock"></i> Ready
-                                                    </span>
-                                                <?php endif; ?>
-                                            <?php endif; ?>
-                                        </td>
-                                    </tr>
-                                    <?php endwhile; ?>
+                                <?php foreach ($room_checkins as $b): ?>
+                                <tr>
+                                    <td><strong class="text-primary"><?php echo htmlspecialchars($b['booking_reference'] ?? ''); ?></strong></td>
+                                    <td>
+                                        <strong><?php echo htmlspecialchars($b['guest_name'] ?? ''); ?></strong><br>
+                                        <small class="text-muted"><?php echo htmlspecialchars($b['email'] ?? ''); ?></small>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-primary">
+                                            <?php echo htmlspecialchars($b['room_name'] ?? ''); ?>
+                                            <?php if (!empty($b['room_number'])): ?> #<?php echo htmlspecialchars($b['room_number']); ?><?php endif; ?>
+                                        </span>
+                                    </td>
+                                    <td><?php echo $b['check_in_date'] ? date('M j, Y', strtotime($b['check_in_date'])) : 'N/A'; ?></td>
+                                    <td><?php echo $b['check_out_date'] ? date('M j, Y', strtotime($b['check_out_date'])) : 'N/A'; ?></td>
+                                    <td><?php echo $b['nights'] ? $b['nights'].' night(s)' : 'N/A'; ?></td>
+                                    <td><strong><?php echo format_currency($b['total_price']); ?></strong></td>
+                                    <td>
+                                        <?php if ($b['payment_status'] == 'paid'): ?>
+                                            <span class="badge bg-success">✅ Prepaid</span>
+                                        <?php else: ?>
+                                            <span class="badge bg-warning">⏳ Pending</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td>
+                                        <?php if ($b['booking_status'] == 'checked_in' || ($b['payment_status'] == 'paid' && $b['verification_status'] == 'verified')): ?>
+                                            <span class="badge bg-success"><i class="fas fa-check-circle"></i> Checked In</span>
+                                        <?php else: ?>
+                                            <a href="receptionist-checkin.php?booking_ref=<?php echo urlencode($b['booking_reference'] ?? ''); ?>" class="btn btn-success btn-sm">
+                                                <i class="fas fa-key"></i> Check In
+                                            </a>
+                                        <?php endif; ?>
+                                    </td>
+                                </tr>
+                                <?php endforeach; ?>
                                 </tbody>
                             </table>
+                            </div>
+                            <?php endif; ?>
+
+                            <?php /* ── FOOD ORDERS ── */ if (!empty($food_checkins)): ?>
+                            <h6 class="text-success fw-bold mt-2 mb-2"><i class="fas fa-utensils me-1"></i> Food Orders</h6>
+                            <div class="table-responsive mb-4">
+                            <table class="table table-sm table-hover table-bordered mb-0">
+                                <thead class="table-success">
+                                    <tr>
+                                        <th>Order Ref</th><th>Customer</th><th>Items</th>
+                                        <th>Date</th><th>Time</th><th>Guests</th>
+                                        <th>Total</th><th>Payment</th><th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                <?php foreach ($food_checkins as $b):
+                                    $fq = $conn->query("SELECT GROUP_CONCAT(item_name SEPARATOR ', ') as items FROM food_order_items WHERE order_id=(SELECT id FROM food_orders WHERE booking_id={$b['id']} LIMIT 1)");
+                                    $items_text = $fq ? ($fq->fetch_assoc()['items'] ?? 'Food items') : 'Food items';
+                                ?>
+                                <tr>
+                                    <td><strong class="text-success"><?php echo htmlspecialchars($b['booking_reference'] ?? ''); ?></strong></td>
+                                    <td>
+                                        <strong><?php echo htmlspecialchars($b['guest_name'] ?? ''); ?></strong><br>
+                                        <small class="text-muted"><?php echo htmlspecialchars($b['email'] ?? ''); ?></small>
+                                    </td>
+                                    <td><small><?php echo htmlspecialchars($items_text ?? ''); ?></small></td>
+                                    <td><?php echo $b['food_date'] ? date('M j, Y', strtotime($b['food_date'])) : 'N/A'; ?></td>
+                                    <td><?php echo $b['food_time'] ? date('g:i A', strtotime($b['food_time'])) : 'N/A'; ?></td>
+                                    <td><?php echo (int)($b['num_customers'] ?? 1); ?></td>
+                                    <td><strong><?php echo format_currency($b['total_price']); ?></strong></td>
+                                    <td>
+                                        <?php if ($b['payment_status'] == 'paid'): ?>
+                                            <span class="badge bg-success">✅ Prepaid</span>
+                                        <?php else: ?>
+                                            <span class="badge bg-warning">⏳ Pending</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td><span class="badge bg-success"><i class="fas fa-check-circle"></i> Ready</span></td>
+                                </tr>
+                                <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                            </div>
+                            <?php endif; ?>
+
+                            <?php /* ── SPA & WELLNESS ── */ if (!empty($spa_checkins)): ?>
+                            <h6 class="text-info fw-bold mt-2 mb-2"><i class="fas fa-spa me-1"></i> Spa & Wellness</h6>
+                            <div class="table-responsive mb-4">
+                            <table class="table table-sm table-hover table-bordered mb-0">
+                                <thead class="table-info">
+                                    <tr>
+                                        <th>Service Ref</th><th>Customer</th><th>Service</th>
+                                        <th>Date</th><th>Time</th>
+                                        <th>Total</th><th>Payment</th><th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                <?php foreach ($spa_checkins as $b): ?>
+                                <tr>
+                                    <td><strong class="text-info"><?php echo htmlspecialchars($b['booking_reference'] ?? ''); ?></strong></td>
+                                    <td>
+                                        <strong><?php echo htmlspecialchars($b['guest_name'] ?? ''); ?></strong><br>
+                                        <small class="text-muted"><?php echo htmlspecialchars($b['email'] ?? ''); ?></small>
+                                    </td>
+                                    <td><span class="badge bg-info"><?php echo htmlspecialchars($b['service_name'] ?? 'Spa Service'); ?></span></td>
+                                    <td><?php echo $b['service_date'] ? date('M j, Y', strtotime($b['service_date'])) : 'N/A'; ?></td>
+                                    <td><?php echo $b['service_time'] ? date('g:i A', strtotime($b['service_time'])) : 'N/A'; ?></td>
+                                    <td><strong><?php echo format_currency($b['total_price']); ?></strong></td>
+                                    <td>
+                                        <?php if ($b['payment_status'] == 'paid'): ?>
+                                            <span class="badge bg-success">✅ Prepaid</span>
+                                        <?php else: ?>
+                                            <span class="badge bg-warning">⏳ Pending</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td><span class="badge bg-success"><i class="fas fa-check-circle"></i> Ready</span></td>
+                                </tr>
+                                <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                            </div>
+                            <?php endif; ?>
+
+                            <?php /* ── LAUNDRY ── */ if (!empty($laundry_checkins)): ?>
+                            <h6 class="text-warning fw-bold mt-2 mb-2"><i class="fas fa-tshirt me-1"></i> Laundry Services</h6>
+                            <div class="table-responsive mb-2">
+                            <table class="table table-sm table-hover table-bordered mb-0">
+                                <thead class="table-warning">
+                                    <tr>
+                                        <th>Service Ref</th><th>Customer</th><th>Service</th>
+                                        <th>Collection Date</th><th>Time</th>
+                                        <th>Total</th><th>Payment</th><th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                <?php foreach ($laundry_checkins as $b): ?>
+                                <tr>
+                                    <td><strong class="text-warning"><?php echo htmlspecialchars($b['booking_reference'] ?? ''); ?></strong></td>
+                                    <td>
+                                        <strong><?php echo htmlspecialchars($b['guest_name'] ?? ''); ?></strong><br>
+                                        <small class="text-muted"><?php echo htmlspecialchars($b['email'] ?? ''); ?></small>
+                                    </td>
+                                    <td><span class="badge bg-warning text-dark"><?php echo htmlspecialchars($b['service_name'] ?? 'Laundry'); ?></span></td>
+                                    <td><?php echo $b['service_date'] ? date('M j, Y', strtotime($b['service_date'])) : 'N/A'; ?></td>
+                                    <td><?php echo $b['service_time'] ? date('g:i A', strtotime($b['service_time'])) : 'N/A'; ?></td>
+                                    <td><strong><?php echo format_currency($b['total_price']); ?></strong></td>
+                                    <td>
+                                        <?php if ($b['payment_status'] == 'paid'): ?>
+                                            <span class="badge bg-success">✅ Prepaid</span>
+                                        <?php else: ?>
+                                            <span class="badge bg-warning">⏳ Pending</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td><span class="badge bg-success"><i class="fas fa-check-circle"></i> Ready</span></td>
+                                </tr>
+                                <?php endforeach; ?>
+                                </tbody>
+                            </table>
+                            </div>
+                            <?php endif; ?>
+
                         </div>
                         <?php else: ?>
                         <div class="alert alert-info mb-0">
                             <i class="fas fa-info-circle"></i> No check-ins scheduled for today.
-                            
-                            <?php if (!empty($debug_bookings)): ?>
-                            <hr>
-                            <strong>Debug Info - Bookings for today (<?php echo $today; ?>):</strong>
-                            <ul class="mt-2 mb-0">
-                                <?php foreach ($debug_bookings as $db): ?>
-                                <li>
-                                    <strong><?php echo $db['booking_reference']; ?></strong> - <?php echo $db['guest_name']; ?><br>
-                                    <small>
-                                        Status: <span class="badge bg-secondary"><?php echo $db['status']; ?></span>
-                                        Verification: <span class="badge bg-secondary"><?php echo $db['verification_status']; ?></span>
-                                        Payment: <span class="badge bg-secondary"><?php echo $db['payment_status']; ?></span>
-                                    </small>
-                                </li>
-                                <?php endforeach; ?>
-                            </ul>
-                            <small class="text-muted">
-                                <strong>Note:</strong> Bookings only appear in check-ins when Status=confirmed AND Verification=verified
-                            </small>
-                            <?php endif; ?>
                         </div>
                         <?php endif; ?>
                     </div>
@@ -808,414 +846,6 @@ $pending_bookings = $conn->query("
                     </div>
                 </div>
 
-                <!-- Pending Bookings - Separate sections for different service types -->
-                
-                <!-- Pending Room Bookings -->
-                <?php 
-                // Get pending room bookings
-                $pending_rooms = $conn->query("
-                    SELECT b.*, 
-                           r.name as room_name, 
-                           r.room_number, 
-                           r.price,
-                           CONCAT(u.first_name, ' ', u.last_name) as guest_name,
-                           u.email, u.phone,
-                           DATEDIFF(b.check_out_date, b.check_in_date) as nights,
-                           b.payment_status, b.verification_status
-                    FROM bookings b 
-                    JOIN rooms r ON b.room_id = r.id 
-                    JOIN users u ON b.user_id = u.id 
-                    WHERE b.status = 'pending' AND b.booking_type = 'room'
-                    ORDER BY b.created_at DESC
-                ");
-                
-                // Get pending food orders
-                $pending_food = $conn->query("
-                    SELECT b.*, 
-                           CONCAT(u.first_name, ' ', u.last_name) as guest_name,
-                           u.email, u.phone,
-                           fo.reservation_date, fo.reservation_time,
-                           b.payment_status, b.verification_status
-                    FROM bookings b 
-                    JOIN users u ON b.user_id = u.id 
-                    JOIN food_orders fo ON b.id = fo.booking_id
-                    WHERE b.status = 'pending' AND b.booking_type = 'food_order'
-                    ORDER BY b.created_at DESC
-                ");
-                
-                // Get pending spa services
-                $pending_spa = $conn->query("
-                    SELECT b.*, 
-                           CONCAT(u.first_name, ' ', u.last_name) as guest_name,
-                           u.email, u.phone,
-                           sb.service_name, sb.service_date, sb.service_time,
-                           b.payment_status, b.verification_status
-                    FROM bookings b 
-                    JOIN users u ON b.user_id = u.id 
-                    JOIN service_bookings sb ON b.id = sb.booking_id
-                    WHERE b.status = 'pending' AND b.booking_type = 'spa_service'
-                    ORDER BY b.created_at DESC
-                ");
-                
-                // Get pending laundry services
-                $pending_laundry = $conn->query("
-                    SELECT b.*, 
-                           CONCAT(u.first_name, ' ', u.last_name) as guest_name,
-                           u.email, u.phone,
-                           sb.service_name, sb.service_date, sb.service_time,
-                           b.payment_status, b.verification_status
-                    FROM bookings b 
-                    JOIN users u ON b.user_id = u.id 
-                    JOIN service_bookings sb ON b.id = sb.booking_id
-                    WHERE b.status = 'pending' AND b.booking_type = 'laundry_service'
-                    ORDER BY b.created_at DESC
-                ");
-                ?>
-                
-                <!-- Pending Room Bookings -->
-                <?php if ($pending_rooms->num_rows > 0): ?>
-                <div class="card mb-4">
-                    <div class="card-header bg-primary text-white">
-                        <h5 class="mb-0">
-                            <i class="fas fa-bed"></i> Pending Room Bookings (Awaiting Confirmation)
-                            <span class="badge bg-light text-primary float-end"><?php echo $pending_rooms->num_rows; ?> Booking(s)</span>
-                        </h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="table-responsive">
-                            <table class="table table-hover">
-                                <thead class="table-light">
-                                    <tr>
-                                        <th>Booking Ref</th>
-                                        <th>Customer Name</th>
-                                        <th>Contact</th>
-                                        <th>Room Type</th>
-                                        <th>Check-in Date</th>
-                                        <th>Nights</th>
-                                        <th>Total</th>
-                                        <th>Payment</th>
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <?php while ($booking = $pending_rooms->fetch_assoc()): ?>
-                                    <tr>
-                                        <td>
-                                            <strong class="text-primary"><?php echo htmlspecialchars($booking['booking_reference']); ?></strong>
-                                        </td>
-                                        <td>
-                                            <strong><?php echo htmlspecialchars($booking['guest_name']); ?></strong>
-                                        </td>
-                                        <td>
-                                            <small>
-                                                <i class="fas fa-envelope text-muted"></i> <?php echo htmlspecialchars($booking['email']); ?><br>
-                                                <i class="fas fa-phone text-muted"></i> <?php echo htmlspecialchars($booking['phone'] ?? 'Not provided'); ?>
-                                            </small>
-                                        </td>
-                                        <td>
-                                            <span class="badge bg-primary service-type-badge">
-                                                <strong>Room</strong><br>
-                                                <small><?php echo htmlspecialchars($booking['room_name']); ?></small><br>
-                                                <strong>#<?php echo htmlspecialchars($booking['room_number']); ?></strong>
-                                            </span>
-                                        </td>
-                                        <td><?php echo date('M j, Y', strtotime($booking['check_in_date'])); ?></td>
-                                        <td><?php echo $booking['nights']; ?> night(s)</td>
-                                        <td><strong><?php echo format_currency($booking['total_price']); ?></strong></td>
-                                        <td>
-                                            <?php 
-                                            $verification_status = $booking['verification_status'];
-                                            if ($verification_status == 'verified') {
-                                                echo '<span class="badge bg-success">Verified</span>';
-                                            } elseif ($verification_status == 'pending_verification') {
-                                                echo '<span class="badge bg-info">Verifying</span>';
-                                            } else {
-                                                echo '<span class="badge bg-warning">Pending</span>';
-                                            }
-                                            ?>
-                                        </td>
-                                        <td>
-                                            <div class="btn-group btn-group-sm">
-                                                <a href="receptionist-checkin.php?booking_ref=<?php echo urlencode($booking['booking_reference']); ?>" class="btn btn-success">
-                                                    <i class="fas fa-key"></i> Check-in
-                                                </a>
-                                                <button class="btn btn-danger" onclick="cancelBooking('<?php echo $booking['booking_reference']; ?>')">
-                                                    <i class="fas fa-times"></i> Cancel
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                    <?php endwhile; ?>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-                <?php endif; ?>
-                
-                <!-- Pending Food Orders -->
-                <?php if ($pending_food->num_rows > 0): ?>
-                <div class="card mb-4">
-                    <div class="card-header bg-success text-white">
-                        <h5 class="mb-0">
-                            <i class="fas fa-utensils"></i> Pending Food Orders (Awaiting Confirmation)
-                            <span class="badge bg-light text-success float-end"><?php echo $pending_food->num_rows; ?> Order(s)</span>
-                        </h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="table-responsive">
-                            <table class="table table-hover">
-                                <thead class="table-light">
-                                    <tr>
-                                        <th>Order Ref</th>
-                                        <th>Customer Name</th>
-                                        <th>Contact</th>
-                                        <th>Food Items</th>
-                                        <th>Reservation Date</th>
-                                        <th>Reservation Time</th>
-                                        <th>Total</th>
-                                        <th>Payment</th>
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <?php while ($booking = $pending_food->fetch_assoc()): 
-                                        // Get food items for this order
-                                        $food_items_query = "SELECT GROUP_CONCAT(item_name SEPARATOR ', ') as items 
-                                                            FROM food_order_items 
-                                                            WHERE order_id = (SELECT id FROM food_orders WHERE booking_id = {$booking['id']} LIMIT 1)";
-                                        $food_result = $conn->query($food_items_query);
-                                        $food_data = $food_result ? $food_result->fetch_assoc() : null;
-                                        $items_text = $food_data['items'] ?? 'Food items';
-                                    ?>
-                                    <tr>
-                                        <td>
-                                            <strong class="text-success"><?php echo htmlspecialchars($booking['booking_reference']); ?></strong>
-                                        </td>
-                                        <td>
-                                            <strong><?php echo htmlspecialchars($booking['guest_name']); ?></strong>
-                                        </td>
-                                        <td>
-                                            <small>
-                                                <i class="fas fa-envelope text-muted"></i> <?php echo htmlspecialchars($booking['email']); ?><br>
-                                                <i class="fas fa-phone text-muted"></i> <?php echo htmlspecialchars($booking['phone'] ?? 'Not provided'); ?>
-                                            </small>
-                                        </td>
-                                        <td>
-                                            <span class="badge bg-success service-type-badge">
-                                                <strong>Food Order</strong><br>
-                                                <small style="white-space: normal; line-height: 1.4;"><?php echo htmlspecialchars($items_text); ?></small>
-                                            </span>
-                                        </td>
-                                        <td><?php echo $booking['reservation_date'] ? date('M j, Y', strtotime($booking['reservation_date'])) : 'N/A'; ?></td>
-                                        <td><?php echo $booking['reservation_time'] ? date('g:i A', strtotime($booking['reservation_time'])) : 'N/A'; ?></td>
-                                        <td><strong><?php echo format_currency($booking['total_price']); ?></strong></td>
-                                        <td>
-                                            <?php 
-                                            $verification_status = $booking['verification_status'];
-                                            if ($verification_status == 'verified') {
-                                                echo '<span class="badge bg-success">Verified</span>';
-                                            } elseif ($verification_status == 'pending_verification') {
-                                                echo '<span class="badge bg-info">Verifying</span>';
-                                            } else {
-                                                echo '<span class="badge bg-warning">Pending</span>';
-                                            }
-                                            ?>
-                                        </td>
-                                        <td>
-                                            <div class="btn-group btn-group-sm">
-                                                <button class="btn btn-success" onclick="confirmBooking('<?php echo $booking['booking_reference']; ?>')">
-                                                    <i class="fas fa-check"></i> Confirm
-                                                </button>
-                                                <button class="btn btn-danger" onclick="cancelBooking('<?php echo $booking['booking_reference']; ?>')">
-                                                    <i class="fas fa-times"></i> Cancel
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                    <?php endwhile; ?>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-                <?php endif; ?>
-                
-                <!-- Pending Spa & Wellness Services -->
-                <?php if ($pending_spa->num_rows > 0): ?>
-                <div class="card mb-4">
-                    <div class="card-header bg-info text-white">
-                        <h5 class="mb-0">
-                            <i class="fas fa-spa"></i> Pending Spa & Wellness Services (Awaiting Confirmation)
-                            <span class="badge bg-light text-info float-end"><?php echo $pending_spa->num_rows; ?> Service(s)</span>
-                        </h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="table-responsive">
-                            <table class="table table-hover">
-                                <thead class="table-light">
-                                    <tr>
-                                        <th>Service Ref</th>
-                                        <th>Customer Name</th>
-                                        <th>Contact</th>
-                                        <th>Service Type</th>
-                                        <th>Service Date</th>
-                                        <th>Service Time</th>
-                                        <th>Total</th>
-                                        <th>Payment</th>
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <?php while ($booking = $pending_spa->fetch_assoc()): ?>
-                                    <tr>
-                                        <td>
-                                            <strong class="text-info"><?php echo htmlspecialchars($booking['booking_reference']); ?></strong>
-                                        </td>
-                                        <td>
-                                            <strong><?php echo htmlspecialchars($booking['guest_name']); ?></strong>
-                                        </td>
-                                        <td>
-                                            <small>
-                                                <i class="fas fa-envelope text-muted"></i> <?php echo htmlspecialchars($booking['email']); ?><br>
-                                                <i class="fas fa-phone text-muted"></i> <?php echo htmlspecialchars($booking['phone'] ?? 'Not provided'); ?>
-                                            </small>
-                                        </td>
-                                        <td>
-                                            <span class="badge bg-info service-type-badge">
-                                                <strong>Spa & Wellness</strong><br>
-                                                <small><?php echo htmlspecialchars($booking['service_name']); ?></small>
-                                            </span>
-                                        </td>
-                                        <td><?php echo $booking['service_date'] ? date('M j, Y', strtotime($booking['service_date'])) : 'N/A'; ?></td>
-                                        <td><?php echo $booking['service_time'] ? date('g:i A', strtotime($booking['service_time'])) : 'N/A'; ?></td>
-                                        <td><strong><?php echo format_currency($booking['total_price']); ?></strong></td>
-                                        <td>
-                                            <?php 
-                                            $verification_status = $booking['verification_status'];
-                                            if ($verification_status == 'verified') {
-                                                echo '<span class="badge bg-success">Verified</span>';
-                                            } elseif ($verification_status == 'pending_verification') {
-                                                echo '<span class="badge bg-info">Verifying</span>';
-                                            } else {
-                                                echo '<span class="badge bg-warning">Pending</span>';
-                                            }
-                                            ?>
-                                        </td>
-                                        <td>
-                                            <div class="btn-group btn-group-sm">
-                                                <button class="btn btn-success" onclick="confirmBooking('<?php echo $booking['booking_reference']; ?>')">
-                                                    <i class="fas fa-check"></i> Confirm
-                                                </button>
-                                                <button class="btn btn-danger" onclick="cancelBooking('<?php echo $booking['booking_reference']; ?>')">
-                                                    <i class="fas fa-times"></i> Cancel
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                    <?php endwhile; ?>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-                <?php endif; ?>
-                
-                <!-- Pending Laundry Services -->
-                <?php if ($pending_laundry->num_rows > 0): ?>
-                <div class="card mb-4">
-                    <div class="card-header bg-warning text-dark">
-                        <h5 class="mb-0">
-                            <i class="fas fa-tshirt"></i> Pending Laundry Services (Awaiting Confirmation)
-                            <span class="badge bg-dark text-warning float-end"><?php echo $pending_laundry->num_rows; ?> Service(s)</span>
-                        </h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="table-responsive">
-                            <table class="table table-hover">
-                                <thead class="table-light">
-                                    <tr>
-                                        <th>Service Ref</th>
-                                        <th>Customer Name</th>
-                                        <th>Contact</th>
-                                        <th>Service Type</th>
-                                        <th>Service Date</th>
-                                        <th>Service Time</th>
-                                        <th>Total</th>
-                                        <th>Payment</th>
-                                        <th>Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <?php while ($booking = $pending_laundry->fetch_assoc()): ?>
-                                    <tr>
-                                        <td>
-                                            <strong class="text-warning"><?php echo htmlspecialchars($booking['booking_reference']); ?></strong>
-                                        </td>
-                                        <td>
-                                            <strong><?php echo htmlspecialchars($booking['guest_name']); ?></strong>
-                                        </td>
-                                        <td>
-                                            <small>
-                                                <i class="fas fa-envelope text-muted"></i> <?php echo htmlspecialchars($booking['email']); ?><br>
-                                                <i class="fas fa-phone text-muted"></i> <?php echo htmlspecialchars($booking['phone'] ?? 'Not provided'); ?>
-                                            </small>
-                                        </td>
-                                        <td>
-                                            <span class="badge bg-warning text-dark service-type-badge">
-                                                <strong>Laundry Service</strong><br>
-                                                <small><?php echo htmlspecialchars($booking['service_name']); ?></small>
-                                            </span>
-                                        </td>
-                                        <td><?php echo $booking['service_date'] ? date('M j, Y', strtotime($booking['service_date'])) : 'N/A'; ?></td>
-                                        <td><?php echo $booking['service_time'] ? date('g:i A', strtotime($booking['service_time'])) : 'N/A'; ?></td>
-                                        <td><strong><?php echo format_currency($booking['total_price']); ?></strong></td>
-                                        <td>
-                                            <?php 
-                                            $verification_status = $booking['verification_status'];
-                                            if ($verification_status == 'verified') {
-                                                echo '<span class="badge bg-success">Verified</span>';
-                                            } elseif ($verification_status == 'pending_verification') {
-                                                echo '<span class="badge bg-info">Verifying</span>';
-                                            } else {
-                                                echo '<span class="badge bg-warning">Pending</span>';
-                                            }
-                                            ?>
-                                        </td>
-                                        <td>
-                                            <div class="btn-group btn-group-sm">
-                                                <button class="btn btn-success" onclick="confirmBooking('<?php echo $booking['booking_reference']; ?>')">
-                                                    <i class="fas fa-check"></i> Confirm
-                                                </button>
-                                                <button class="btn btn-danger" onclick="cancelBooking('<?php echo $booking['booking_reference']; ?>')">
-                                                    <i class="fas fa-times"></i> Cancel
-                                                </button>
-                                            </div>
-                                        </td>
-                                    </tr>
-                                    <?php endwhile; ?>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-                <?php endif; ?>
-                
-                <!-- Show message if no pending bookings -->
-                <?php if ($pending_rooms->num_rows == 0 && $pending_food->num_rows == 0 && $pending_spa->num_rows == 0 && $pending_laundry->num_rows == 0): ?>
-                <div class="card">
-                    <div class="card-header bg-secondary text-white">
-                        <h5 class="mb-0">
-                            <i class="fas fa-clock"></i> Pending Bookings & Services
-                        </h5>
-                    </div>
-                    <div class="card-body">
-                        <div class="alert alert-info mb-0">
-                            <i class="fas fa-info-circle"></i> No pending bookings or services at the moment.
-                        </div>
-                    </div>
-                </div>
-                <?php endif; ?>
             </div>
         </div>
     </div>
@@ -1599,6 +1229,142 @@ $pending_bookings = $conn->query("
                 }
             }, 5000);
         }
+    </script>
+
+    <!-- ── Staff Notification Bell JS ── -->
+    <script>
+    const NOTIF_API = '../api/staff_notifications.php';
+
+    // Auto-load count on page load
+    document.addEventListener('DOMContentLoaded', () => {
+        refreshBadge();
+        setInterval(refreshBadge, 30000); // poll every 30s
+    });
+
+    function refreshBadge() {
+        fetch(NOTIF_API + '?action=get_unread')
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    const badge = document.getElementById('notifBadge');
+                    if (data.count > 0) {
+                        badge.textContent = data.count > 99 ? '99+' : data.count;
+                        badge.style.display = 'inline-block';
+                    } else {
+                        badge.style.display = 'none';
+                    }
+                }
+            })
+            .catch(() => {});
+    }
+
+    function loadNotifications() {
+        const list = document.getElementById('notifList');
+        list.innerHTML = '<div class="text-center py-3 text-muted small"><i class="fas fa-spinner fa-spin"></i> Loading...</div>';
+
+        fetch(NOTIF_API + '?action=get_unread')
+            .then(r => r.json())
+            .then(data => {
+                if (!data.success || data.notifications.length === 0) {
+                    list.innerHTML = '<div class="text-center py-4 text-muted small"><i class="fas fa-check-circle text-success fa-2x mb-2 d-block"></i>No new notifications</div>';
+                    document.getElementById('notifBadge').style.display = 'none';
+                    return;
+                }
+
+                const typeIcons = {
+                    'room':             '<i class="fas fa-bed text-primary"></i>',
+                    'food_order':       '<i class="fas fa-utensils text-success"></i>',
+                    'spa_service':      '<i class="fas fa-spa text-info"></i>',
+                    'laundry_service':  '<i class="fas fa-tshirt text-warning"></i>',
+                };
+                const typeLabels = {
+                    'room':             'Room Booking',
+                    'food_order':       'Food Order',
+                    'spa_service':      'Spa & Wellness',
+                    'laundry_service':  'Laundry Service',
+                };
+
+                let html = '';
+                data.notifications.forEach(n => {
+                    const icon  = typeIcons[n.booking_type]  || '<i class="fas fa-bell text-secondary"></i>';
+                    const label = typeLabels[n.booking_type] || 'Booking';
+                    const time  = timeAgo(n.created_at);
+                    const amt   = 'ETB ' + parseFloat(n.amount).toLocaleString('en-US', {minimumFractionDigits:2});
+
+                    html += `
+                    <div class="notif-item border-bottom px-3 py-2" id="notif-${n.id}"
+                         style="cursor:pointer;background:#fff8e1;"
+                         onclick="markRead(${n.id})">
+                        <div class="d-flex align-items-start gap-2">
+                            <div class="mt-1" style="font-size:1.1rem;">${icon}</div>
+                            <div class="flex-grow-1">
+                                <div class="fw-bold" style="font-size:.82rem;">${label} — ${n.booking_reference}</div>
+                                <div style="font-size:.78rem;color:#555;">${n.customer_name} &lt;${n.customer_email}&gt;</div>
+                                <div style="font-size:.78rem;color:#333;">${n.service_detail || ''}</div>
+                                <div class="d-flex justify-content-between mt-1">
+                                    <span class="text-success fw-bold" style="font-size:.78rem;">${amt}</span>
+                                    <span class="text-muted" style="font-size:.72rem;">${time}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>`;
+                });
+
+                list.innerHTML = html;
+            })
+            .catch(() => {
+                list.innerHTML = '<div class="text-center py-3 text-danger small">Failed to load notifications</div>';
+            });
+    }
+
+    function markRead(id) {
+        const fd = new FormData();
+        fd.append('action', 'mark_read');
+        fd.append('id', id);
+
+        fetch(NOTIF_API, { method: 'POST', body: fd })
+            .then(r => r.json())
+            .then(() => {
+                const el = document.getElementById('notif-' + id);
+                if (el) {
+                    el.style.transition = 'opacity .3s';
+                    el.style.opacity = '0';
+                    setTimeout(() => {
+                        el.remove();
+                        // Update badge
+                        const remaining = document.querySelectorAll('.notif-item').length;
+                        const badge = document.getElementById('notifBadge');
+                        if (remaining === 0) {
+                            badge.style.display = 'none';
+                            document.getElementById('notifList').innerHTML =
+                                '<div class="text-center py-4 text-muted small"><i class="fas fa-check-circle text-success fa-2x mb-2 d-block"></i>No new notifications</div>';
+                        } else {
+                            badge.textContent = remaining > 99 ? '99+' : remaining;
+                        }
+                    }, 300);
+                }
+            });
+    }
+
+    function markAllRead() {
+        const fd = new FormData();
+        fd.append('action', 'mark_all_read');
+
+        fetch(NOTIF_API, { method: 'POST', body: fd })
+            .then(() => {
+                document.getElementById('notifBadge').style.display = 'none';
+                document.getElementById('notifList').innerHTML =
+                    '<div class="text-center py-4 text-muted small"><i class="fas fa-check-circle text-success fa-2x mb-2 d-block"></i>No new notifications</div>';
+            });
+    }
+
+    function timeAgo(dateStr) {
+        const diff = Math.floor((Date.now() - new Date(dateStr)) / 1000);
+        if (diff < 60)   return 'Just now';
+        if (diff < 3600) return Math.floor(diff/60) + 'm ago';
+        if (diff < 86400) return Math.floor(diff/3600) + 'h ago';
+        return Math.floor(diff/86400) + 'd ago';
+    }
     </script>
 </body>
 </html>

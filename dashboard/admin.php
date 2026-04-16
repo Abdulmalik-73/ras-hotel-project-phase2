@@ -5,7 +5,6 @@
  */
 
 // Start session and load configuration
-session_start();
 require_once '../includes/config.php';
 require_once '../includes/functions.php';
 
@@ -20,7 +19,7 @@ $back_title = $is_super_admin ? 'Super Admin Dashboard' : 'Admin Dashboard';
 
 // Get statistics
 $stats_query = "SELECT 
-    (SELECT COUNT(*) FROM bookings WHERE status = 'confirmed') as confirmed_bookings,
+    (SELECT COUNT(*) FROM bookings WHERE status = 'confirmed' AND payment_status = 'paid') as confirmed_bookings,
     (SELECT COUNT(*) FROM bookings WHERE status = 'checked_in') as checked_in,
     (SELECT COUNT(*) FROM users WHERE role = 'guest') as total_guests,
     (SELECT COUNT(*) FROM rooms WHERE status = 'active') as active_rooms,
@@ -32,7 +31,7 @@ $stats_query = "SELECT
 $stats_result = $conn->query($stats_query);
 $stats = $stats_result->fetch_assoc();
 
-// Get recent bookings
+// Get recent bookings — only confirmed/checked-in (pending removed, Chapa handles auto-confirm)
 $recent_bookings_query = "SELECT b.*, 
                           COALESCE(r.name, 'Food Order') as room_name,
                           r.room_number,
@@ -41,6 +40,7 @@ $recent_bookings_query = "SELECT b.*,
                           LEFT JOIN rooms r ON b.room_id = r.id 
                           JOIN users u ON b.user_id = u.id 
                           WHERE b.booking_type = 'room'
+                          AND b.status IN ('confirmed', 'checked_in', 'checked_out')
                           ORDER BY b.created_at DESC LIMIT 10";
 $recent_bookings = $conn->query($recent_bookings_query)->fetch_all(MYSQLI_ASSOC);
 ?>
@@ -268,7 +268,7 @@ $recent_bookings = $conn->query($recent_bookings_query)->fetch_all(MYSQLI_ASSOC)
                     <a href="view-data.php" class="list-group-item list-group-item-action">
                         <i class="fas fa-database"></i> View All Data
                     </a>
-                    <a href="settings.php" class="list-group-item list-group-item-action">
+                    <a href="<?php echo $is_super_admin ? 'super-admin-settings.php' : 'settings.php'; ?>" class="list-group-item list-group-item-action">
                         <i class="fas fa-cog"></i> Settings
                     </a>
                 </div>
@@ -463,9 +463,15 @@ $recent_bookings = $conn->query($recent_bookings_query)->fetch_all(MYSQLI_ASSOC)
                                             </span>
                                         </td>
                                         <td>
+                                            <div class="d-flex gap-1">
                                             <a href="view-booking.php?id=<?php echo $booking['id']; ?>" class="btn btn-sm btn-outline-primary">
                                                 <i class="fas fa-eye"></i>
                                             </a>
+                                            <button class="btn btn-sm btn-outline-danger"
+                                                onclick="confirmDelete(<?php echo $booking['id']; ?>, '<?php echo htmlspecialchars($booking['booking_reference']); ?>')">
+                                                <i class="fas fa-trash"></i>
+                                            </button>
+                                            </div>
                                         </td>
                                     </tr>
                                     <?php endforeach; ?>
@@ -551,6 +557,71 @@ $recent_bookings = $conn->query($recent_bookings_query)->fetch_all(MYSQLI_ASSOC)
                 });
             }
         });
+    </script>
+
+    <!-- Delete Booking Modal -->
+    <div class="modal fade" id="deleteModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title"><i class="fas fa-trash me-2"></i>Delete Booking</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p>Are you sure you want to permanently delete booking <strong id="deleteRef"></strong>?</p>
+                    <p class="text-danger small mb-0"><i class="fas fa-exclamation-triangle me-1"></i>This action cannot be undone.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-danger" id="confirmDeleteBtn">
+                        <i class="fas fa-trash me-1"></i> Delete
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    let deleteBookingId = null;
+
+    function confirmDelete(id, ref) {
+        deleteBookingId = id;
+        document.getElementById('deleteRef').textContent = ref;
+        new bootstrap.Modal(document.getElementById('deleteModal')).show();
+    }
+
+    document.getElementById('confirmDeleteBtn').addEventListener('click', function() {
+        if (!deleteBookingId) return;
+        const btn = this;
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Deleting...';
+
+        const fd = new FormData();
+        fd.append('action', 'delete_booking');
+        fd.append('booking_id', deleteBookingId);
+
+        fetch('admin-actions.php', { method: 'POST', body: fd })
+            .then(r => r.json())
+            .then(data => {
+                bootstrap.Modal.getInstance(document.getElementById('deleteModal')).hide();
+                if (data.success) {
+                    // Remove the row from the table
+                    document.querySelectorAll('#recentBookingsTable tr').forEach(row => {
+                        if (row.dataset.id == deleteBookingId) row.remove();
+                    });
+                    location.reload();
+                } else {
+                    alert('Error: ' + (data.message || 'Failed to delete booking'));
+                    btn.disabled = false;
+                    btn.innerHTML = '<i class="fas fa-trash me-1"></i> Delete';
+                }
+            })
+            .catch(() => {
+                alert('Network error. Please try again.');
+                btn.disabled = false;
+                btn.innerHTML = '<i class="fas fa-trash me-1"></i> Delete';
+            });
+    });
     </script>
 </body>
 </html>

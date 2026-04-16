@@ -90,7 +90,9 @@ function get_all_rooms($limit = null) {
         return [];
     }
     
-    $query = "SELECT * FROM rooms WHERE status = 'active' ORDER BY price ASC";
+    // Fetch ALL rooms (including occupied) so prices are always current
+    // Status filtering is done at display level
+    $query = "SELECT * FROM rooms ORDER BY CAST(room_number AS UNSIGNED) ASC";
     if ($limit) {
         $query .= " LIMIT " . (int)$limit;
     }

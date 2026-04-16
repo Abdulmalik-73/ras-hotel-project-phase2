@@ -3,7 +3,6 @@
 error_reporting(E_ERROR | E_PARSE);
 ini_set('display_errors', 0);
 
-session_start();
 require_once '../includes/config.php';
 require_once '../includes/functions.php';
 

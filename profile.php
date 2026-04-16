@@ -108,7 +108,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update_info'])) {
             <div class="row mb-3">
                 <div class="col-12">
                     <button onclick="goBack()" class="btn btn-outline-secondary">
-                        <i class="fas fa-arrow-left me-2"></i> Back
+                        <i class="fas fa-arrow-left me-2"></i> <?php echo __('profile_page.back'); ?>
                     </button>
                 </div>
             </div>
@@ -127,16 +127,16 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update_info'])) {
                         </div>
                         <div class="list-group list-group-flush">
                             <a href="profile.php?action=view" class="list-group-item list-group-item-action <?php echo $action == 'view' ? 'active' : ''; ?>">
-                                <i class="fas fa-user me-2"></i> View Profile
+                                <i class="fas fa-user me-2"></i> <?php echo __('profile_page.view_profile'); ?>
                             </a>
                             <a href="profile.php?action=photo" class="list-group-item list-group-item-action <?php echo $action == 'photo' ? 'active' : ''; ?>">
-                                <i class="fas fa-camera me-2"></i> Change Photo
+                                <i class="fas fa-camera me-2"></i> <?php echo __('profile_page.change_photo'); ?>
                             </a>
                             <a href="profile.php?action=edit" class="list-group-item list-group-item-action <?php echo $action == 'edit' ? 'active' : ''; ?>">
-                                <i class="fas fa-edit me-2"></i> Edit Information
+                                <i class="fas fa-edit me-2"></i> <?php echo __('profile_page.update_info'); ?>
                             </a>
                             <a href="settings.php" class="list-group-item list-group-item-action">
-                                <i class="fas fa-cog me-2"></i> Settings
+                                <i class="fas fa-cog me-2"></i> <?php echo __('account.settings'); ?>
                             </a>
                         </div>
                     </div>
@@ -160,42 +160,42 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update_info'])) {
                     <?php if ($action == 'view'): ?>
                     <div class="card">
                         <div class="card-header">
-                            <h5 class="mb-0"><i class="fas fa-user me-2"></i> Profile Information</h5>
+                            <h5 class="mb-0"><i class="fas fa-user me-2"></i> <?php echo __('profile_page.profile_info'); ?></h5>
                         </div>
                         <div class="card-body">
                             <div class="row mb-3">
                                 <div class="col-md-6">
-                                    <strong>First Name:</strong>
+                                    <strong><?php echo __('profile_page.first_name'); ?>:</strong>
                                     <p><?php echo htmlspecialchars($user['first_name'] ?? ''); ?></p>
                                 </div>
                                 <div class="col-md-6">
-                                    <strong>Last Name:</strong>
+                                    <strong><?php echo __('profile_page.last_name'); ?>:</strong>
                                     <p><?php echo htmlspecialchars($user['last_name'] ?? ''); ?></p>
                                 </div>
                             </div>
                             <div class="row mb-3">
                                 <div class="col-md-6">
-                                    <strong>Email:</strong>
+                                    <strong><?php echo __('profile_page.email'); ?>:</strong>
                                     <p><?php echo htmlspecialchars($user['email'] ?? ''); ?></p>
                                 </div>
                                 <div class="col-md-6">
-                                    <strong>Phone:</strong>
-                                    <p><?php echo htmlspecialchars($user['phone'] ?? 'Not provided'); ?></p>
+                                    <strong><?php echo __('profile_page.phone'); ?>:</strong>
+                                    <p><?php echo htmlspecialchars($user['phone'] ?? __('profile_page.not_provided')); ?></p>
                                 </div>
                             </div>
                             <div class="row mb-3">
                                 <div class="col-md-12">
-                                    <strong>Address:</strong>
-                                    <p><?php echo htmlspecialchars($user['address'] ?? 'Not provided'); ?></p>
+                                    <strong><?php echo __('profile_page.address'); ?>:</strong>
+                                    <p><?php echo htmlspecialchars($user['address'] ?? __('profile_page.not_provided')); ?></p>
                                 </div>
                             </div>
-                                <div class="row mb-3">
+                            <div class="row mb-3">
                                 <div class="col-md-6">
-                                    <strong>Role:</strong>
+                                    <strong><?php echo __('profile_page.role'); ?>:</strong>
                                     <p><span class="badge bg-gold"><?php echo ucfirst($user['role'] ?? 'customer'); ?></span></p>
                                 </div>
                                 <div class="col-md-6">
-                                    <strong>Member Since:</strong>
+                                    <strong><?php echo __('profile_page.member_since'); ?>:</strong>
                                     <p><?php echo date('F j, Y', strtotime($user['created_at'] ?? 'now')); ?></p>
                                 </div>
                             </div>
@@ -205,7 +205,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update_info'])) {
                     <?php elseif ($action == 'photo'): ?>
                     <div class="card">
                         <div class="card-header">
-                            <h5 class="mb-0"><i class="fas fa-camera me-2"></i> Change Profile Photo</h5>
+                            <h5 class="mb-0"><i class="fas fa-camera me-2"></i> <?php echo __('profile_page.change_profile_photo'); ?></h5>
                         </div>
                         <div class="card-body">
                             <form method="POST" enctype="multipart/form-data">
@@ -217,12 +217,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update_info'])) {
                                     <?php endif; ?>
                                 </div>
                                 <div class="mb-3">
-                                    <label class="form-label">Select New Photo</label>
+                                    <label class="form-label"><?php echo __('profile_page.select_photo'); ?></label>
                                     <input type="file" name="profile_photo" class="form-control" accept="image/*" required>
-                                    <small class="text-muted">Allowed formats: JPG, JPEG, PNG, GIF (Max 5MB)</small>
+                                    <small class="text-muted"><?php echo __('profile_page.photo_formats'); ?></small>
                                 </div>
                                 <button type="submit" name="upload_photo" class="btn btn-gold">
-                                    <i class="fas fa-upload me-2"></i> Upload Photo
+                                    <i class="fas fa-upload me-2"></i> <?php echo __('profile_page.upload_photo'); ?>
                                 </button>
                             </form>
                         </div>
@@ -231,36 +231,36 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['update_info'])) {
                     <?php elseif ($action == 'edit'): ?>
                     <div class="card">
                         <div class="card-header">
-                            <h5 class="mb-0"><i class="fas fa-edit me-2"></i> Edit Profile Information</h5>
+                            <h5 class="mb-0"><i class="fas fa-edit me-2"></i> <?php echo __('profile_page.edit_profile'); ?></h5>
                         </div>
                         <div class="card-body">
                             <form method="POST">
                                 <div class="row">
                                     <div class="col-md-6 mb-3">
-                                        <label class="form-label">First Name *</label>
+                                        <label class="form-label"><?php echo __('profile_page.first_name'); ?> *</label>
                                         <input type="text" name="first_name" class="form-control" value="<?php echo htmlspecialchars($user['first_name'] ?? ''); ?>" required>
                                     </div>
                                     <div class="col-md-6 mb-3">
-                                        <label class="form-label">Last Name *</label>
+                                        <label class="form-label"><?php echo __('profile_page.last_name'); ?> *</label>
                                         <input type="text" name="last_name" class="form-control" value="<?php echo htmlspecialchars($user['last_name'] ?? ''); ?>" required>
                                     </div>
                                 </div>
                                 <div class="row">
                                     <div class="col-md-6 mb-3">
-                                        <label class="form-label">Email (Read-only)</label>
+                                        <label class="form-label"><?php echo __('profile_page.email_readonly'); ?></label>
                                         <input type="email" class="form-control" value="<?php echo htmlspecialchars($user['email'] ?? ''); ?>" readonly>
                                     </div>
                                     <div class="col-md-6 mb-3">
-                                        <label class="form-label">Phone</label>
+                                        <label class="form-label"><?php echo __('profile_page.phone'); ?></label>
                                         <input type="tel" name="phone" class="form-control" value="<?php echo htmlspecialchars($user['phone'] ?? ''); ?>">
                                     </div>
                                 </div>
                                 <div class="mb-3">
-                                    <label class="form-label">Address</label>
+                                    <label class="form-label"><?php echo __('profile_page.address'); ?></label>
                                     <textarea name="address" class="form-control" rows="3"><?php echo htmlspecialchars($user['address'] ?? ''); ?></textarea>
                                 </div>
                                 <button type="submit" name="update_info" class="btn btn-gold">
-                                    <i class="fas fa-save me-2"></i> Save Changes
+                                    <i class="fas fa-save me-2"></i> <?php echo __('profile_page.save_changes'); ?>
                                 </button>
                             </form>
                         </div>

@@ -29,7 +29,7 @@ while ($row = $services_result->fetch_assoc()) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Our Services - Harar Ras Hotel</title>
+    <title><?php echo __('services_page.title'); ?> - Harar Ras Hotel</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <link rel="stylesheet" href="assets/css/style.css">
@@ -43,11 +43,11 @@ while ($row = $services_result->fetch_assoc()) {
             <div class="row align-items-center">
                 <div class="col-12 col-md-auto mb-3 mb-md-0">
                     <a href="index.php" class="btn btn-outline-secondary">
-                        <i class="fas fa-arrow-left"></i> Back
+                        <i class="fas fa-arrow-left"></i> <?php echo __('services_page.back'); ?>
                     </a>
                 </div>
                 <div class="col-12 col-md text-center">
-                    <h1 class="display-5 fw-bold mb-2">Our Services</h1>
+                    <h1 class="display-5 fw-bold mb-2"><?php echo __('services_page.title'); ?></h1>
                 </div>
                 <div class="col-12 col-md-auto d-none d-md-block">
                     <!-- Spacer for centering -->
@@ -62,9 +62,9 @@ while ($row = $services_result->fetch_assoc()) {
             <div class="text-center mb-4">
                 <h2 class="fw-bold">
                     <i class="fas fa-utensils text-gold"></i>
-                    Restaurant & Dining
+                    <?php echo __('services_page.restaurant_title'); ?>
                 </h2>
-                <p class="text-muted">Savor authentic Ethiopian and international cuisine</p>
+                <p class="text-muted"><?php echo __('services_page.restaurant_sub'); ?></p>
             </div>
             
             <?php
@@ -89,7 +89,7 @@ while ($row = $services_result->fetch_assoc()) {
             <div class="mb-5" id="ethiopian-cuisine">
                 <h3 class="mb-3 text-center">
                     <i class="fas fa-drumstick-bite text-warning"></i>
-                    Traditional Ethiopian Cuisine
+                    <?php echo __('services_page.ethiopian_title'); ?>
                 </h3>
                 <div class="row g-3">
                     <?php foreach ($ethiopian_foods as $service): ?>
@@ -111,7 +111,7 @@ while ($row = $services_result->fetch_assoc()) {
                                     <?php if ($service['price'] > 0): ?>
                                         <span class="h6 text-gold mb-0"><?php echo format_currency($service['price']); ?></span>
                                     <?php else: ?>
-                                        <span class="h6 text-muted fst-italic mb-0 small">Price varies</span>
+                                        <span class="h6 text-muted fst-italic mb-0 small"><?php echo __('services_page.price_varies'); ?></span>
                                     <?php endif; ?>
                                     <?php if (!is_logged_in()): ?>
                                     <button class="btn btn-sm btn-outline-gold" onclick="showLoginPrompt('restaurant')">
@@ -119,7 +119,7 @@ while ($row = $services_result->fetch_assoc()) {
                                     </button>
                                     <?php else: ?>
                                     <a href="food-booking.php?item=<?php echo urlencode($service['name']); ?>&price=<?php echo $service['price']; ?>" class="btn btn-sm btn-gold">
-                                        Order
+                                        <?php echo __('services_page.order'); ?>
                                     </a>
                                     <?php endif; ?>
                                 </div>
@@ -136,7 +136,7 @@ while ($row = $services_result->fetch_assoc()) {
             <div class="mb-5" id="international-buffet">
                 <h3 class="mb-3 text-center">
                     <i class="fas fa-globe text-primary"></i>
-                    International Buffet
+                    <?php echo __('services_page.international_title'); ?>
                 </h3>
                 <div class="row g-3">
                     <?php foreach ($international_foods as $service): ?>
@@ -158,7 +158,7 @@ while ($row = $services_result->fetch_assoc()) {
                                     <?php if ($service['price'] > 0): ?>
                                         <span class="h6 text-gold mb-0"><?php echo format_currency($service['price']); ?></span>
                                     <?php else: ?>
-                                        <span class="h6 text-muted fst-italic mb-0 small">Price varies</span>
+                                        <span class="h6 text-muted fst-italic mb-0 small"><?php echo __('services_page.price_varies'); ?></span>
                                     <?php endif; ?>
                                     <?php if (!is_logged_in()): ?>
                                     <button class="btn btn-sm btn-outline-gold" onclick="showLoginPrompt('restaurant')">
@@ -166,7 +166,7 @@ while ($row = $services_result->fetch_assoc()) {
                                     </button>
                                     <?php else: ?>
                                     <a href="food-booking.php?item=<?php echo urlencode($service['name']); ?>&price=<?php echo $service['price']; ?>" class="btn btn-sm btn-gold">
-                                        Order
+                                        <?php echo __('services_page.order'); ?>
                                     </a>
                                     <?php endif; ?>
                                 </div>
@@ -189,9 +189,9 @@ while ($row = $services_result->fetch_assoc()) {
                     <div class="text-center mb-3">
                         <h2 class="h3 mb-2">
                             <i class="fas fa-spa text-gold"></i>
-                            Spa & Wellness
+                            <?php echo __('services_page.spa_title'); ?>
                         </h2>
-                        <p class="text-muted small">Relax and rejuvenate with our premium spa services</p>
+                        <p class="text-muted small"><?php echo __('services_page.spa_sub'); ?></p>
                     </div>
                     
                     <div class="row g-3">
@@ -201,8 +201,8 @@ while ($row = $services_result->fetch_assoc()) {
                                     <i class="fas fa-spa fa-5x text-white"></i>
                                 </div>
                                 <div class="card-body">
-                                    <h6 class="card-title">Spa Massage</h6>
-                                    <p class="card-text text-muted small">Relaxing full body massage (60 minutes)</p>
+                                    <h6 class="card-title"><?php echo __('services_page.spa_massage'); ?></h6>
+                                    <p class="card-text text-muted small"><?php echo __('services_page.spa_massage_desc'); ?></p>
                                     <div class="d-flex justify-content-between align-items-center">
                                         <span class="h6 text-gold mb-0">ETB 1,300.00</span>
                                         <?php if (!is_logged_in()): ?>
@@ -210,7 +210,7 @@ while ($row = $services_result->fetch_assoc()) {
                                             <i class="fas fa-lock"></i> Login
                                         </button>
                                         <?php else: ?>
-                                        <a href="laundry-booking.php" class="btn btn-sm btn-gold">Schedule</a>
+                                        <a href="laundry-booking.php" class="btn btn-sm btn-gold"><?php echo __('services_page.schedule'); ?></a>
                                         <?php endif; ?>
                                     </div>
                                 </div>
@@ -223,8 +223,8 @@ while ($row = $services_result->fetch_assoc()) {
                                     <i class="fas fa-hand-sparkles fa-5x text-white"></i>
                                 </div>
                                 <div class="card-body">
-                                    <h6 class="card-title">Facial Treatment</h6>
-                                    <p class="card-text text-muted small">Rejuvenating facial with natural products</p>
+                                    <h6 class="card-title"><?php echo __('services_page.facial'); ?></h6>
+                                    <p class="card-text text-muted small"><?php echo __('services_page.facial_desc'); ?></p>
                                     <div class="d-flex justify-content-between align-items-center">
                                         <span class="h6 text-gold mb-0">ETB 800.00</span>
                                         <?php if (!is_logged_in()): ?>
@@ -232,7 +232,7 @@ while ($row = $services_result->fetch_assoc()) {
                                             <i class="fas fa-lock"></i> Login
                                         </button>
                                         <?php else: ?>
-                                        <a href="laundry-booking.php" class="btn btn-sm btn-gold">Schedule</a>
+                                        <a href="laundry-booking.php" class="btn btn-sm btn-gold"><?php echo __('services_page.schedule'); ?></a>
                                         <?php endif; ?>
                                     </div>
                                 </div>
@@ -245,8 +245,8 @@ while ($row = $services_result->fetch_assoc()) {
                                     <i class="fas fa-hot-tub fa-5x text-white"></i>
                                 </div>
                                 <div class="card-body">
-                                    <h6 class="card-title">Sauna & Steam Room</h6>
-                                    <p class="card-text text-muted small">Detoxify and relax in our premium facilities</p>
+                                    <h6 class="card-title"><?php echo __('services_page.sauna'); ?></h6>
+                                    <p class="card-text text-muted small"><?php echo __('services_page.sauna_desc'); ?></p>
                                     <div class="d-flex justify-content-between align-items-center">
                                         <span class="h6 text-gold mb-0">ETB 500.00</span>
                                         <?php if (!is_logged_in()): ?>
@@ -254,7 +254,7 @@ while ($row = $services_result->fetch_assoc()) {
                                             <i class="fas fa-lock"></i> Login
                                         </button>
                                         <?php else: ?>
-                                        <a href="laundry-booking.php" class="btn btn-sm btn-gold">Schedule</a>
+                                        <a href="laundry-booking.php" class="btn btn-sm btn-gold"><?php echo __('services_page.schedule'); ?></a>
                                         <?php endif; ?>
                                     </div>
                                 </div>
@@ -268,9 +268,9 @@ while ($row = $services_result->fetch_assoc()) {
                     <div class="text-center mb-3">
                         <h2 class="h3 mb-2">
                             <i class="fas fa-tshirt text-gold"></i>
-                            Laundry Services
+                            <?php echo __('services_page.laundry_title'); ?>
                         </h2>
-                        <p class="text-muted small">Professional laundry and dry cleaning services</p>
+                        <p class="text-muted small"><?php echo __('services_page.laundry_sub'); ?></p>
                     </div>
                     
                     <div class="row g-3">
@@ -280,8 +280,8 @@ while ($row = $services_result->fetch_assoc()) {
                                     <i class="fas fa-tshirt fa-5x text-white"></i>
                                 </div>
                                 <div class="card-body">
-                                    <h6 class="card-title">Wash & Iron</h6>
-                                    <p class="card-text text-muted small">Professional washing and ironing service</p>
+                                    <h6 class="card-title"><?php echo __('services_page.wash_iron'); ?></h6>
+                                    <p class="card-text text-muted small"><?php echo __('services_page.wash_iron_desc'); ?></p>
                                     <div class="d-flex justify-content-between align-items-center">
                                         <span class="h6 text-gold mb-0">ETB 250.00<small class="text-muted">/load</small></span>
                                         <?php if (!is_logged_in()): ?>
@@ -289,7 +289,7 @@ while ($row = $services_result->fetch_assoc()) {
                                             <i class="fas fa-lock"></i> Login
                                         </button>
                                         <?php else: ?>
-                                        <a href="laundry-booking.php" class="btn btn-sm btn-gold">Request</a>
+                                        <a href="laundry-booking.php" class="btn btn-sm btn-gold"><?php echo __('services_page.request'); ?></a>
                                         <?php endif; ?>
                                     </div>
                                 </div>
@@ -302,8 +302,8 @@ while ($row = $services_result->fetch_assoc()) {
                                     <i class="fas fa-spray-can fa-5x text-white"></i>
                                 </div>
                                 <div class="card-body">
-                                    <h6 class="card-title">Dry Cleaning</h6>
-                                    <p class="card-text text-muted small">Premium dry cleaning for delicate garments</p>
+                                    <h6 class="card-title"><?php echo __('services_page.dry_clean'); ?></h6>
+                                    <p class="card-text text-muted small"><?php echo __('services_page.dry_clean_desc'); ?></p>
                                     <div class="d-flex justify-content-between align-items-center mt-2">
                                         <span class="h6 text-gold mb-0">ETB 400.00<small class="text-muted">/item</small></span>
                                         <?php if (!is_logged_in()): ?>
@@ -311,7 +311,7 @@ while ($row = $services_result->fetch_assoc()) {
                                             <i class="fas fa-lock"></i> Login
                                         </button>
                                         <?php else: ?>
-                                        <a href="laundry-booking.php" class="btn btn-sm btn-gold">Request</a>
+                                        <a href="laundry-booking.php" class="btn btn-sm btn-gold"><?php echo __('services_page.request'); ?></a>
                                         <?php endif; ?>
                                     </div>
                                 </div>
@@ -324,8 +324,8 @@ while ($row = $services_result->fetch_assoc()) {
                                     <i class="fas fa-clock fa-5x text-white"></i>
                                 </div>
                                 <div class="card-body">
-                                    <h6 class="card-title">Express Service</h6>
-                                    <p class="card-text text-muted small">Same-day laundry service available</p>
+                                    <h6 class="card-title"><?php echo __('services_page.express'); ?></h6>
+                                    <p class="card-text text-muted small"><?php echo __('services_page.express_desc'); ?></p>
                                     <div class="d-flex justify-content-between align-items-center mt-2">
                                         <span class="h6 text-gold mb-0">ETB 500.00<small class="text-muted">/load</small></span>
                                         <?php if (!is_logged_in()): ?>
@@ -333,7 +333,7 @@ while ($row = $services_result->fetch_assoc()) {
                                             <i class="fas fa-lock"></i> Login
                                         </button>
                                         <?php else: ?>
-                                        <a href="laundry-booking.php" class="btn btn-sm btn-gold">Request</a>
+                                        <a href="laundry-booking.php" class="btn btn-sm btn-gold"><?php echo __('services_page.request'); ?></a>
                                         <?php endif; ?>
                                     </div>
                                 </div>
@@ -356,62 +356,62 @@ while ($row = $services_result->fetch_assoc()) {
     <!-- Additional Amenities -->
     <section class="py-4 bg-light" id="amenities">
         <div class="container">
-            <h2 class="text-center mb-4">Hotel Amenities</h2>
+            <h2 class="text-center mb-4"><?php echo __('services_page.amenities_title'); ?></h2>
             <div class="row g-3 text-center">
                 <div class="col-6 col-sm-4 col-md-3">
                     <div class="p-2">
                         <i class="fas fa-wifi fa-2x text-gold mb-2"></i>
-                        <h6 class="mb-1">Free WiFi</h6>
-                        <p class="text-muted small mb-0">High-speed internet</p>
+                        <h6 class="mb-1"><?php echo __('services_page.wifi'); ?></h6>
+                        <p class="text-muted small mb-0"><?php echo __('services_page.wifi_desc'); ?></p>
                     </div>
                 </div>
                 <div class="col-6 col-sm-4 col-md-3">
                     <div class="p-2">
                         <i class="fas fa-parking fa-2x text-gold mb-2"></i>
-                        <h6 class="mb-1">Free Parking</h6>
-                        <p class="text-muted small mb-0">Secure parking</p>
+                        <h6 class="mb-1"><?php echo __('services_page.parking'); ?></h6>
+                        <p class="text-muted small mb-0"><?php echo __('services_page.parking_desc'); ?></p>
                     </div>
                 </div>
                 <div class="col-6 col-sm-4 col-md-3">
                     <div class="p-2">
                         <i class="fas fa-swimming-pool fa-2x text-gold mb-2"></i>
-                        <h6 class="mb-1">Swimming Pool</h6>
-                        <p class="text-muted small mb-0">Outdoor pool</p>
+                        <h6 class="mb-1"><?php echo __('services_page.pool'); ?></h6>
+                        <p class="text-muted small mb-0"><?php echo __('services_page.pool_desc'); ?></p>
                     </div>
                 </div>
                 <div class="col-6 col-sm-4 col-md-3">
                     <div class="p-2">
                         <i class="fas fa-dumbbell fa-2x text-gold mb-2"></i>
-                        <h6 class="mb-1">Fitness Center</h6>
-                        <p class="text-muted small mb-0">24/7 gym access</p>
+                        <h6 class="mb-1"><?php echo __('services_page.gym'); ?></h6>
+                        <p class="text-muted small mb-0"><?php echo __('services_page.gym_desc'); ?></p>
                     </div>
                 </div>
                 <div class="col-6 col-sm-4 col-md-3">
                     <div class="p-2">
                         <i class="fas fa-coffee fa-2x text-gold mb-2"></i>
-                        <h6 class="mb-1">Coffee Shop</h6>
-                        <p class="text-muted small mb-0">Fresh coffee daily</p>
+                        <h6 class="mb-1"><?php echo __('services_page.coffee'); ?></h6>
+                        <p class="text-muted small mb-0"><?php echo __('services_page.coffee_desc'); ?></p>
                     </div>
                 </div>
                 <div class="col-6 col-sm-4 col-md-3">
                     <div class="p-2">
                         <i class="fas fa-briefcase fa-2x text-gold mb-2"></i>
-                        <h6 class="mb-1">Business Center</h6>
-                        <p class="text-muted small mb-0">Meeting rooms</p>
+                        <h6 class="mb-1"><?php echo __('services_page.business'); ?></h6>
+                        <p class="text-muted small mb-0"><?php echo __('services_page.business_desc'); ?></p>
                     </div>
                 </div>
                 <div class="col-6 col-sm-4 col-md-3">
                     <div class="p-2">
                         <i class="fas fa-concierge-bell fa-2x text-gold mb-2"></i>
-                        <h6 class="mb-1">24/7 Reception</h6>
-                        <p class="text-muted small mb-0">Always here to help</p>
+                        <h6 class="mb-1"><?php echo __('services_page.reception'); ?></h6>
+                        <p class="text-muted small mb-0"><?php echo __('services_page.reception_desc'); ?></p>
                     </div>
                 </div>
                 <div class="col-6 col-sm-4 col-md-3">
                     <div class="p-2">
                         <i class="fas fa-shield-alt fa-2x text-gold mb-2"></i>
-                        <h6 class="mb-1">Security</h6>
-                        <p class="text-muted small mb-0">24/7 security</p>
+                        <h6 class="mb-1"><?php echo __('services_page.security'); ?></h6>
+                        <p class="text-muted small mb-0"><?php echo __('services_page.security_desc'); ?></p>
                     </div>
                 </div>
             </div>
@@ -433,8 +433,8 @@ while ($row = $services_result->fetch_assoc()) {
                 <div class="modal-body text-center">
                     <div class="mb-4">
                         <i class="fas fa-shield-alt fa-4x text-gold mb-3"></i>
-                        <h5 id="modalTitle">Login Required</h5>
-                        <p id="modalMessage" class="text-muted">Please sign in or create an account to proceed with your booking.</p>
+                        <h5 id="modalTitle"><?php echo __('services_page.login_required'); ?></h5>
+                        <p id="modalMessage" class="text-muted"><?php echo __('services_page.login_to_proceed'); ?></p>
                     </div>
                     
                     <div class="row">
@@ -533,8 +533,8 @@ while ($row = $services_result->fetch_assoc()) {
             const registerLinks = document.querySelectorAll('#loginPromptModal a[href*="register.php"]');
             
             if (type === 'restaurant') {
-                modalTitle.textContent = 'Login Required for Food Ordering';
-                modalMessage.textContent = 'Please sign in or create an account to order food and reserve your table.';
+                modalTitle.textContent = '<?php echo addslashes(__('services_page.login_required')); ?>';
+                modalMessage.textContent = '<?php echo addslashes(__('services_page.login_to_proceed')); ?>';
                 
                 // Update redirect links for food booking
                 loginLinks.forEach(link => {
@@ -544,8 +544,8 @@ while ($row = $services_result->fetch_assoc()) {
                     link.href = 'register.php?redirect=food-booking';
                 });
             } else if (type === 'room') {
-                modalTitle.textContent = 'Login Required for Room Booking';
-                modalMessage.textContent = 'Please sign in or create an account to book your room.';
+                modalTitle.textContent = '<?php echo addslashes(__('services_page.login_required')); ?>';
+                modalMessage.textContent = '<?php echo addslashes(__('services_page.login_to_proceed')); ?>';
                 
                 // Update redirect links for room booking
                 loginLinks.forEach(link => {
@@ -555,8 +555,8 @@ while ($row = $services_result->fetch_assoc()) {
                     link.href = 'register.php?redirect=booking';
                 });
             } else if (type === 'service') {
-                modalTitle.textContent = 'Login Required for Service Booking';
-                modalMessage.textContent = 'Please sign in or create an account to book our hotel services.';
+                modalTitle.textContent = '<?php echo addslashes(__('services_page.login_required')); ?>';
+                modalMessage.textContent = '<?php echo addslashes(__('services_page.login_to_proceed')); ?>';
                 
                 // Update redirect links for room booking
                 loginLinks.forEach(link => {
@@ -566,8 +566,8 @@ while ($row = $services_result->fetch_assoc()) {
                     link.href = 'register.php?redirect=booking';
                 });
             } else {
-                modalTitle.textContent = 'Login Required';
-                modalMessage.textContent = 'Please sign in or create an account to proceed with your booking.';
+                modalTitle.textContent = '<?php echo addslashes(__('services_page.login_required')); ?>';
+                modalMessage.textContent = '<?php echo addslashes(__('services_page.login_to_proceed')); ?>';
                 
                 // Default to room booking
                 loginLinks.forEach(link => {

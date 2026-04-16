@@ -2,19 +2,10 @@
 -- HARAR RAS HOTEL - COMPREHENSIVE HOTEL MANAGEMENT SYSTEM
 -- =====================================================
 -- Complete hotel management database with all features
--- Database name: harar_ras_hotel
--- UPDATED: Screenshot-only payment system (Chapa removed)
--- Error-free and ready for production
 -- =====================================================
 
--- NOTE: Make sure you have selected the 'harar_ras_hotel' database before importing!
--- If database doesn't exist, create it first:
--- CREATE DATABASE harar_ras_hotel CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-
--- Use the database
-USE harar_ras_hotel;
-
 -- Set character set
+SET NAMES utf8mb4;-- Set character set
 SET NAMES utf8mb4;
 
 -- Disable foreign key checks temporarily for table creation

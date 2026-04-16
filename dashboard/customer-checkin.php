@@ -1,5 +1,4 @@
 <?php
-session_start();
 require_once '../includes/config.php';
 require_once '../includes/functions.php';
 
@@ -221,19 +220,13 @@ $room_types_result = $conn->query($room_types_query);
                         <a href="receptionist-checkout.php" class="list-group-item list-group-item-action">
                             <i class="fas fa-minus-circle"></i> Process Check-out
                         </a>
-                        <button onclick="history.back()" class="list-group-item list-group-item-action" style="border: none; background: #f8f9fa;">
-                            <i class="fas fa-arrow-left"></i> Back
-                        </button>
-                        <a href="receptionist-pending.php" class="list-group-item list-group-item-action">
-                            <i class="fas fa-calendar-check"></i> Pending Bookings
-                        </a>
                         <a href="receptionist-rooms.php" class="list-group-item list-group-item-action">
                             <i class="fas fa-bed"></i> Manage Rooms
                         </a>
                         <a href="receptionist-services.php" class="list-group-item list-group-item-action">
                             <i class="fas fa-utensils"></i> Manage Foods & Services
                         </a>
-                        <a href="../generate_bill.php" class="list-group-item list-group-item-action" target="_blank">
+                        <a href="../generate_bill.php" class="list-group-item list-group-item-action">
                             <i class="fas fa-file-invoice-dollar"></i> Generate Bill
                         </a>
                         </div>

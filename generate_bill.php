@@ -1,11 +1,11 @@
 <?php
-session_start();
 require_once 'includes/config.php';
 require_once 'includes/functions.php';
 
 // Check if user has permission
 if (!is_logged_in() || !in_array($_SESSION['user_role'], ['receptionist', 'manager', 'admin'])) {
-    header('Location: login.php');
+    $proto = ((!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https') ? 'https' : 'http';
+    header("Location: $proto://{$_SERVER['HTTP_HOST']}/login.php");
     exit();
 }
 

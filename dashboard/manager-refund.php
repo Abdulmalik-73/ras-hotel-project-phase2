@@ -1,5 +1,4 @@
 <?php
-session_start();
 require_once '../includes/config.php';
 require_once '../includes/functions.php';
 
@@ -930,90 +929,77 @@ $recent_refunds = $recent_refunds_result ? $recent_refunds_result : null;
             });
         });
         
-        // Print refund information
+        // Print refund information — compact single page
         function printRefundInfo() {
-            const printWindow = window.open('', '_blank', 'width=800,height=600');
+            const printWindow = window.open('', '_blank', 'width=700,height=500');
             const bookingInfo = `
                 <html>
                 <head>
                     <title>Refund Receipt - <?php echo $booking_data['booking_reference'] ?? ''; ?></title>
                     <style>
-                        * {
-                            margin: 0;
-                            padding: 0;
-                            box-sizing: border-box;
-                        }
+                        * { margin:0; padding:0; box-sizing:border-box; }
                         body {
                             font-family: Arial, sans-serif;
-                            padding: 30px;
-                            max-width: 100%;
-                            margin: 0 auto;
-                            font-size: 14px;
-                            line-height: 1.6;
+                            font-size: 11px;
+                            line-height: 1.4;
+                            padding: 14px 18px;
+                            color: #222;
                         }
                         .header {
                             text-align: center;
-                            border-bottom: 3px solid #333;
-                            padding-bottom: 20px;
-                            margin-bottom: 30px;
+                            border-bottom: 2px solid #333;
+                            padding-bottom: 8px;
+                            margin-bottom: 10px;
                         }
-                        .header h1 {
-                            margin: 0 0 10px 0;
-                            color: #333;
-                            font-size: 28px;
+                        .header h1 { font-size: 18px; color: #333; margin-bottom: 2px; }
+                        .header p  { font-size: 11px; color: #555; margin: 1px 0; }
+                        .refund-box {
+                            background: #28a745;
+                            color: white;
+                            padding: 8px 12px;
+                            border-radius: 4px;
+                            text-align: center;
+                            margin: 8px 0;
                         }
-                        .header p {
-                            margin: 5px 0;
-                            color: #666;
-                        }
-                        .section {
-                            margin-bottom: 25px;
-                        }
+                        .refund-box .label { font-size: 10px; letter-spacing: 1px; text-transform: uppercase; }
+                        .refund-box .amount { font-size: 22px; font-weight: bold; line-height: 1.2; }
+                        .section { margin-bottom: 8px; }
                         .section h2 {
-                            background: #f8f9fa;
-                            padding: 12px 15px;
-                            border-left: 4px solid #28a745;
-                            margin-bottom: 15px;
-                            font-size: 18px;
+                            font-size: 11px;
+                            font-weight: bold;
+                            background: #f0f0f0;
+                            padding: 4px 8px;
+                            border-left: 3px solid #28a745;
+                            margin-bottom: 4px;
+                            text-transform: uppercase;
+                            letter-spacing: .5px;
                         }
                         .info-row {
                             display: flex;
                             justify-content: space-between;
-                            padding: 10px 5px;
-                            border-bottom: 1px solid #eee;
+                            padding: 3px 4px;
+                            border-bottom: 1px solid #f0f0f0;
                         }
-                        .info-label {
-                            font-weight: bold;
-                            color: #555;
-                            flex: 0 0 40%;
-                        }
-                        .info-value {
-                            flex: 0 0 60%;
-                            text-align: right;
-                        }
-                        .refund-box {
-                            background: #28a745;
-                            color: white;
-                            padding: 20px;
-                            border-radius: 5px;
-                            text-align: center;
-                            margin: 20px 0;
-                        }
-                        .refund-box .amount {
-                            font-size: 32px;
-                            font-weight: bold;
+                        .info-label { font-weight: bold; color: #555; flex: 0 0 42%; }
+                        .info-value { flex: 0 0 58%; text-align: right; }
+                        .notes-box {
+                            margin-top: 6px;
+                            padding: 6px 8px;
+                            background: #f8f9fa;
+                            border-radius: 3px;
+                            font-size: 10px;
                         }
                         .footer {
-                            margin-top: 40px;
-                            padding-top: 20px;
-                            border-top: 2px solid #eee;
+                            margin-top: 10px;
+                            padding-top: 6px;
+                            border-top: 1px solid #ddd;
                             text-align: center;
-                            color: #666;
-                            font-size: 12px;
+                            color: #777;
+                            font-size: 10px;
                         }
                         @media print {
-                            body { padding: 20px; }
-                            @page { margin: 1cm; size: A4; }
+                            body { padding: 10px 14px; }
+                            @page { margin: 0.6cm; size: A4; }
                         }
                     </style>
                 </head>
@@ -1023,7 +1009,12 @@ $recent_refunds = $recent_refunds_result ? $recent_refunds_result : null;
                         <p><strong>Refund Receipt</strong></p>
                         <p>Generated: ${new Date().toLocaleString()}</p>
                     </div>
-                    
+
+                    <div class="refund-box">
+                        <div class="label">Refund Amount</div>
+                        <div class="amount"><?php echo format_currency($refund_calculation['refund_amount']); ?></div>
+                    </div>
+
                     <div class="section">
                         <h2>Booking Information</h2>
                         <div class="info-row">
@@ -1047,24 +1038,19 @@ $recent_refunds = $recent_refunds_result ? $recent_refunds_result : null;
                             <span class="info-value"><?php echo htmlspecialchars($booking_data['room_name'] ?? ''); ?> (<?php echo $booking_data['room_number'] ?? ''; ?>)</span>
                         </div>
                         <div class="info-row">
-                            <span class="info-label">Check-in Date:</span>
-                            <span class="info-value"><?php echo $booking_data['check_in_date'] ? date('F j, Y', strtotime($booking_data['check_in_date'])) : 'N/A'; ?></span>
+                            <span class="info-label">Check-in:</span>
+                            <span class="info-value"><?php echo $booking_data['check_in_date'] ? date('M j, Y', strtotime($booking_data['check_in_date'])) : 'N/A'; ?></span>
                         </div>
                         <div class="info-row">
-                            <span class="info-label">Check-out Date:</span>
-                            <span class="info-value"><?php echo $booking_data['check_out_date'] ? date('F j, Y', strtotime($booking_data['check_out_date'])) : 'N/A'; ?></span>
+                            <span class="info-label">Check-out:</span>
+                            <span class="info-value"><?php echo $booking_data['check_out_date'] ? date('M j, Y', strtotime($booking_data['check_out_date'])) : 'N/A'; ?></span>
                         </div>
                         <div class="info-row">
                             <span class="info-label">Original Amount:</span>
                             <span class="info-value"><?php echo format_currency($booking_data['total_price']); ?></span>
                         </div>
                     </div>
-                    
-                    <div class="refund-box">
-                        <div style="font-size: 16px; margin-bottom: 10px;">REFUND AMOUNT</div>
-                        <div class="amount"><?php echo format_currency($refund_calculation['refund_amount']); ?></div>
-                    </div>
-                    
+
                     <div class="section">
                         <h2>Refund Details</h2>
                         <div class="info-row">
@@ -1077,38 +1063,32 @@ $recent_refunds = $recent_refunds_result ? $recent_refunds_result : null;
                         </div>
                         <div class="info-row">
                             <span class="info-label">Processed By:</span>
-                            <span class="info-value"><?php echo $_SESSION['first_name'] . ' ' . $_SESSION['last_name']; ?></span>
+                            <span class="info-value"><?php echo htmlspecialchars(($_SESSION['first_name'] ?? '') . ' ' . ($_SESSION['last_name'] ?? '')); ?></span>
                         </div>
                         <div class="info-row">
                             <span class="info-label">Processed On:</span>
-                            <span class="info-value"><?php echo date('F j, Y g:i A'); ?></span>
+                            <span class="info-value"><?php echo date('M j, Y g:i A'); ?></span>
                         </div>
                         <?php if (!empty($refund_calculation['admin_notes'])): ?>
-                        <div style="margin-top: 15px; padding: 15px; background: #f8f9fa; border-radius: 5px;">
-                            <strong>Admin Notes:</strong><br>
-                            <?php echo nl2br(htmlspecialchars($refund_calculation['admin_notes'])); ?>
+                        <div class="notes-box">
+                            <strong>Admin Notes:</strong> <?php echo nl2br(htmlspecialchars($refund_calculation['admin_notes'])); ?>
                         </div>
                         <?php endif; ?>
                     </div>
-                    
+
                     <div class="footer">
-                        <p><strong>Harar Ras Hotel</strong></p>
-                        <p>This is an official refund receipt</p>
-                        <p>For inquiries: support@hararrashotel.com</p>
+                        <strong>Harar Ras Hotel</strong> &nbsp;|&nbsp; Official Refund Receipt &nbsp;|&nbsp; support@hararrashotel.com
                     </div>
                 </body>
                 </html>
             `;
-            
+
             printWindow.document.write(bookingInfo);
             printWindow.document.close();
             printWindow.focus();
-            
-            setTimeout(function() {
-                printWindow.print();
-            }, 250);
+            setTimeout(function() { printWindow.print(); }, 250);
         }
-        
+
         // Print refund receipt (after refund is processed)
         function printRefundReceipt() {
             printRefundInfo();

@@ -40,7 +40,7 @@
                             <i class="fas fa-calendar-check"></i> <?php echo __('nav.book_now'); ?>
                         </a>
                         <ul class="dropdown-menu" aria-labelledby="bookingDropdown">
-                            <li><a class="dropdown-item" href="booking.php"><i class="fas fa-bed"></i> <?php echo __('booking.book_room'); ?></a></li>
+                            <li><a class="dropdown-item" href="rooms.php"><i class="fas fa-bed"></i> <?php echo __('booking.book_room'); ?></a></li>
                             <li><a class="dropdown-item" href="services.php#restaurant"><i class="fas fa-utensils"></i> <?php echo __('booking.order_food'); ?></a></li>
                         </ul>
                     </li>
@@ -51,7 +51,7 @@
                             <i class="fas fa-calendar-check"></i> <?php echo __('nav.book_now'); ?>
                         </a>
                         <ul class="dropdown-menu" aria-labelledby="bookingDropdownGuest">
-                            <li><a class="dropdown-item" href="booking.php"><i class="fas fa-bed"></i> <?php echo __('booking.book_room'); ?></a></li>
+                            <li><a class="dropdown-item" href="rooms.php"><i class="fas fa-bed"></i> <?php echo __('booking.book_room'); ?></a></li>
                             <li><a class="dropdown-item" href="services.php#restaurant"><i class="fas fa-utensils"></i> <?php echo __('booking.order_food'); ?></a></li>
                         </ul>
                     </li>
@@ -243,40 +243,37 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function switchLanguage(lang) {
-    console.log('Switching language to:', lang);
-    
-    // Show loading indicator
-    const languageLinks = document.querySelectorAll('.language-submenu a');
-    languageLinks.forEach(link => {
-        if (link.onclick && link.onclick.toString().includes(lang)) {
-            link.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
-        }
-    });
-    
-    fetch('api/switch_language.php', {
+    <?php
+    // Use SITE_URL from .env — already loaded by config.php
+    // Fallback: build from server variables
+    $siteUrl = defined('SITE_URL') ? SITE_URL : (getenv('SITE_URL') ?: '');
+    if (empty($siteUrl)) {
+        $protocol = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') ? 'https' : 'http';
+        $host     = $_SERVER['HTTP_HOST'] ?? 'localhost';
+        // Get project folder from __FILE__: .../final_project2/includes/navbar.php
+        $docRoot  = str_replace('\\', '/', $_SERVER['DOCUMENT_ROOT'] ?? '');
+        $filePath = str_replace('\\', '/', dirname(__DIR__)); // project root
+        $subPath  = str_replace($docRoot, '', $filePath);
+        $siteUrl  = $protocol . '://' . $host . $subPath;
+    }
+    $siteUrl = rtrim($siteUrl, '/');
+    $apiUrl  = $siteUrl . '/api/switch_language.php';
+    ?>
+    const apiUrl = '<?php echo htmlspecialchars($apiUrl, ENT_QUOTES); ?>';
+
+    fetch(apiUrl, {
         method: 'POST',
         headers: {'Content-Type': 'application/x-www-form-urlencoded'},
-        body: 'lang=' + lang
+        body: 'lang=' + encodeURIComponent(lang)
     })
-    .then(response => {
-        console.log('Response status:', response.status);
-        return response.json();
-    })
+    .then(r => r.json())
     .then(data => {
-        console.log('Response data:', data);
         if (data.success) {
-            console.log('Language changed successfully, reloading page...');
             location.reload();
         } else {
-            console.error('Failed to change language:', data.message);
-            alert('Failed to change language: ' + data.message);
             location.reload();
         }
     })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('Error changing language: ' + error.message);
-        location.reload();
-    });
+    .catch(() => location.reload());
 }
 </script>

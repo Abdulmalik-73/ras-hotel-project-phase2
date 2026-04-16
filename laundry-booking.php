@@ -206,24 +206,24 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['book_service'])) {
                             </div>
                             
                             <div class="mb-3">
-                                <label class="form-label fw-bold">Quantity *</label>
+                                <label class="form-label fw-bold"><?php echo __('confirmation.quantity'); ?> *</label>
                                 <input type="number" name="quantity" class="form-control" min="1" value="1" required>
                                 <small class="text-muted">Number of sessions/loads/items</small>
                             </div>
                             
                             <div class="row">
                                 <div class="col-md-6 mb-3">
-                                    <label class="form-label fw-bold">Service Date *</label>
+                                    <label class="form-label fw-bold"><?php echo __('confirmation.service_date'); ?> *</label>
                                     <input type="date" name="pickup_date" class="form-control" min="<?php echo date('Y-m-d'); ?>" required>
                                 </div>
                                 <div class="col-md-6 mb-3">
-                                    <label class="form-label fw-bold">Service Time *</label>
+                                    <label class="form-label fw-bold"><?php echo __('confirmation.service_time'); ?> *</label>
                                     <input type="time" name="pickup_time" class="form-control" required>
                                 </div>
                             </div>
                             
                             <div class="mb-3">
-                                <label class="form-label fw-bold">Special Instructions (Optional)</label>
+                                <label class="form-label fw-bold"><?php echo __('booking.special_requests'); ?> (Optional)</label>
                                 <textarea name="special_requests" class="form-control" rows="3" placeholder="Any special care instructions, preferences, etc..."></textarea>
                             </div>
                             
@@ -233,10 +233,10 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['book_service'])) {
                             
                             <div class="d-grid gap-2">
                                 <button type="submit" name="book_service" class="btn btn-warning btn-lg">
-                                    <i class="fas fa-calendar-check"></i> Proceed to Payment
+                                    <i class="fas fa-calendar-check"></i> <?php echo __('booking_auth.confirm_booking'); ?>
                                 </button>
                                 <a href="services.php#laundry" class="btn btn-outline-secondary">
-                                    <i class="fas fa-arrow-left"></i> Back to Services
+                                    <i class="fas fa-arrow-left"></i> <?php echo __('food.back_to_services'); ?>
                                 </a>
                             </div>
                         </form>

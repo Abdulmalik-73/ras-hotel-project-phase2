@@ -1,5 +1,4 @@
 <?php
-session_start();
 require_once '../includes/config.php';
 require_once '../includes/functions.php';
 
@@ -159,16 +158,13 @@ $services = $conn->query("SELECT * FROM services WHERE status = 'active' ORDER B
                         <a href="receptionist-checkout.php" class="nav-link">
                             <i class="fas fa-minus-circle me-2"></i> Process Check-out
                         </a>
-                        <a href="receptionist-pending.php" class="nav-link">
-                            <i class="fas fa-calendar-check me-2"></i> Pending Bookings
-                        </a>
                         <a href="receptionist-rooms.php" class="nav-link">
                             <i class="fas fa-bed me-2"></i> Manage Rooms
                         </a>
                         <a href="receptionist-services.php" class="nav-link active">
                             <i class="fas fa-utensils me-2"></i> Manage Foods & Services
                         </a>
-                        <a href="../generate_bill.php" class="nav-link" target="_blank">
+                        <a href="../generate_bill.php" class="nav-link">
                             <i class="fas fa-file-invoice-dollar me-2"></i> Generate Bill
                         </a>
                         </nav>

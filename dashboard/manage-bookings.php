@@ -3,7 +3,6 @@
 error_reporting(E_ERROR | E_PARSE);
 ini_set('display_errors', 0);
 
-session_start();
 require_once '../includes/config.php';
 require_once '../includes/functions.php';
 
@@ -249,17 +248,25 @@ $total_pages = ceil($total_bookings / $per_page);
                                         <td><?php echo format_currency($booking['total_price']); ?></td>
                                         <td>
                                             <?php
-                                            $badge_class = 'secondary';
-                                            switch ($booking['status']) {
-                                                case 'confirmed': $badge_class = 'success'; break;
-                                                case 'checked_in': $badge_class = 'primary'; break;
-                                                case 'checked_out': $badge_class = 'info'; break;
-                                                case 'cancelled': $badge_class = 'danger'; break;
-                                            }
+                                            // Show Verified if Chapa payment confirmed
+                                            if ($booking['payment_status'] === 'paid' && $booking['verification_status'] === 'verified'):
                                             ?>
-                                            <span class="badge bg-<?php echo $badge_class; ?>">
-                                                <?php echo ucfirst(str_replace('_', ' ', $booking['status'])); ?>
-                                            </span>
+                                                <span class="badge bg-success">
+                                                    <i class="fas fa-check-circle me-1"></i> Verified
+                                                </span>
+                                            <?php else:
+                                                $badge_class = 'secondary';
+                                                switch ($booking['status']) {
+                                                    case 'confirmed':   $badge_class = 'success'; break;
+                                                    case 'checked_in':  $badge_class = 'primary'; break;
+                                                    case 'checked_out': $badge_class = 'info';    break;
+                                                    case 'cancelled':   $badge_class = 'danger';  break;
+                                                }
+                                            ?>
+                                                <span class="badge bg-<?php echo $badge_class; ?>">
+                                                    <?php echo ucfirst(str_replace('_', ' ', $booking['status'])); ?>
+                                                </span>
+                                            <?php endif; ?>
                                         </td>
                                         <td>
                                             <div class="btn-group btn-group-sm">

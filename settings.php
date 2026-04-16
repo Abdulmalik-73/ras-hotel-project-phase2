@@ -105,7 +105,7 @@ $user_settings = $result->fetch_assoc();
                     </button>
                 </div>
             </div>
-            <h2 class="mb-4"><i class="fas fa-cog me-2"></i> Account Settings</h2>
+            <h2 class="mb-4"><i class="fas fa-cog me-2"></i> <?php echo __('settings.account_settings'); ?></h2>
             
             <?php if ($message): ?>
                 <div class="alert alert-success alert-dismissible fade show">
@@ -125,16 +125,16 @@ $user_settings = $result->fetch_assoc();
                 <div class="col-md-3">
                     <div class="list-group">
                         <a href="settings.php?tab=password" class="list-group-item list-group-item-action <?php echo $tab == 'password' ? 'active' : ''; ?>">
-                            <i class="fas fa-key me-2"></i> Change Password
+                            <i class="fas fa-key me-2"></i> <?php echo __('settings.change_password'); ?>
                         </a>
                         <a href="settings.php?tab=notifications" class="list-group-item list-group-item-action <?php echo $tab == 'notifications' ? 'active' : ''; ?>">
-                            <i class="fas fa-bell me-2"></i> Notifications
+                            <i class="fas fa-bell me-2"></i> <?php echo __('settings.notifications'); ?>
                         </a>
                         <a href="settings.php?tab=privacy" class="list-group-item list-group-item-action <?php echo $tab == 'privacy' ? 'active' : ''; ?>">
-                            <i class="fas fa-shield-alt me-2"></i> Privacy Settings
+                            <i class="fas fa-shield-alt me-2"></i> <?php echo __('settings.privacy_settings'); ?>
                         </a>
                         <a href="profile.php" class="list-group-item list-group-item-action">
-                            <i class="fas fa-user me-2"></i> Back to Profile
+                            <i class="fas fa-user me-2"></i> <?php echo __('settings.back_to_profile'); ?>
                         </a>
                     </div>
                 </div>
@@ -143,25 +143,24 @@ $user_settings = $result->fetch_assoc();
                     <?php if ($tab == 'password'): ?>
                     <div class="card">
                         <div class="card-header">
-                            <h5 class="mb-0"><i class="fas fa-key me-2"></i> Change Password</h5>
+                            <h5 class="mb-0"><i class="fas fa-key me-2"></i> <?php echo __('settings.change_password'); ?></h5>
                         </div>
                         <div class="card-body">
                             <form method="POST">
                                 <div class="mb-3">
-                                    <label class="form-label">Current Password *</label>
+                                    <label class="form-label"><?php echo __('settings.current_password'); ?> *</label>
                                     <input type="password" name="current_password" class="form-control" required>
                                 </div>
                                 <div class="mb-3">
-                                    <label class="form-label">New Password *</label>
+                                    <label class="form-label"><?php echo __('settings.new_password'); ?> *</label>
                                     <input type="password" name="new_password" class="form-control" minlength="6" required>
-                                    <small class="text-muted">Minimum 6 characters</small>
                                 </div>
                                 <div class="mb-3">
-                                    <label class="form-label">Confirm New Password *</label>
+                                    <label class="form-label"><?php echo __('settings.confirm_password'); ?> *</label>
                                     <input type="password" name="confirm_password" class="form-control" minlength="6" required>
                                 </div>
                                 <button type="submit" name="change_password" class="btn btn-gold">
-                                    <i class="fas fa-save me-2"></i> Change Password
+                                    <i class="fas fa-save me-2"></i> <?php echo __('settings.save_password'); ?>
                                 </button>
                             </form>
                         </div>
@@ -170,33 +169,33 @@ $user_settings = $result->fetch_assoc();
                     <?php elseif ($tab == 'notifications'): ?>
                     <div class="card">
                         <div class="card-header">
-                            <h5 class="mb-0"><i class="fas fa-bell me-2"></i> Notification Preferences</h5>
+                            <h5 class="mb-0"><i class="fas fa-bell me-2"></i> <?php echo __('settings.notifications'); ?></h5>
                         </div>
                         <div class="card-body">
                             <form method="POST">
                                 <div class="form-check form-switch mb-3">
                                     <input class="form-check-input" type="checkbox" name="email_notifications" id="emailNotif" <?php echo ($user_settings['email_notifications'] ?? 1) ? 'checked' : ''; ?>>
                                     <label class="form-check-label" for="emailNotif">
-                                        <strong>Email Notifications</strong><br>
-                                        <small class="text-muted">Receive booking confirmations and updates via email</small>
+                                        <strong><?php echo __('settings.email_notif'); ?></strong><br>
+                                        <small class="text-muted"><?php echo __('settings.email_notif_desc'); ?></small>
                                     </label>
                                 </div>
                                 <div class="form-check form-switch mb-3">
                                     <input class="form-check-input" type="checkbox" name="sms_notifications" id="smsNotif" <?php echo ($user_settings['sms_notifications'] ?? 0) ? 'checked' : ''; ?>>
                                     <label class="form-check-label" for="smsNotif">
-                                        <strong>SMS Notifications</strong><br>
-                                        <small class="text-muted">Receive text messages for important updates</small>
+                                        <strong><?php echo __('settings.sms_notif'); ?></strong><br>
+                                        <small class="text-muted"><?php echo __('settings.sms_notif_desc'); ?></small>
                                     </label>
                                 </div>
                                 <div class="form-check form-switch mb-3">
                                     <input class="form-check-input" type="checkbox" name="booking_reminders" id="bookingReminders" <?php echo ($user_settings['booking_reminders'] ?? 1) ? 'checked' : ''; ?>>
                                     <label class="form-check-label" for="bookingReminders">
-                                        <strong>Booking Reminders</strong><br>
-                                        <small class="text-muted">Get reminders before your check-in date</small>
+                                        <strong><?php echo __('settings.booking_reminders'); ?></strong><br>
+                                        <small class="text-muted"><?php echo __('settings.booking_reminders_desc'); ?></small>
                                     </label>
                                 </div>
                                 <button type="submit" name="update_notifications" class="btn btn-gold">
-                                    <i class="fas fa-save me-2"></i> Save Preferences
+                                    <i class="fas fa-save me-2"></i> <?php echo __('settings.save_preferences'); ?>
                                 </button>
                             </form>
                         </div>
@@ -205,20 +204,20 @@ $user_settings = $result->fetch_assoc();
                     <?php elseif ($tab == 'privacy'): ?>
                     <div class="card">
                         <div class="card-header">
-                            <h5 class="mb-0"><i class="fas fa-shield-alt me-2"></i> Privacy Settings</h5>
+                            <h5 class="mb-0"><i class="fas fa-shield-alt me-2"></i> <?php echo __('settings.privacy_settings'); ?></h5>
                         </div>
                         <div class="card-body">
                             <div class="alert alert-info">
                                 <i class="fas fa-info-circle me-2"></i>
-                                Your privacy is important to us. We protect your personal information according to our privacy policy.
+                                <?php echo __('settings.privacy_note'); ?>
                             </div>
-                            <h6>Data Privacy</h6>
-                            <p>Your personal information is stored securely and is only used for booking and communication purposes.</p>
+                            <h6><?php echo __('settings.data_privacy'); ?></h6>
+                            <p><?php echo __('settings.data_privacy_desc'); ?></p>
                             
-                            <h6 class="mt-4">Account Deletion</h6>
-                            <p>If you wish to delete your account, please contact our support team.</p>
+                            <h6 class="mt-4"><?php echo __('settings.account_deletion'); ?></h6>
+                            <p><?php echo __('settings.account_deletion_desc'); ?></p>
                             <a href="contact.php" class="btn btn-outline-danger">
-                                <i class="fas fa-envelope me-2"></i> Contact Support
+                                <i class="fas fa-envelope me-2"></i> <?php echo __('settings.contact_support'); ?>
                             </a>
                         </div>
                     </div>

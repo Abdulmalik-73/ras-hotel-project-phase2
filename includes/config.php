@@ -10,33 +10,50 @@ ini_set('display_errors', 0);
 
 /**
  * Load environment variables from .env file
+ * Falls back to system environment variables (for Render/production)
  */
 function loadEnv($path) {
-    if (!file_exists($path)) {
-        die('.env file not found. Please copy .env.example to .env and configure it.');
-    }
-    
-    $lines = file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-    foreach ($lines as $line) {
-        // Skip comments
-        if (strpos(trim($line), '#') === 0) {
-            continue;
-        }
-        
-        // Parse KEY=VALUE
-        if (strpos($line, '=') !== false) {
-            list($key, $value) = explode('=', $line, 2);
-            $key = trim($key);
-            $value = trim($value);
-            
-            // Remove quotes if present
-            $value = trim($value, '"\'');
-            
-            // Set as environment variable and define constant
-            putenv("$key=$value");
-            if (!defined($key)) {
-                define($key, $value);
+    // If .env file exists, load it (local development)
+    if (file_exists($path)) {
+        $lines = file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+        foreach ($lines as $line) {
+            if (strpos(trim($line), '#') === 0) continue;
+            if (strpos($line, '=') !== false) {
+                list($key, $value) = explode('=', $line, 2);
+                $key   = trim($key);
+                $value = trim($value, " \t\n\r\"'");
+                putenv("$key=$value");
+                if (!defined($key)) define($key, $value);
             }
+        }
+        // Also pick up any system env vars not present in the .env file
+        // (handles Render/production env vars that override or supplement .env)
+    }
+
+    // Always define constants from system environment variables
+    // (covers Render dashboard vars and any keys missing from .env)
+    $keys = [
+        'DB_HOST','DB_PORT','DB_USER','DB_PASS','DB_NAME',
+        'SITE_URL','SITE_NAME','ADMIN_EMAIL',
+        'SUPER_ADMIN_EMAIL','SUPER_ADMIN_PASSWORD',
+        'SUPER_ADMIN_FIRST_NAME','SUPER_ADMIN_LAST_NAME',
+        'CURRENCY_SYMBOL','CURRENCY_CODE','CURRENCY_NAME',
+        'SESSION_COOKIE_SECURE','TIMEZONE','APP_ENV',
+        'DISPLAY_ERRORS','ERROR_REPORTING',
+        'EMAIL_ENABLED','EMAIL_HOST','EMAIL_PORT',
+        'EMAIL_USERNAME','EMAIL_PASSWORD',
+        'EMAIL_FROM_ADDRESS','EMAIL_FROM_NAME','EMAIL_ENCRYPTION',
+        'HOTEL_NAME','HOTEL_SUPPORT_EMAIL','HOTEL_PHONE',
+        'HOTEL_ADDRESS','HOTEL_WEBSITE_URL',
+        'CHAPA_PUBLIC_KEY','CHAPA_SECRET_KEY','CHAPA_ENCRYPTION_KEY',
+        'CHAPA_BASE_URL','CHAPA_CALLBACK_URL','CHAPA_RETURN_URL',
+        'GOOGLE_CLIENT_ID','GOOGLE_CLIENT_SECRET','GOOGLE_REDIRECT_URI',
+        'BREVO_API_KEY',
+    ];
+    foreach ($keys as $key) {
+        $value = getenv($key);
+        if ($value !== false && !defined($key)) {
+            define($key, $value);
         }
     }
 }
@@ -44,33 +61,83 @@ function loadEnv($path) {
 // Load .env file from project root
 loadEnv(__DIR__ . '/../.env');
 
+// Ensure critical constants always have fallback values
+if (!defined('SITE_NAME'))       define('SITE_NAME', 'Harar Ras Hotel');
+if (!defined('CURRENCY_SYMBOL')) define('CURRENCY_SYMBOL', 'ETB');
+if (!defined('CURRENCY_CODE'))   define('CURRENCY_CODE', 'ETB');
+if (!defined('ADMIN_EMAIL'))     define('ADMIN_EMAIL', 'info@hararrashotel.com');
+if (!defined('TIMEZONE'))        define('TIMEZONE', 'Africa/Addis_Ababa');
+
 // Session Configuration and Start
 if (session_status() == PHP_SESSION_NONE) {
     ini_set('session.cookie_httponly', 1);
     ini_set('session.use_only_cookies', 1);
-    ini_set('session.cookie_secure', defined('SESSION_COOKIE_SECURE') ? SESSION_COOKIE_SECURE : 0);
+    ini_set('session.gc_maxlifetime', 86400);
+    ini_set('session.cookie_lifetime', 86400);
+    ini_set('session.cookie_samesite', 'Lax');
+
+    // Detect HTTPS correctly on Render (sits behind Cloudflare/proxy)
+    $is_https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+             || ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https';
+    ini_set('session.cookie_secure', $is_https ? 1 : 0);
+
     session_start();
 }
-
 // Timezone Configuration
 date_default_timezone_set(defined('TIMEZONE') ? TIMEZONE : 'Africa/Addis_Ababa');
 
 // Error Reporting (configured from .env)
-if (defined('ERROR_REPORTING')) {
-    $error_reporting_str = ERROR_REPORTING;
-    
-    // Parse error reporting string
-    if ($error_reporting_str === 'E_ALL') {
-        $error_level = E_ALL;
-    } elseif (strpos($error_reporting_str, '&') !== false) {
-        // Handle expressions like "E_ALL & ~E_WARNING & ~E_NOTICE"
-        eval('$error_level = ' . $error_reporting_str . ';');
-    } else {
-        $error_level = 0;
+// Safely parse error reporting level without using eval()
+function parseErrorReporting($str) {
+    $str = trim((string)$str);
+    if ($str === '' || $str === '0') return 0;
+
+    $map = [
+        'E_ALL'        => E_ALL,
+        'E_ERROR'      => E_ERROR,
+        'E_WARNING'    => E_WARNING,
+        'E_NOTICE'     => E_NOTICE,
+        'E_DEPRECATED' => E_DEPRECATED,
+        'E_STRICT'     => E_STRICT,
+        'E_PARSE'      => E_PARSE,
+    ];
+
+    // Replace named constants with their integer values
+    foreach ($map as $name => $val) {
+        $str = str_replace($name, (string)$val, $str);
     }
-} else {
-    $error_level = 0;
+
+    // Only allow digits, spaces, &, |, ~, ^ — no arbitrary code
+    if (!preg_match('/^[\d\s&|~^()]+$/', $str)) {
+        return 0;
+    }
+
+    // Evaluate the safe arithmetic expression
+    $result = 0;
+    // Split by | first, then handle & and ~
+    $parts = preg_split('/\|/', $str);
+    foreach ($parts as $part) {
+        $part = trim($part);
+        $andParts = preg_split('/&/', $part);
+        $andVal = null;
+        foreach ($andParts as $ap) {
+            $ap = trim($ap);
+            $negate = false;
+            if (strpos($ap, '~') !== false) {
+                $negate = true;
+                $ap = str_replace('~', '', $ap);
+            }
+            $ap = trim($ap);
+            $num = is_numeric($ap) ? (int)$ap : 0;
+            if ($negate) $num = ~$num;
+            $andVal = ($andVal === null) ? $num : ($andVal & $num);
+        }
+        $result |= (int)$andVal;
+    }
+    return $result;
 }
+
+$error_level = defined('ERROR_REPORTING') ? parseErrorReporting(ERROR_REPORTING) : 0;
 
 error_reporting($error_level);
 ini_set('display_errors', defined('DISPLAY_ERRORS') ? DISPLAY_ERRORS : 0);
@@ -86,6 +153,80 @@ require_once __DIR__ . '/functions.php';
 
 // Include language system
 require_once __DIR__ . '/language.php';
+
+// AUTO-FIX DATABASE: Create payments, payment_verifications and notifications tables
+try {
+    $conn->query("CREATE TABLE IF NOT EXISTS `payments` (
+        `id` INT(11) NOT NULL AUTO_INCREMENT,
+        `user_id` INT(11) NOT NULL,
+        `booking_id` INT(11) NOT NULL,
+        `email` VARCHAR(255) NOT NULL,
+        `amount` DECIMAL(10,2) NOT NULL,
+        `tx_ref` VARCHAR(100) NOT NULL,
+        `status` ENUM('pending','paid','failed') DEFAULT 'pending',
+        `chapa_response` TEXT DEFAULT NULL,
+        `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (`id`),
+        UNIQUE KEY `tx_ref` (`tx_ref`),
+        KEY `user_id` (`user_id`),
+        KEY `booking_id` (`booking_id`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+    $conn->query("CREATE TABLE IF NOT EXISTS `payment_verifications` (
+        `id` INT(11) NOT NULL AUTO_INCREMENT,
+        `booking_id` INT(11) NOT NULL,
+        `user_id` INT(11) NOT NULL,
+        `booking_reference` VARCHAR(50) NOT NULL,
+        `payment_method` VARCHAR(50) NOT NULL,
+        `transaction_reference` VARCHAR(100) DEFAULT NULL,
+        `amount` DECIMAL(10,2) NOT NULL,
+        `screenshot_path` VARCHAR(255) NOT NULL,
+        `status` ENUM('pending','verified','rejected') DEFAULT 'pending',
+        `verified_by` INT(11) DEFAULT NULL,
+        `verified_at` DATETIME DEFAULT NULL,
+        `rejection_reason` TEXT DEFAULT NULL,
+        `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (`id`),
+        KEY `booking_id` (`booking_id`),
+        KEY `user_id` (`user_id`),
+        KEY `status` (`status`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+    $conn->query("CREATE TABLE IF NOT EXISTS `notifications` (
+        `id` INT(11) NOT NULL AUTO_INCREMENT,
+        `user_id` INT(11) NOT NULL,
+        `type` VARCHAR(50) NOT NULL,
+        `title` VARCHAR(255) NOT NULL,
+        `message` TEXT NOT NULL,
+        `link` VARCHAR(255) DEFAULT NULL,
+        `is_read` TINYINT(1) DEFAULT 0,
+        `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        `read_at` DATETIME DEFAULT NULL,
+        PRIMARY KEY (`id`),
+        KEY `user_id` (`user_id`),
+        KEY `is_read` (`is_read`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+
+    // Staff notifications table (for receptionist/admin/manager)
+    $conn->query("CREATE TABLE IF NOT EXISTS `staff_notifications` (
+        `id` INT(11) NOT NULL AUTO_INCREMENT,
+        `booking_id` INT(11) NOT NULL,
+        `booking_reference` VARCHAR(50) NOT NULL,
+        `booking_type` VARCHAR(30) NOT NULL,
+        `customer_name` VARCHAR(200) NOT NULL,
+        `customer_email` VARCHAR(255) NOT NULL,
+        `amount` DECIMAL(10,2) NOT NULL DEFAULT 0,
+        `service_detail` TEXT DEFAULT NULL,
+        `is_read` TINYINT(1) DEFAULT 0,
+        `read_at` DATETIME DEFAULT NULL,
+        `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (`id`),
+        KEY `booking_id` (`booking_id`),
+        KEY `is_read` (`is_read`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+} catch (Exception $e) { /* silently ignore */ }
 
 // AUTO-FIX DATABASE: Create checkins table if it doesn't exist
 try {
@@ -157,6 +298,48 @@ try {
 } catch (Exception $e) {
     // Silently ignore errors to prevent breaking the site
 }
+
+// AUTO-FIX DATABASE: Add Google OAuth columns to users table if they don't exist
+try {
+    $check_google = $conn->query("SHOW COLUMNS FROM users LIKE 'google_id'");
+    if ($check_google && $check_google->num_rows == 0) {
+        $conn->query("ALTER TABLE users ADD COLUMN google_id VARCHAR(255) DEFAULT NULL AFTER password");
+    }
+    $check_oauth = $conn->query("SHOW COLUMNS FROM users LIKE 'oauth_provider'");
+    if ($check_oauth && $check_oauth->num_rows == 0) {
+        $conn->query("ALTER TABLE users ADD COLUMN oauth_provider VARCHAR(50) DEFAULT NULL AFTER google_id");
+    }
+} catch (Exception $e) {
+    // Silently ignore
+}
+
+// AUTO-FIX DATABASE: Create services table if it doesn't exist
+try {
+    $conn->query("CREATE TABLE IF NOT EXISTS `services` (
+        `id` INT(11) NOT NULL AUTO_INCREMENT,
+        `name` VARCHAR(255) NOT NULL,
+        `category` VARCHAR(100) NOT NULL DEFAULT 'other',
+        `description` TEXT DEFAULT NULL,
+        `price` DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+        `status` ENUM('active','inactive') DEFAULT 'active',
+        `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (`id`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+} catch (Exception $e) { /* silently ignore */ }
+
+// AUTO-FIX DATABASE: Create hotel_settings table if it doesn't exist
+try {
+    $conn->query("CREATE TABLE IF NOT EXISTS `hotel_settings` (
+        `id` INT(11) NOT NULL AUTO_INCREMENT,
+        `setting_key` VARCHAR(100) NOT NULL,
+        `setting_value` TEXT DEFAULT NULL,
+        `updated_by` INT(11) DEFAULT NULL,
+        `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        PRIMARY KEY (`id`),
+        UNIQUE KEY `setting_key` (`setting_key`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+} catch (Exception $e) { /* silently ignore */ }
 
 // SAFE: Only create superadmin if it doesn't exist
 // This prevents duplicate insertion errors
